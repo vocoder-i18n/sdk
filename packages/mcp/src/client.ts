@@ -22,7 +22,7 @@ export interface SyncBody {
 	repoCanonical?: string;
 	repoAppDir?: string;
 	requestedMode?: "auto" | "required" | "best-effort";
-	// sha256 of sorted string texts — server uses for fast UP_TO_DATE detection
+	// sha256 of sorted string keys — server uses for fast UP_TO_DATE detection
 	stringsHash?: string;
 	force?: boolean;
 	requestedMaxWaitMs?: number;

@@ -43,11 +43,17 @@ describe("VocoderAPI submitTranslation", () => {
 		]);
 		expect(body).not.toHaveProperty("strings");
 
-		// Hash should be based on sorted source texts.
+		// stringsHash is computed from sorted source keys (not texts).
+		// Format: SHA-256 of JSON.stringify({ strings: sortedKeys, appIndustry: null }).
 		const crypto = await import("node:crypto");
 		const expectedHash = crypto
 			.createHash("sha256")
-			.update(JSON.stringify(["First", "Second"]))
+			.update(
+				JSON.stringify({
+					strings: ["SK_TEXT_EE3D49E1", "SK_TEXT_F486B7FD"],
+					appIndustry: null,
+				}),
+			)
 			.digest("hex");
 		expect(body.stringsHash).toBe(expectedHash);
 	});

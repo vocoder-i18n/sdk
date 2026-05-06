@@ -115,8 +115,12 @@ export function ordinal(value: number, gender?: string): string {
  * - Rich text with components is only supported in `<T>` component, not in `t()` function
  */
 export function t(text: string, values?: Record<string, any>, options?: TOptions): string {
-	const { context, id } = options ?? {};
-	const hash = id ?? generateMessageHash(text, context);
+	const { context, id, formality } = options ?? {};
+	// When a custom id is paired with formality, bake formality into the key so the
+	// same id with different formality resolves to different bundle entries.
+	const hash = id
+		? id + (formality === "formal" || formality === "informal" ? `\x05${formality}` : "")
+		: generateMessageHash(text, context, formality);
 	const localeTranslations = globalTranslations[globalLocale];
 	const hasTranslation =
 		!!localeTranslations && Object.prototype.hasOwnProperty.call(localeTranslations, hash);

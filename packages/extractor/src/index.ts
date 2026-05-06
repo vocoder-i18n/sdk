@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { relative as pathRelative } from "node:path";
 import { parse } from "@babel/parser";
@@ -8,6 +9,43 @@ import { generateMessageHash } from "./hash";
 export { generateMessageHash } from "./hash";
 export { loadVocoderConfig, parseVocoderConfig } from "./config";
 export type { VocoderConfig } from "./config";
+
+/**
+ * Content-hash fingerprint for a set of source keys.
+ *
+ * Formula: sha256(appShortCode + ":" + sorted(sourceKeys).join('\0')).slice(0, 12)
+ *
+ * Input must be source keys (not source texts) so that two strings with the
+ * same text but different formality or context produce different fingerprints.
+ * Pure function of source content — no git state, no CI env vars.
+ * appShortCode isolates fingerprints across apps in the same monorepo.
+ */
+export function computeFingerprint(
+	appShortCode: string,
+	sourceKeys: string[],
+): string {
+	const sorted = [...sourceKeys].sort();
+	return createHash("sha256")
+		.update(`${appShortCode}:${sorted.join("\0")}`)
+		.digest("hex")
+		.slice(0, 12);
+}
+
+/**
+ * Deduplicate extracted strings by key, keeping the first occurrence.
+ * Keys are deterministic (same text+context → same hash) so first-wins is stable.
+ */
+export function deduplicateByKey<T extends { key: string }>(items: T[]): T[] {
+	const seen = new Set<string>();
+	const unique: T[] = [];
+	for (const item of items) {
+		if (!seen.has(item.key)) {
+			seen.add(item.key);
+			unique.push(item);
+		}
+	}
+	return unique;
+}
 
 // Handle default export difference between ESM and CommonJS
 const traverse = (babelTraverse as any).default || babelTraverse;
@@ -20,7 +58,8 @@ const ALL_CLDR = new Set(["zero", "one", "two", "few", "many", "other"]);
 
 export interface ExtractedString {
 	key: string;
-	text: string;
+	/** Source text. null for id-only entries (<T id="key" /> with no message or children). */
+	text: string | null;
 	file: string;
 	line: number;
 	context?: string;
@@ -705,10 +744,12 @@ function _extractFromContent(
 					}
 
 					const line = path.node.loc?.start.line || 0;
+					// When a custom id is paired with formality, bake formality into the key
+					// so the same id with different formality resolves to different translations.
 					const key =
 						explicitKey && explicitKey.length > 0
-							? explicitKey
-							: generateMessageHash(text.trim(), context);
+							? explicitKey + (formality === "formal" || formality === "informal" ? `\x05${formality}` : "")
+							: generateMessageHash(text.trim(), context, formality);
 					const uiRole = detectUiRole(path);
 
 					strings.push({
@@ -758,24 +799,31 @@ function _extractFromContent(
 						}
 					}
 
-					if (!text || text.trim().length === 0) return;
-
 					const id = getStringAttribute(opening.attributes, "id");
 					const context = getStringAttribute(opening.attributes, "context");
 					const formality = getStringAttribute(
 						opening.attributes,
 						"formality",
 					) as "formal" | "informal" | "neutral" | "auto" | undefined;
+
+					const trimmedId = id?.trim() || undefined;
+					const trimmedText = text?.trim() || undefined;
+
+					// Require either text content or an explicit id. id-only entries (<T id="x" />)
+					// are valid — their source text comes from a localesPath file at translation time.
+					if (!trimmedText && !trimmedId) return;
+
+					// When a custom id is paired with formality, bake formality into the key
+					// so the same id with different formality resolves to different translations.
 					const line = path.node.loc?.start.line || 0;
-					const key =
-						id && id.trim().length > 0
-							? id.trim()
-							: generateMessageHash(text.trim(), context);
+					const key = trimmedId
+						? trimmedId + (formality === "formal" || formality === "informal" ? `\x05${formality}` : "")
+						: generateMessageHash(trimmedText!, context, formality);
 					const uiRole = detectUiRole(path);
 
 					strings.push({
 						key,
-						text: text.trim(),
+						text: trimmedText ?? null,
 						file: filePath,
 						line,
 						context,

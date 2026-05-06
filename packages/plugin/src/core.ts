@@ -1,8 +1,9 @@
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import { StringExtractor, loadVocoderConfig } from "@vocoder/extractor";
+import { StringExtractor, computeFingerprint, loadVocoderConfig } from "@vocoder/extractor";
 import type { VocoderTranslationData } from "./types";
+
+export { computeFingerprint } from "@vocoder/extractor";
 
 /**
  * Load .env file into process.env if not already loaded.
@@ -39,23 +40,6 @@ export type RepoIdentity = {
 	appDir: string;
 };
 
-/**
- * Compute the content-hash fingerprint from project short code + sorted source strings.
- * Formula: sha256(shortCode + ":" + sorted(sourceTexts).join('\0')).slice(0, 12)
- *
- * Pure function of source content — no git, no CI env vars required.
- * Must match the server-side formula in lib/vocoder/fingerprint.ts.
- */
-export function computeFingerprint(
-	shortCode: string,
-	sourceTexts: string[],
-): string {
-	const sorted = [...sourceTexts].sort();
-	return createHash("sha256")
-		.update(`${shortCode}:${sorted.join("\0")}`)
-		.digest("hex")
-		.slice(0, 12);
-}
 
 const DEFAULT_INCLUDE = ["**/*.{tsx,jsx,ts,js}"];
 
@@ -65,7 +49,12 @@ const DEFAULT_INCLUDE = ["**/*.{tsx,jsx,ts,js}"];
  * the single source of truth shared by the build plugin, CLI sync, and git webhook.
  * Falls back to the default glob if no config file exists.
  */
-export async function extractSourceTexts(cwd: string): Promise<string[]> {
+/**
+ * Extract deduplicated source keys for fingerprinting.
+ * Returns keys (not source texts) so that two strings with the same text but
+ * different formality or context each count as distinct fingerprint inputs.
+ */
+export async function extractSourceKeys(cwd: string): Promise<string[]> {
 	const config = loadVocoderConfig(cwd);
 	const include = config?.include ?? DEFAULT_INCLUDE;
 	const exclude = config?.exclude;
@@ -73,18 +62,18 @@ export async function extractSourceTexts(cwd: string): Promise<string[]> {
 	const extractor = new StringExtractor();
 	const results = await extractor.extractFromProject(include, cwd, exclude);
 
-	// Dedup by text — same text with different explicit ids counts once for fingerprinting.
-	return [...new Set(results.map((r) => r.text))];
+	return [...new Set(results.map((r) => r.key))];
 }
 
 /**
  * Extract source strings as { key, text } entries (deduped by key).
  * Used by the sync-on-startup flow, which needs stable hash keys to submit
  * to the sync API alongside the source texts.
+ * text is null for id-only entries (<T id="key" /> with no message).
  */
 export async function extractStringEntries(
 	cwd: string,
-): Promise<Array<{ key: string; text: string }>> {
+): Promise<Array<{ key: string; text: string | null }>> {
 	const config = loadVocoderConfig(cwd);
 	const include = config?.include ?? DEFAULT_INCLUDE;
 	const exclude = config?.exclude;
@@ -94,7 +83,7 @@ export async function extractStringEntries(
 
 	// Dedup by key (same key = same hash = same string).
 	const seen = new Set<string>();
-	const entries: Array<{ key: string; text: string }> = [];
+	const entries: Array<{ key: string; text: string | null }> = [];
 	for (const r of results) {
 		if (!seen.has(r.key)) {
 			seen.add(r.key);

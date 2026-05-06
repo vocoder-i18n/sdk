@@ -3,7 +3,7 @@ import {
 	computeFingerprint,
 	detectBranch,
 	detectCommitSha,
-	extractSourceTexts,
+	extractSourceKeys,
 	fetchTranslations,
 	loadEnvFile,
 	pollCDNForTranslations,
@@ -95,18 +95,18 @@ export const unplugin = createUnplugin(
 			}
 
 			const extractStart = Date.now();
-			const sourceTexts = await extractSourceTexts(process.cwd());
+			const sourceKeys = await extractSourceKeys(process.cwd());
 			if (verbose) {
 				console.log(
-					`[vocoder] Extraction: ${sourceTexts.length} string(s) in ${Date.now() - extractStart}ms`,
+					`[vocoder] Extraction: ${sourceKeys.length} string(s) in ${Date.now() - extractStart}ms`,
 				);
 			}
 
 			// Compute fingerprint fully offline — appShortCode is embedded in the vca_ key.
 			// No network call needed; formula matches server computeBranchFingerprint().
 			const branch = detectBranch();
-			const fp = computeFingerprint(shortCode, sourceTexts);
-			console.log(`[vocoder] ${sourceTexts.length} string(s) → fingerprint ${fp}`);
+			const fp = computeFingerprint(shortCode, sourceKeys);
+			console.log(`[vocoder] ${sourceKeys.length} string(s) → fingerprint ${fp}`);
 
 			if (verbose) {
 				console.log(`[vocoder] Fetching: ${apiUrl}/api/t/${fp}`);
@@ -142,7 +142,7 @@ export const unplugin = createUnplugin(
 				const reason = "No translations available after CDN polling and API fallback";
 				console.warn(`[vocoder] WARNING: ${reason}. Translations will be fetched from CDN at runtime.`);
 				console.warn(`[vocoder] Fingerprint: ${fp} — check your Vocoder dashboard if this persists.`);
-				void reportBuildFallback({ apiUrl, apiKey, fingerprint: fp, reason, stringsCount: sourceTexts.length });
+				void reportBuildFallback({ apiUrl, apiKey, fingerprint: fp, reason, stringsCount: sourceKeys.length });
 			}
 
 			if (verbose) {
@@ -154,7 +154,7 @@ export const unplugin = createUnplugin(
 			// yet for this fingerprint), trigger a sync now so the developer sees
 			// translated UI on first run rather than raw source strings.
 			const hasTranslations = d.config.sourceLocale !== "";
-			if (isDev && !hasTranslations && fp && sourceTexts.length > 0) {
+			if (isDev && !hasTranslations && fp && sourceKeys.length > 0) {
 				const synced = await triggerOnDemandSync({
 					fingerprint: fp,
 					branch,

@@ -1,11 +1,11 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as p from "@clack/prompts";
 import chalk from "chalk";
 import { highlight } from "../utils/theme.js";
 import type { VocoderTranslationData } from "@vocoder/config";
-import { loadVocoderConfig } from "@vocoder/extractor";
+import { computeFingerprint, loadVocoderConfig } from "@vocoder/extractor";
 import type {
 	EffectiveSyncMode,
 	ExtractedString,
@@ -37,14 +37,6 @@ type TranslationArtifacts = {
 	snapshotBatchId?: string;
 	completedAt?: string | null;
 };
-
-function computeFingerprint(shortCode: string, texts: string[]): string {
-	const sorted = [...texts].sort();
-	return createHash("sha256")
-		.update(`${shortCode}:${sorted.join("\0")}`)
-		.digest("hex")
-		.slice(0, 12);
-}
 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -110,22 +102,12 @@ function getCacheFilePath(projectRoot: string, fingerprint: string): string {
 function buildTranslationData(params: {
 	sourceLocale: string;
 	targetLocales: string[];
-	stringEntries: TranslationStringEntry[];
 	translations: TranslationMap;
 	localeMetadata?: LocaleMetadataMap;
 	updatedAt: string;
 }): VocoderTranslationData {
-	// Remap text-keyed translations → hash-keyed using the string entries the CLI already has
-	const textToHash = new Map(params.stringEntries.map((e) => [e.text, e.key]));
-	const hashKeyed: TranslationMap = {};
-	for (const [locale, localeMap] of Object.entries(params.translations)) {
-		hashKeyed[locale] = {};
-		for (const [text, translation] of Object.entries(localeMap)) {
-			const hash = textToHash.get(text);
-			if (hash) hashKeyed[locale][hash] = translation;
-		}
-	}
-
+	// Translations from the API are already key-keyed ({ [sourceKey]: translatedText }).
+	// No remapping needed — pass through directly.
 	const locales: Record<string, { nativeName: string; dir?: "rtl" }> = {};
 	for (const code of [params.sourceLocale, ...params.targetLocales]) {
 		const meta = params.localeMetadata?.[code];
@@ -134,7 +116,7 @@ function buildTranslationData(params: {
 
 	return {
 		config: { sourceLocale: params.sourceLocale, targetLocales: params.targetLocales, locales },
-		translations: hashKeyed,
+		translations: params.translations,
 		updatedAt: params.updatedAt,
 	};
 }
@@ -220,7 +202,7 @@ function resolveWaitTimeoutMs(params: {
 function normalizeTranslations(params: {
 	sourceLocale: string;
 	targetLocales: string[];
-	sourceStrings: string[];
+	stringEntries: TranslationStringEntry[];
 	translations: TranslationMap;
 }): TranslationMap {
 	const merged: TranslationMap = {};
@@ -244,9 +226,12 @@ function normalizeTranslations(params: {
 		merged[params.sourceLocale] = {};
 	}
 
-	for (const sourceText of params.sourceStrings) {
-		if (!(sourceText in merged[params.sourceLocale]!)) {
-			merged[params.sourceLocale]![sourceText] = sourceText;
+	// Ensure source locale has an identity mapping (key → text) for all known strings.
+	// id-only entries (text: null) are skipped — their source text is in a localesPath file.
+	for (const entry of params.stringEntries) {
+		if (!entry.text) continue;
+		if (!(entry.key in merged[params.sourceLocale]!)) {
+			merged[params.sourceLocale]![entry.key] = entry.text;
 		}
 	}
 
@@ -345,12 +330,12 @@ function mergeContext(
 function buildStringEntries(
 	extractedStrings: ExtractedString[],
 ): TranslationStringEntry[] {
-	const byText = new Map<string, TranslationStringEntry>();
+	const byKey = new Map<string, TranslationStringEntry>();
 
 	for (const str of extractedStrings) {
-		const existing = byText.get(str.text);
+		const existing = byKey.get(str.key);
 		if (!existing) {
-			byText.set(str.text, {
+			byKey.set(str.key, {
 				key: str.key,
 				text: str.text,
 				...(str.context ? { context: str.context } : {}),
@@ -371,13 +356,9 @@ function buildStringEntries(
 		) {
 			existing.formality = "auto";
 		}
-
-		if (str.key < existing.key) {
-			existing.key = str.key;
-		}
 	}
 
-	return Array.from(byText.values());
+	return Array.from(byKey.values());
 }
 
 async function fetchApiSnapshot(
@@ -534,15 +515,17 @@ export async function sync(options: TranslateOptions = {}): Promise<number> {
 		const commitSha = detectCommitSha() ?? undefined;
 
 		const stringEntries = buildStringEntries(extractedStrings);
-		const sourceStrings = stringEntries.map((entry) => entry.text);
 
 		if (options.verbose && stringEntries.length !== extractedStrings.length) {
 			p.log.info(
-				`Deduped ${extractedStrings.length} extracted entries into ${stringEntries.length} unique source strings`,
+				`Deduped ${extractedStrings.length} extracted entries into ${stringEntries.length} unique strings`,
 			);
 		}
 
-		const fingerprint = computeFingerprint(extractShortCodeFromApiKey(localConfig.apiKey), sourceStrings);
+		// Fingerprint uses source keys (not texts) — one text can produce multiple keys via
+		// formality/context, so keying by text would produce an incorrect CDN bundle URL.
+		const sourceKeys = stringEntries.map((entry) => entry.key);
+		const fingerprint = computeFingerprint(extractShortCodeFromApiKey(localConfig.apiKey), sourceKeys);
 
 		// Local cache check — skip API submission if translations already exist for this fingerprint.
 		if (!options.force) {
@@ -720,7 +703,7 @@ export async function sync(options: TranslateOptions = {}): Promise<number> {
 		const finalTranslations = normalizeTranslations({
 			sourceLocale: config.sourceLocale,
 			targetLocales: config.targetLocales,
-			sourceStrings,
+			stringEntries,
 			translations: artifacts.translations,
 		});
 
@@ -728,7 +711,6 @@ export async function sync(options: TranslateOptions = {}): Promise<number> {
 			const data = buildTranslationData({
 				sourceLocale: config.sourceLocale,
 				targetLocales: config.targetLocales,
-				stringEntries,
 				translations: finalTranslations,
 				localeMetadata: artifacts.localeMetadata,
 				updatedAt: new Date().toISOString(),

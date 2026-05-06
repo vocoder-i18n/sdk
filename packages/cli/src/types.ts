@@ -71,7 +71,8 @@ export type { ExtractedString } from "@vocoder/extractor";
 
 export interface TranslationStringEntry {
 	key: string;
-	text: string;
+	/** Source text. null for id-only entries (<T id="key" /> with no message). */
+	text: string | null;
 	context?: string;
 	formality?: "formal" | "informal" | "neutral" | "auto";
 	uiRole?: string;

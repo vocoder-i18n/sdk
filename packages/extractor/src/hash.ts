@@ -8,11 +8,20 @@
  * Output: 7 base-36 chars (~2.2 billion values).
  * Collision probability ≈ 0.002% for 10K strings (birthday problem).
  * Add `context` to disambiguate identical strings with different meanings.
+ * Add `formality` ("formal" | "informal") to produce separate keys for
+ * register variants — "neutral", "auto", and undefined hash identically.
  *
- * Separator \x04 (ASCII EOT) matches Lingui's convention.
+ * Separators: \x04 (ASCII EOT) for context, \x05 (ASCII ENQ) for formality.
  */
-export function generateMessageHash(text: string, context?: string): string {
-	const input = context ? `${text}\x04${context}` : text;
+export function generateMessageHash(
+	text: string,
+	context?: string,
+	formality?: string,
+): string {
+	let input = context ? `${text}\x04${context}` : text;
+	if (formality === "formal" || formality === "informal") {
+		input += `\x05${formality}`;
+	}
 	let h = 2166136261 >>> 0;
 	for (let i = 0; i < input.length; i++) {
 		h = Math.imul(h ^ input.charCodeAt(i), 16777619) >>> 0;

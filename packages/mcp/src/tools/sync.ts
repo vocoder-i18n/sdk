@@ -44,21 +44,25 @@ export async function runSync(
 		return 'No translatable strings found. Wrap strings with <T>text</T> or t("text") and try again.';
 	}
 
-	// Compute hash for fast server-side dedup (omit when force=true so server re-translates)
+	// id-only entries (text: null) can't be translated without a localesPath source file — skip them.
+	const submittable = strings.filter((s): s is typeof s & { text: string } => s.text != null);
+
+	// Compute hash from keys for fast server-side dedup (omit when force=true so server re-translates).
+	// Uses all strings (including id-only) so the hash captures the full set of translation units.
 	let stringsHash: string | undefined;
 	if (!input.force) {
 		const crypto = await import("node:crypto");
-		const sorted = [...strings.map((s) => s.text)].sort();
+		const sortedKeys = [...strings.map((s) => s.key)].sort();
 		stringsHash = crypto
 			.createHash("sha256")
-			.update(JSON.stringify(sorted))
+			.update(JSON.stringify({ strings: sortedKeys, appIndustry: null }))
 			.digest("hex");
 	}
 
 	const response = await client.sync({
 		branch,
 		commitSha,
-		stringEntries: strings.map((s) => ({
+		stringEntries: submittable.map((s) => ({
 			key: s.key,
 			text: s.text,
 			...(s.context ? { context: s.context } : {}),

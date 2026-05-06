@@ -16,15 +16,17 @@ import type {
 /**
  * Mirrors StringsHashInput and computeStringsHash in vocoder-app/lib/sync/strings-hash.ts.
  * Both must use the identical type shape and serialization — if you change one, change the other.
+ * Uses source keys (not source texts) so that strings with the same text but different
+ * formality/context produce different hashes and don't incorrectly short-circuit the pipeline.
  */
 type StringsHashInput = {
-	texts: string[];
+	keys: string[];
 	appIndustry?: string | null;
 };
 
 function computeStringsHash(input: StringsHashInput): string {
 	const { createHash } = require("node:crypto") as typeof import("node:crypto");
-	const sorted = [...input.texts].sort();
+	const sorted = [...input.keys].sort();
 	return createHash("sha256")
 		.update(JSON.stringify({ strings: sorted, appIndustry: input.appIndustry ?? null }))
 		.digest("hex");
@@ -253,7 +255,8 @@ export class VocoderAPI {
 		}
 
 		return (entries as TranslationStringEntry[]).map((entry, index) => ({
-			key: entry.key || this.stableTextKey(`${entry.text}:${index}`),
+			// Fall back to stableTextKey only when text is present — id-only entries always have a key.
+			key: entry.key || (entry.text ? this.stableTextKey(`${entry.text}:${index}`) : `_idonly_${index}`),
 			text: entry.text,
 			...(entry.context ? { context: entry.context } : {}),
 			...(entry.formality ? { formality: entry.formality } : {}),
@@ -275,10 +278,12 @@ export class VocoderAPI {
 		},
 		repoIdentity?: RepoIdentityPayload,
 	): Promise<TranslationBatchResponse> {
-		const stringEntries = this.normalizeStringEntries(entries);
-		const strings = stringEntries.map((entry) => entry.text);
+		const allEntries = this.normalizeStringEntries(entries);
+		// id-only entries (text: null) can't be translated without a localesPath source file.
+		// Filter them out for API submission; they still count toward the fingerprint.
+		const stringEntries = allEntries.filter((e): e is TranslationStringEntry & { text: string } => e.text != null);
 
-		const stringsHash = computeStringsHash({ texts: strings, appIndustry: options?.appIndustry ?? null });
+		const stringsHash = computeStringsHash({ keys: allEntries.map((e) => e.key), appIndustry: options?.appIndustry ?? null });
 
 		return this.request<TranslationBatchResponse>(
 			"/api/cli/sync",
