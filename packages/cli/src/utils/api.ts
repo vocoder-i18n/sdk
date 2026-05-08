@@ -604,13 +604,13 @@ export class VocoderAPI {
 		}
 	}
 
-	// ── Workspaces ────────────────────────────────────────────────────────────────
+	// ── Organizations ─────────────────────────────────────────────────────────────
 
-	async listWorkspaces(
+	async listOrganizations(
 		userToken: string,
 		params?: { repo?: string },
 	): Promise<{
-		workspaces: Array<{
+		organizations: Array<{
 			id: string;
 			name: string;
 			planId: string;
@@ -622,9 +622,9 @@ export class VocoderAPI {
 			coversRepo: boolean | null;
 			installationConfigureUrl: string | null;
 		}>;
-		canCreateWorkspace: boolean;
+		canCreateOrganization: boolean;
 	}> {
-		const url = new URL(`${this.apiUrl}/api/cli/workspaces`);
+		const url = new URL(`${this.apiUrl}/api/cli/organizations`);
 		if (params?.repo) url.searchParams.set("repo", params.repo);
 
 		const response = await fetch(url.toString(), {
@@ -637,7 +637,7 @@ export class VocoderAPI {
 			throw new VocoderAPIError({
 				message: extractErrorMessage(
 					payload,
-					`Failed to list workspaces (${response.status})`,
+					`Failed to list organizations (${response.status})`,
 				),
 				status: response.status,
 				payload,
@@ -645,7 +645,7 @@ export class VocoderAPI {
 		}
 
 		return payload as {
-			workspaces: Array<{
+			organizations: Array<{
 				id: string;
 				name: string;
 				planId: string;
@@ -656,7 +656,7 @@ export class VocoderAPI {
 				coversRepo: boolean | null;
 				installationConfigureUrl: string | null;
 			}>;
-			canCreateWorkspace: boolean;
+			canCreateOrganization: boolean;
 		};
 	}
 

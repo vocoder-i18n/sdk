@@ -1,11 +1,12 @@
+import { describe, expect, it } from "vitest";
 /**
  * Canonical API surface tests.
  * Each describe block maps to one answered API design question.
  * These are the source of truth for what the public API guarantees.
  */
 import { render, screen, waitFor } from "@testing-library/react";
+
 import React from "react";
-import { describe, expect, it } from "vitest";
 import { T } from "../T";
 import { VocoderProvider } from "../VocoderProvider";
 
@@ -289,7 +290,7 @@ describe("Q4 — select", () => {
 
 // ─── Q5: Rich text / component placeholders ─────────────────────────────────
 // components prop accepts ComponentSlot[] | Record<number, ComponentSlot>.
-// Numeric <N> placeholder format (Lingui style). Build plugin injects automatically.
+// Numeric <N> placeholder format. Build plugin injects automatically.
 
 describe("Q5 — rich text", () => {
 	it("renders single component placeholder", async () => {

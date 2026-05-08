@@ -1,6 +1,6 @@
 // Keys are FNV-1a 32-bit hashes of the source text (generateMessageHash).
 // Must match the hash function in src/hash.ts — update both together.
-// Component placeholder format is <N> (numeric, Lingui style). Old <cN> keys removed.
+// Component placeholder format is <N> (numeric, style). Old <cN> keys removed.
 const translations = {
 	en: {
 		"1w2u0qz": "Hello",

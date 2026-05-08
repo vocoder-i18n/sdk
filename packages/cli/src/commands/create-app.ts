@@ -18,8 +18,8 @@ export interface CreateAppOptions {
 	targetLocales?: string;
 	/** Comma-separated branch names to enable sync on. Defaults to "main". */
 	targetBranches?: string;
-	/** Organization ID of the workspace to create the project in (required). */
-	workspace: string;
+	/** Organization ID to create the project in (required). */
+	organization: string;
 	/**
 	 * Explicit git repository canonical, e.g. "github:owner/repo".
 	 * Auto-detected from git remote if omitted.
@@ -50,11 +50,11 @@ export interface CreateAppOptions {
  * @param options.sourceLocale   Source language BCP 47 code (required).
  * @param options.targetLocales  Comma-separated target locale codes.
  * @param options.targetBranches Comma-separated branch names (default: "main").
- * @param options.workspace      Organization ID (required).
+ * @param options.organization   Organization ID (required).
  * @param options.repo           Git repo canonical override.
  * @param options.appDir         App directory for monorepos (default: ".").
  *
- * @throws If user token is missing, workspace is invalid, or the plan's
+ * @throws If user token is missing, organization is invalid, or the plan's
  *         maxProjects limit is exceeded.
  */
 export async function createApp(options: CreateAppOptions): Promise<number> {
@@ -104,7 +104,7 @@ export async function createApp(options: CreateAppOptions): Promise<number> {
 
 	try {
 		const result = await api.createProject(authData.token, {
-			organizationId: options.workspace,
+			organizationId: options.organization,
 			name: options.name,
 			sourceLocale: options.sourceLocale,
 			targetLocales,

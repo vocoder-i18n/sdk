@@ -9,30 +9,30 @@ import {
 import {
 	clearAuthData,
 	readAuthData,
-	writeAuthData,
 	verifyStoredAuth,
+	writeAuthData,
 } from "../utils/auth-store.js";
 import { execSync, spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { findExistingConfig, writeVocoderConfig } from "../utils/write-config.js";
+import { highlight, info } from "../utils/theme.js";
+import {
+	runAppCreate,
+	runProjectCreate,
+} from "../utils/project-create.js";
 import {
 	runGitHubDiscoveryFlow,
 	runGitHubInstallFlow,
 	selectGitHubInstallation,
 } from "../utils/github-connect.js";
-import {
-	runAppCreate,
-	runProjectCreate,
-} from "../utils/project-create.js";
 
 import type { InitOptions } from "../types.js";
 import chalk from "chalk";
-import { highlight, info } from "../utils/theme.js";
 import { getSetupSnippets } from "../utils/setup-snippets.js";
 import { join } from "node:path";
 import { config as loadEnv } from "dotenv";
 import { resolveGitContext } from "../utils/git-identity.js";
-import { selectWorkspace } from "../utils/workspace.js";
+import { selectOrganization } from "../utils/organization.js";
 import { startCallbackServer } from "../utils/local-server.js";
 
 loadEnv();
@@ -374,6 +374,7 @@ async function runAuthFlow(
 		? session.verificationUrl
 		: (session.installUrl ?? session.verificationUrl);
 	const expiresAt = new Date(session.expiresAt).getTime();
+	p.log.info(browserUrl);
 
 	if (options.ci) {
 		// Machine-readable output for automated test harnesses.
@@ -743,19 +744,19 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			}
 
 		// ── Workspace selection ─────────────────────────────────────────────────────
-		let selectedWorkspaceId: string;
-		let selectedWorkspaceName: string;
+		let selectedOrganizationId: string;
+		let selectedOrganizationName: string;
 
 		if (authOrganizationId) {
 			// Install path: auth+install completed in one browser trip, workspace already created.
-			const workspaceData = await api.listWorkspaces(userToken);
-			const ws = workspaceData.workspaces.find(
+			const organizationData = await api.listOrganizations(userToken);
+			const ws = organizationData.organizations.find(
 				(w) => w.id === authOrganizationId,
 			);
-			selectedWorkspaceId = authOrganizationId;
-			selectedWorkspaceName = ws?.name ?? userEmail;
+			selectedOrganizationId = authOrganizationId;
+			selectedOrganizationName = ws?.name ?? userEmail;
 			p.log.success(
-				`Connected as ${chalk.bold(userEmail)} — workspace: ${chalk.bold(selectedWorkspaceName)}`,
+				`Connected as ${chalk.bold(userEmail)} — workspace: ${chalk.bold(selectedOrganizationName)}`,
 			);
 		} else {
 			// Always check for cached discovery results first. The cache expires in
@@ -828,31 +829,31 @@ export async function init(options: InitOptions = {}): Promise<number> {
 					installationId: String(selectedInstallationId),
 					organizationId: null,
 				});
-				selectedWorkspaceId = claimResult.organizationId;
-				selectedWorkspaceName = claimResult.organizationName;
-				p.log.success(`Workspace: ${chalk.bold(selectedWorkspaceName)}`);
+				selectedOrganizationId = claimResult.organizationId;
+				selectedOrganizationName = claimResult.organizationName;
+				p.log.success(`Workspace: ${chalk.bold(selectedOrganizationName)}`);
 			} else {
 				// ── Repo-aware workspace resolution ──────────────────────────────────────
-				const workspaceData = await api.listWorkspaces(userToken, {
+				const organizationData = await api.listOrganizations(userToken, {
 					repo: identity?.repoCanonical,
 				});
 
 				const repoCanonical = identity?.repoCanonical ?? null;
 				// Workspaces whose GitHub installation covers the current repo
 				const covering = repoCanonical
-					? workspaceData.workspaces.filter((w) => w.coversRepo === true)
+					? organizationData.organizations.filter((w) => w.coversRepo === true)
 					: [];
 				// Workspaces that have any GitHub connection (may not cover this repo)
-				const connected = workspaceData.workspaces.filter(
+				const connected = organizationData.organizations.filter(
 					(w) => w.hasGitHubConnection,
 				);
 
 				if (repoCanonical && covering.length === 1) {
 					// ── Scenario 1: exactly one workspace covers this repo — auto-select ──
 					const ws = covering[0]!;
-					selectedWorkspaceId = ws.id;
-					selectedWorkspaceName = ws.name;
-					p.log.success(`Workspace: ${chalk.bold(selectedWorkspaceName)}`);
+					selectedOrganizationId = ws.id;
+					selectedOrganizationName = ws.name;
+					p.log.success(`Workspace: ${chalk.bold(selectedOrganizationName)}`);
 				} else if (repoCanonical && covering.length > 1) {
 					// ── Scenario 2: multiple workspaces cover this repo — let user pick ──
 					const choice = await p.select<string>({
@@ -867,9 +868,9 @@ export async function init(options: InitOptions = {}): Promise<number> {
 						return 1;
 					}
 					const ws = covering.find((w) => w.id === choice)!;
-					selectedWorkspaceId = ws.id;
-					selectedWorkspaceName = ws.name;
-					p.log.success(`Workspace: ${chalk.bold(selectedWorkspaceName)}`);
+					selectedOrganizationId = ws.id;
+					selectedOrganizationName = ws.name;
+					p.log.success(`Workspace: ${chalk.bold(selectedOrganizationName)}`);
 				} else if (
 					repoCanonical &&
 					covering.length === 0 &&
@@ -929,31 +930,31 @@ export async function init(options: InitOptions = {}): Promise<number> {
 						);
 						return 1;
 					}
-					selectedWorkspaceId = connectResult.organizationId;
-					selectedWorkspaceName = connectResult.organizationName;
-					p.log.success(`Workspace: ${chalk.bold(selectedWorkspaceName)}`);
+					selectedOrganizationId = connectResult.organizationId;
+					selectedOrganizationName = connectResult.organizationName;
+					p.log.success(`Workspace: ${chalk.bold(selectedOrganizationName)}`);
 				} else {
 					// ── Fallback: no repo context or first-time user — standard select ────
 					if (
-						workspaceData.workspaces.length === 1 &&
-						!workspaceData.canCreateWorkspace
+						organizationData.organizations.length === 1 &&
+						!organizationData.canCreateOrganization
 					) {
-						const ws = workspaceData.workspaces[0]!;
-						selectedWorkspaceId = ws.id;
-						selectedWorkspaceName = ws.name;
-						p.log.success(`Workspace: ${chalk.bold(selectedWorkspaceName)}`);
+						const ws = organizationData.organizations[0]!;
+						selectedOrganizationId = ws.id;
+						selectedOrganizationName = ws.name;
+						p.log.success(`Workspace: ${chalk.bold(selectedOrganizationName)}`);
 					} else {
-						const workspaceResult = await selectWorkspace(workspaceData);
+						const organizationResult = await selectOrganization(organizationData);
 
-						if (workspaceResult.action === "cancelled") {
+						if (organizationResult.action === "cancelled") {
 							p.cancel("Setup cancelled.");
 							return 1;
 						}
 
-						if (workspaceResult.action === "use") {
-							selectedWorkspaceId = workspaceResult.workspace.id;
-							selectedWorkspaceName = workspaceResult.workspace.name;
-							p.log.success(`Workspace: ${chalk.bold(selectedWorkspaceName)}`);
+						if (organizationResult.action === "use") {
+							selectedOrganizationId = organizationResult.organization.id;
+							selectedOrganizationName = organizationResult.organization.name;
+							p.log.success(`Workspace: ${chalk.bold(selectedOrganizationName)}`);
 						} else {
 							// ── New workspace: GitHub connect flow ────────────────────────────────
 							const connectChoice = await p.select<string>({
@@ -981,10 +982,10 @@ export async function init(options: InitOptions = {}): Promise<number> {
 									);
 									return 1;
 								}
-								selectedWorkspaceId = connectResult.organizationId;
-								selectedWorkspaceName = connectResult.organizationName;
+								selectedOrganizationId = connectResult.organizationId;
+								selectedOrganizationName = connectResult.organizationName;
 								p.log.success(
-									`Workspace: ${chalk.bold(selectedWorkspaceName)}`,
+									`Workspace: ${chalk.bold(selectedOrganizationName)}`,
 								);
 							} else {
 								const installations = await runGitHubDiscoveryFlow({
@@ -1008,8 +1009,8 @@ export async function init(options: InitOptions = {}): Promise<number> {
 										yes: options.yes,
 									});
 									if (!connectResult) return 1;
-									selectedWorkspaceId = connectResult.organizationId;
-									selectedWorkspaceName = connectResult.organizationName;
+									selectedOrganizationId = connectResult.organizationId;
+									selectedOrganizationName = connectResult.organizationName;
 								} else {
 									const selectedInstallationId = await selectGitHubInstallation(
 										installations.map((inst) => ({
@@ -1034,8 +1035,8 @@ export async function init(options: InitOptions = {}): Promise<number> {
 											yes: options.yes,
 										});
 										if (!connectResult) return 1;
-										selectedWorkspaceId = connectResult.organizationId;
-										selectedWorkspaceName = connectResult.organizationName;
+										selectedOrganizationId = connectResult.organizationId;
+										selectedOrganizationName = connectResult.organizationName;
 									} else {
 										const claimResult = await api.claimCliGitHubInstallation(
 											userToken,
@@ -1044,12 +1045,12 @@ export async function init(options: InitOptions = {}): Promise<number> {
 												organizationId: null,
 											},
 										);
-										selectedWorkspaceId = claimResult.organizationId;
-										selectedWorkspaceName = claimResult.organizationName;
+										selectedOrganizationId = claimResult.organizationId;
+										selectedOrganizationName = claimResult.organizationName;
 									}
 								}
 								p.log.success(
-									`Workspace: ${chalk.bold(selectedWorkspaceName)}`,
+									`Workspace: ${chalk.bold(selectedOrganizationName)}`,
 								);
 							}
 						} // closes new workspace else
@@ -1075,7 +1076,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				userToken,
 				projectId: repoProjectId,
 				projectName: repoProjectName,
-				organizationName: selectedWorkspaceName,
+				organizationName: selectedOrganizationName,
 				repoCanonical: identity?.repoCanonical,
 				defaultAppDir: identity?.repoAppDir,
 				existingApps: existingAppsForRepo,
@@ -1097,8 +1098,8 @@ export async function init(options: InitOptions = {}): Promise<number> {
 
 		// ── Plan limit pre-flight ────────────────────────────────────────────────────
 		try {
-			const wsCheck = await api.listWorkspaces(userToken);
-			const ws = wsCheck.workspaces.find((w) => w.id === selectedWorkspaceId);
+			const wsCheck = await api.listOrganizations(userToken);
+			const ws = wsCheck.workspaces.find((w) => w.id === selectedOrganizationId);
 			if (ws && ws.maxProjects !== -1 && ws.projectCount >= ws.maxProjects) {
 				p.log.warn(
 					`Project limit reached — ${ws.projectCount}/${ws.maxProjects} on your ${chalk.bold(ws.planId)} plan.`,
@@ -1140,7 +1141,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				// prompting — the project already owns sourceLocale/targetBranches.
 				const existingProjects = await api.listApps(
 					userToken,
-					selectedWorkspaceId,
+					selectedOrganizationId,
 				);
 				const chosenProject = existingProjects.find(
 					(proj) => proj.id === repoProjectId,
@@ -1183,7 +1184,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		const projectResult = await runProjectCreate({
 			api,
 			userToken,
-			organizationId: selectedWorkspaceId,
+			organizationId: selectedOrganizationId,
 			defaultName: identity?.repoCanonical
 				? identity.repoCanonical.split("/").pop()
 				: undefined,

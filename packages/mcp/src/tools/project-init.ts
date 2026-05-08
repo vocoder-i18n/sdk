@@ -251,9 +251,9 @@ export async function runProjectCreate(
 	const api = new VocoderAPI({ apiUrl: session.apiUrl, apiKey: "" });
 	const userToken = session.resolvedToken;
 
-	// Resolve workspace — happens here (not in init_complete) so re-runs never hit
+	// Resolve organization — happens here (not in init_complete) so re-runs never hit
 	// "already claimed" errors from claimCliGitHubInstallation.
-	const workspaceId = await resolveWorkspace(api, userToken, session);
+	const organizationId = await resolveOrganization(api, userToken, session);
 
 	const projectName =
 		input.projectName ??
@@ -263,7 +263,7 @@ export async function runProjectCreate(
 	let projectResult: Awaited<ReturnType<typeof api.createProject>>;
 	try {
 		projectResult = await api.createProject(userToken, {
-			organizationId: workspaceId,
+			organizationId: organizationId,
 			name: projectName,
 			sourceLocale: input.sourceLocale,
 			targetLocales: input.targetLocales,
@@ -281,10 +281,10 @@ export async function runProjectCreate(
 	return projectResult;
 }
 
-// Resolves the workspace ID to use for project creation.
-// Order: poll callback organizationId → existing workspace covering repo → claim unclaimed installation.
-// Checking existing workspaces first prevents "already claimed" errors on re-runs.
-async function resolveWorkspace(
+// Resolves the organization ID to use for project creation.
+// Order: poll callback organizationId → existing organization covering repo → claim unclaimed installation.
+// Checking existing organizations first prevents "already claimed" errors on re-runs.
+async function resolveOrganization(
 	api: VocoderAPI,
 	userToken: string,
 	session: PendingSession,
@@ -294,26 +294,26 @@ async function resolveWorkspace(
 		return session.pollOrganizationId;
 	}
 
-	// Check for an existing workspace before trying to claim anything
-	const workspaceData = await api.listWorkspaces(userToken, {
+	// Check for an existing organization before trying to claim anything
+	const organizationData = await api.listOrganizations(userToken, {
 		repo: session.repoCanonical,
 	});
 
 	const covering = session.repoCanonical
-		? workspaceData.workspaces.filter((w) => w.coversRepo === true)
+		? organizationData.organizations.filter((w) => w.coversRepo === true)
 		: [];
 
 	if (covering.length === 1) return covering[0]!.id;
-	if (covering.length === 0 && workspaceData.workspaces.length === 1)
-		return workspaceData.workspaces[0]!.id;
-	if (workspaceData.workspaces.length > 1) {
-		// Multiple workspaces — use the first one covering the repo if available,
-		// otherwise the first workspace overall. Ambiguity here requires human choice
+	if (covering.length === 0 && organizationData.organizations.length === 1)
+		return organizationData.organizations[0]!.id;
+	if (organizationData.organizations.length > 1) {
+		// Multiple organizations — use the first one covering the repo if available,
+		// otherwise the first organization overall. Ambiguity here requires human choice
 		// which the MCP can't provide, but failing hard would block all re-runs.
-		return (covering[0] ?? workspaceData.workspaces[0])!.id;
+		return (covering[0] ?? organizationData.organizations[0])!.id;
 	}
 
-	// No workspace found — try to claim an unclaimed GitHub App installation
+	// No organization found — try to claim an unclaimed GitHub App installation
 	if (session.mode === "link") {
 		const discovery = await api.getCliGitHubDiscovery(userToken);
 		const unclaimed = discovery.installations.filter(
@@ -338,7 +338,7 @@ async function resolveWorkspace(
 	}
 
 	throw new Error(
-		"No workspace found. The GitHub App installation may not have completed. " +
+		"No organization found. The GitHub App installation may not have completed. " +
 			"Try again or complete setup at [vocoder.app/dashboard](https://vocoder.app/dashboard).",
 	);
 }

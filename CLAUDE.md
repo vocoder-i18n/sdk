@@ -85,6 +85,7 @@ Style:
 - Lead with usage examples. Code first, explain after.
 - Use tables for props/options/flags.
 - No emojis in READMEs.
+- Never mention competitors in documentation or code.
 - Each package README is self-contained.
 
 ## TypeScript

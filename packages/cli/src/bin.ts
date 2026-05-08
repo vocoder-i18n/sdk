@@ -137,7 +137,7 @@ program
 	.description("Create a new Vocoder app (requires prior `vocoder init`)")
 	.requiredOption("--name <name>", "App display name")
 	.requiredOption("--source-locale <code>", "Source language BCP 47 code (e.g. en)")
-	.requiredOption("--workspace <org-id>", "Workspace organization ID")
+	.requiredOption("--organization <org-id>", "Organization ID")
 	.option(
 		"--target-locales <codes>",
 		"Comma-separated target locale codes (e.g. fr,de,pt-BR)",
@@ -162,7 +162,7 @@ program
 			sourceLocale: options.sourceLocale,
 			targetLocales: options.targetLocales,
 			targetBranches: options.targetBranches,
-			workspace: options.workspace,
+			organization: options.organization,
 		};
 		return runCommand(createApp, translated);
 	});
