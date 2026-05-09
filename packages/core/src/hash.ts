@@ -2,7 +2,7 @@
  * FNV-1a 32-bit hash for generating stable message IDs from source text.
  *
  * Works identically in Node.js and browsers (no platform APIs).
- * Used by the extractor (build time) and React runtime (browser) so both
+ * Used by the extractor (build time) and the React runtime (browser) — both
  * always produce the same key for the same source text.
  *
  * Output: 7 base-36 chars (~2.2 billion values).

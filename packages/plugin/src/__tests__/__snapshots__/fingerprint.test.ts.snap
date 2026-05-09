@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`computeFingerprint > produces known stable output for a fixed input 1`] = `"cb2880bf79d6"`;

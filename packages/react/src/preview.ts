@@ -1,4 +1,4 @@
-import { getCookie, setCookie } from "./utils/cookies";
+import { getCookie, setCookie } from "@vocoder/core";
 
 declare const __VOCODER_PREVIEW__: boolean;
 

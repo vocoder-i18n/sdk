@@ -449,6 +449,118 @@ npm install @radix-ui/react-dropdown-menu lucide-react
 
 ---
 
+## Server utilities (`@vocoder/react/server`)
+
+### `getLocaleDir(locale, locales)`
+
+Returns the text direction for a locale using the metadata from the Vocoder manifest. Use this in Next.js App Router layouts to set `dir` on the `<html>` tag before the client hydrates — `VocoderProvider` handles `dir` on the client, but the server render needs it independently.
+
+```tsx
+// app/layout.tsx
+import { cookies } from 'next/headers';
+import { config } from 'virtual:vocoder/manifest';
+import { getLocaleDir } from '@vocoder/react/server';
+import { VocoderProvider } from '@vocoder/react';
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const locale = cookieStore.get('vocoder_locale')?.value ?? config.sourceLocale;
+  const dir = getLocaleDir(locale, config.locales);
+  return (
+    <html lang={locale} dir={dir}>
+      <body>
+        <VocoderProvider cookies={cookieStore.toString()}>
+          {children}
+        </VocoderProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `locale` | `string` | The locale code to look up |
+| `locales` | `Record<string, { dir?: string }>` | Locale metadata map — pass `config.locales` from the virtual manifest |
+
+Returns `'rtl'` when the locale metadata has `dir: 'rtl'`, otherwise `'ltr'`.
+
+---
+
+## Preview mode
+
+Preview mode lets you ship Vocoder to production but keep it inactive by default. It is opt-in: only visitors who explicitly enable it see translated content. This is useful for QA, stakeholder review, or staged rollouts before a full translation launch.
+
+### How it works
+
+`@vocoder/plugin` accepts a `preview` option. When `preview: true`, the build constant `__VOCODER_PREVIEW__` is set to `true`, which flips `PREVIEW_MODE` at runtime. In preview mode the SDK is only active for users who have the `vocoder_preview=true` cookie set.
+
+The `?vocoder_preview=true` URL parameter sets that cookie and then strips itself from the URL. `VocoderProvider` handles this automatically — you do not call `syncPreviewQueryParam` directly.
+
+### Exports
+
+`PREVIEW_MODE`, `isPreviewEnabled`, and `isVocoderEnabled` are exported from `@vocoder/react`:
+
+```ts
+import { PREVIEW_MODE, isPreviewEnabled, isVocoderEnabled } from '@vocoder/react';
+```
+
+| Export | Type | Description |
+|---|---|---|
+| `PREVIEW_MODE` | `boolean` | `true` when the build was compiled with `preview: true` in the plugin config. Compile-time constant — `false` in normal production builds. |
+| `isPreviewEnabled(cookieString?)` | `(string?) => boolean` | `true` when the visitor has opted in via the `vocoder_preview=true` cookie. Pass the raw cookie string for server-side calls. |
+| `isVocoderEnabled(cookieString?)` | `(string?) => boolean` | `true` when the SDK should be active — either `PREVIEW_MODE` is `false` (standard build), or the visitor has opted in. Use this to gate SSR translation logic. |
+
+#### Gating SSR translation in Next.js
+
+```tsx
+// app/layout.tsx
+import { cookies } from 'next/headers';
+import { isVocoderEnabled } from '@vocoder/react';
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const cookieString = cookieStore.toString();
+
+  if (!isVocoderEnabled(cookieString)) {
+    // Vocoder is in preview mode and this visitor hasn't opted in — render without translations
+    return <html><body>{children}</body></html>;
+  }
+
+  // Normal SSR path with locale detection
+  // ...
+}
+```
+
+#### Enabling preview for a visitor
+
+Append `?vocoder_preview=true` to any URL in the app. `VocoderProvider` reads the param on mount, writes the cookie, and redirects to the clean URL. To disable, append `?vocoder_preview=false`.
+
+---
+
+## `generateMessageHash(text, context?, formality?)`
+
+Computes the same 7-character catalog key that the build plugin and extractor generate at compile time. Use this in custom tooling — import scripts, catalog validators, or test fixtures — when you need to construct or look up a message key outside the normal build pipeline.
+
+```ts
+import { generateMessageHash } from '@vocoder/react';
+
+generateMessageHash('Hello, world!')               // → e.g. "3j8kq2a"
+generateMessageHash('Save', 'button')              // → different key from "Save" alone
+generateMessageHash('Save', 'noun')                // → different again
+generateMessageHash('Submit', undefined, 'formal') // → separate key from informal
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `text` | `string` | The source message text |
+| `context` | `string` (optional) | Disambiguation context — must match the `context` prop on `<T>` |
+| `formality` | `string` (optional) | `'formal'` or `'informal'`. Any other value (including `'auto'` and `undefined`) hashes identically. |
+
+Returns a 7-character base-36 string. The algorithm is FNV-1a 32-bit, guaranteed identical between Node.js and browsers — the extractor and the runtime always produce the same key for the same inputs.
+
+---
+
 ## Extractor: what gets extracted
 
 `@vocoder/plugin` transforms `<T>` components at build time to inject `message`, `values`, and `components` props. Understanding what the extractor supports helps you write translatable code correctly.
@@ -518,6 +630,18 @@ import type {
   VocoderContextValue,
   VocoderProviderProps,
 } from '@vocoder/react';
+
+// Runtime values (not types)
+import {
+  generateMessageHash, // (text, context?, formality?) => string — 7-char catalog key
+  PREVIEW_MODE,        // boolean — compile-time constant, true when built with preview: true
+  isPreviewEnabled,    // (cookieString?) => boolean
+  isVocoderEnabled,    // (cookieString?) => boolean
+} from '@vocoder/react';
+
+// Server-only utilities
+import { getLocaleDir } from '@vocoder/react/server';
+import type { VocoderProviderServerProps } from '@vocoder/react/server';
 ```
 
 ---

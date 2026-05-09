@@ -11,7 +11,7 @@ import type {
 	MessageFormatElement,
 	PluralElement,
 } from "@formatjs/icu-messageformat-parser";
-import type { OrdinalForms } from "../types";
+import type { OrdinalForms } from "./types";
 
 // ---------------------------------------------------------------------------
 // IntlMessageFormat cache — keyed by "locale:text"
@@ -38,7 +38,7 @@ function getIMF(text: string, locale: string): IntlMessageFormat {
  */
 export function formatICU(
 	text: string,
-	values: Record<string, unknown>,
+	values: Record<string, any>,
 	locale: string = "en",
 ): string {
 	try {
@@ -69,11 +69,8 @@ export function formatICU(
 //
 // This function fixes the stored translation at render time by rewriting
 // any selectordinal nodes using the locale's ordinalForms data.
-//
-// It is called in T.tsx's interpolation path immediately before formatICU.
 // ---------------------------------------------------------------------------
 
-// Canonical CLDR ordinal category order for ICU output
 const CLDR_ORDINAL_ORDER = [
 	"zero",
 	"one",
@@ -83,11 +80,6 @@ const CLDR_ORDINAL_ORDER = [
 	"other",
 ] as const;
 
-/**
- * Minimal ICU printer — serializes a FormatJS AST back to an ICU string.
- * Only implements element types that appear in real translation strings.
- * Used by rewriteSelectordinalInICU after AST modification.
- */
 function printICU(elements: MessageFormatElement[]): string {
 	return elements.map(printElement).join("");
 }
@@ -105,7 +97,7 @@ function printElement(el: MessageFormatElement): string {
 			const style =
 				typeof el.style === "string"
 					? el.style
-					: `::${(el.style as Record<string, any>).parsedOptions?.stem ?? ""}`;
+					: `::${(el.style as Record<string, any>).parsedOptions ?? ""}`;
 			return `{${el.value}, number, ${style}}`;
 		}
 		case TYPE.date: {
@@ -113,7 +105,7 @@ function printElement(el: MessageFormatElement): string {
 			const style =
 				typeof el.style === "string"
 					? el.style
-					: `::${(el.style as Record<string, any>).parsedOptions?.pattern ?? ""}`;
+					: `::${(el.style as Record<string, any>).parsedOptions ?? ""}`;
 			return `{${el.value}, date, ${style}}`;
 		}
 		case TYPE.time: {
@@ -121,7 +113,7 @@ function printElement(el: MessageFormatElement): string {
 			const style =
 				typeof el.style === "string"
 					? el.style
-					: `::${(el.style as Record<string, any>).parsedOptions?.pattern ?? ""}`;
+					: `::${(el.style as Record<string, any>).parsedOptions ?? ""}`;
 			return `{${el.value}, time, ${style}}`;
 		}
 		case TYPE.select: {
@@ -147,7 +139,7 @@ function printElement(el: MessageFormatElement): string {
 			return `{${pluralEl.value}, ${pluralType}, ${offset}${options}}`;
 		}
 		case TYPE.tag: {
-			const children = printICU((el as Record<string, any>).children);
+			const children = printICU((el as Record<string, any>).children as MessageFormatElement[]);
 			return `<${el.value}>${children}</${el.value}>`;
 		}
 		default:
@@ -158,14 +150,12 @@ function printElement(el: MessageFormatElement): string {
 function rewriteElements(
 	elements: MessageFormatElement[],
 	forms: OrdinalForms,
-	values: Record<string, unknown>,
+	values: Record<string, any>,
 ): MessageFormatElement[] {
 	return elements.flatMap((el) => {
-		// Rewrite selectordinal elements
 		if (isPluralElement(el) && el.pluralType === "ordinal") {
 			return [rewriteSelectordinalElement(el, forms, values)];
 		}
-		// Recurse into select branches
 		if (isSelectElement(el)) {
 			const options: Record<string, { value: MessageFormatElement[] }> = {};
 			for (const [key, opt] of Object.entries(
@@ -175,7 +165,6 @@ function rewriteElements(
 			}
 			return [{ ...el, options } as MessageFormatElement];
 		}
-		// Recurse into cardinal plural branches
 		if (isPluralElement(el)) {
 			const options: Record<string, { value: MessageFormatElement[] }> = {};
 			for (const [key, opt] of Object.entries(el.options)) {
@@ -183,13 +172,12 @@ function rewriteElements(
 			}
 			return [{ ...el, options } as MessageFormatElement];
 		}
-		// Recurse into tag children
 		if (isTagElement(el)) {
 			return [
 				{
 					...el,
 					children: rewriteElements(
-						(el as Record<string, any>).children,
+						(el as Record<string, any>).children as MessageFormatElement[],
 						forms,
 						values,
 					),
@@ -203,11 +191,9 @@ function rewriteElements(
 function rewriteSelectordinalElement(
 	el: PluralElement,
 	forms: OrdinalForms,
-	values: Record<string, unknown>,
+	values: Record<string, any>,
 ): MessageFormatElement {
 	if (forms.type === "suffix") {
-		// Rebuild all options from ordinalForms.suffixes, discarding the stored
-		// (potentially garbage) branch content from the provider translation.
 		const newOptions: Record<string, { value: MessageFormatElement[] }> = {};
 		for (const cat of CLDR_ORDINAL_ORDER) {
 			const pattern = forms.suffixes[cat];
@@ -235,8 +221,6 @@ function rewriteSelectordinalElement(
 	}
 
 	if (forms.type === "word") {
-		// Word-based languages (ar, he): replace entire selectordinal with the
-		// looked-up word for the known rank, or String(rank) when out of range.
 		const rank = values[el.value];
 		if (typeof rank === "number") {
 			const genderMap =
@@ -249,8 +233,6 @@ function rewriteSelectordinalElement(
 		}
 	}
 
-	// Unknown forms type or rank unavailable — leave the element unchanged.
-	// formatICU will evaluate whatever the provider stored.
 	return el;
 }
 
@@ -263,14 +245,14 @@ function rewriteSelectordinalElement(
  * - the string contains no "selectordinal" substring (fast path — most strings)
  * - parsing throws (safe fallback to whatever formatICU receives)
  *
- * @param icu - Translated ICU string (may contain garbage ordinal branches)
+ * @param icu - Translated ICU string (may contain garbage ordinal branches from provider)
  * @param ordinalForms - Locale's ordinalForms from the compiled bundle
  * @param values - Runtime interpolation values (needed for word-based rank lookup)
  */
 export function rewriteSelectordinalInICU(
 	icu: string,
 	ordinalForms: OrdinalForms,
-	values: Record<string, unknown>,
+	values: Record<string, any>,
 ): string {
 	if (!icu.includes("selectordinal")) return icu;
 
@@ -279,7 +261,6 @@ export function rewriteSelectordinalInICU(
 		const rewritten = rewriteElements(ast, ordinalForms, values);
 		return printICU(rewritten);
 	} catch {
-		// Malformed stored translation — let formatICU handle it (it also catches)
 		return icu;
 	}
 }

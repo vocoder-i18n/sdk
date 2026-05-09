@@ -1,6 +1,5 @@
-import { generateMessageHash } from "./hash";
+import { formatICU, generateMessageHash } from "@vocoder/core";
 import type { LocalesMap, TOptions } from "./types";
-import { formatICU } from "./utils/formatMessage";
 
 /**
  * Global translation state

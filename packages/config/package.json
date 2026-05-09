@@ -40,6 +40,9 @@
     "dev": "tsup --watch --no-dts --clean=false",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@vocoder/core": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^20.19.9",
     "tsup": "^8.0.0",

@@ -55,4 +55,75 @@ describe("T component", () => {
 			expect(screen.getByText("Untranslated text")).toBeInTheDocument();
 		});
 	});
+
+	describe("format modes", () => {
+		it("formats number mode", async () => {
+			render(
+				<VocoderProvider>
+					<T format="number" value={1234.5} />
+				</VocoderProvider>,
+			);
+			await waitFor(() => {
+				expect(screen.getByText("1,234.5")).toBeInTheDocument();
+			});
+		});
+
+		it("formats integer mode (rounds)", async () => {
+			render(
+				<VocoderProvider>
+					<T format="integer" value={1234.9} />
+				</VocoderProvider>,
+			);
+			await waitFor(() => {
+				expect(screen.getByText("1,235")).toBeInTheDocument();
+			});
+		});
+
+		it("formats percent mode", async () => {
+			render(
+				<VocoderProvider>
+					<T format="percent" value={0.42} />
+				</VocoderProvider>,
+			);
+			await waitFor(() => {
+				expect(screen.getByText("42%")).toBeInTheDocument();
+			});
+		});
+
+		it("formats compact mode", async () => {
+			render(
+				<VocoderProvider>
+					<T format="compact" value={1500000} />
+				</VocoderProvider>,
+			);
+			await waitFor(() => {
+				expect(screen.getByText("1.5M")).toBeInTheDocument();
+			});
+		});
+
+		it("formats currency mode", async () => {
+			render(
+				<VocoderProvider>
+					<T format="currency" value={9.99} currency="USD" />
+				</VocoderProvider>,
+			);
+			await waitFor(() => {
+				const text = screen.getByText(/9\.99/);
+				expect(text.textContent).toContain("$");
+			});
+		});
+
+		it("formats date mode", async () => {
+			const date = new Date("2024-01-15T12:00:00Z");
+			render(
+				<VocoderProvider>
+					<T format="date" value={date} />
+				</VocoderProvider>,
+			);
+			await waitFor(() => {
+				// Jan 15, 2024 — locale-dependent format, check for year
+				expect(screen.getByText(/2024/)).toBeInTheDocument();
+			});
+		});
+	});
 });

@@ -24,7 +24,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import { getBestMatchingLocale, getCookie, setCookie } from "./utils/cookies";
+import { getBestMatchingLocale, getCookie, setCookie } from "@vocoder/core";
 import {
 	getConfig,
 	getLocales,
@@ -35,8 +35,7 @@ import {
 } from "./runtime";
 
 import type React from "react";
-import { formatICU } from "./utils/formatMessage";
-import { generateMessageHash } from "./hash";
+import { formatICU, generateMessageHash } from "@vocoder/core";
 
 export const VocoderContext = createContext<VocoderContextValue | null>(null);
 

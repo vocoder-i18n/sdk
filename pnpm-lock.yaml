@@ -68,6 +68,10 @@ importers:
         version: 1.6.1(@types/node@20.19.9)(jsdom@23.2.0)
 
   packages/config:
+    dependencies:
+      '@vocoder/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^20.19.9
@@ -78,6 +82,28 @@ importers:
       typescript:
         specifier: ^5.4.0
         version: 5.9.2
+
+  packages/core:
+    dependencies:
+      '@formatjs/icu-messageformat-parser':
+        specifier: ^2.11.4
+        version: 2.11.4
+      intl-messageformat:
+        specifier: ^11.1.2
+        version: 11.1.2
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.9
+        version: 20.19.9
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.8.0)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.2
+      vitest:
+        specifier: ^1.0.0
+        version: 1.6.1(@types/node@20.19.9)(jsdom@23.2.0)
 
   packages/extractor:
     dependencies:
@@ -96,6 +122,9 @@ importers:
       '@vocoder/config':
         specifier: workspace:*
         version: link:../config
+      '@vocoder/core':
+        specifier: workspace:*
+        version: link:../core
       glob:
         specifier: ^10.3.10
         version: 10.4.5
@@ -115,6 +144,9 @@ importers:
       typescript:
         specifier: ^5.4.0
         version: 5.9.2
+      vitest:
+        specifier: ^1.0.0
+        version: 1.6.1(@types/node@20.19.9)(jsdom@23.2.0)
 
   packages/mcp:
     dependencies:
@@ -146,6 +178,9 @@ importers:
       typescript:
         specifier: ^5.4.0
         version: 5.9.2
+      vitest:
+        specifier: ^1.0.0
+        version: 1.6.1(@types/node@20.19.9)(jsdom@23.2.0)
 
   packages/plugin:
     dependencies:
@@ -156,6 +191,9 @@ importers:
       '@types/node':
         specifier: ^20.19.9
         version: 20.19.9
+      '@vocoder/core':
+        specifier: workspace:*
+        version: link:../core
       '@vocoder/extractor':
         specifier: workspace:*
         version: link:../extractor
@@ -171,12 +209,9 @@ importers:
 
   packages/react:
     dependencies:
-      '@formatjs/icu-messageformat-parser':
-        specifier: ^2.11.4
-        version: 2.11.4
-      intl-messageformat:
-        specifier: ^11.1.2
-        version: 11.1.2
+      '@vocoder/core':
+        specifier: workspace:*
+        version: link:../core
       react:
         specifier: '>=18.0.0'
         version: 18.3.1

@@ -8,8 +8,7 @@
       "@vocoder/config",
       "@vocoder/extractor",
       "@vocoder/mcp",
-      "@vocoder/plugin",
-      "@vocoder/react"
+      "@vocoder/plugin"
     ]
   ],
   "linked": [],

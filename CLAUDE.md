@@ -11,7 +11,8 @@ pnpm workspace monorepo:
 ```
 vocoder-sdk/
 ├── packages/
-│   ├── config/     # @vocoder/config — shared config types + defineConfig
+│   ├── core/       # @vocoder/core — shared primitives: hash, ICU formatting, cookies, types
+│   ├── config/     # @vocoder/config — defineConfig + re-exports from core
 │   ├── extractor/  # @vocoder/extractor — Babel AST string extractor (bundled into plugin + cli)
 │   ├── plugin/     # @vocoder/plugin — build plugin (Vite, Next.js, Webpack, Rollup, esbuild)
 │   ├── react/      # @vocoder/react — components, hooks, provider, locale selector
@@ -20,46 +21,48 @@ vocoder-sdk/
 └── pnpm-workspace.yaml
 ```
 
-## Package Versioning (Lockstep via Changesets)
+## Package Versioning (Two-Tier via Changesets)
 
-All `@vocoder/*` packages are versioned in lockstep using the `fixed` group in `.changeset/config.json`. When any package changes, ALL packages publish at the same version.
+Packages version in two independent groups:
 
-**Why lockstep matters:** `@vocoder/plugin` and `@vocoder/cli` both bundle `@vocoder/extractor` into their dist. If they ship at different versions with different bundled extractors, they extract different string sets → produce different fingerprints → CLI sync translations are unreachable by the build plugin (404).
+| Group | Packages | Why |
+|---|---|---|
+| **Tooling** (locked together) | `cli`, `config`, `extractor`, `mcp`, `plugin` | These share API contracts with the backend. If `cli` and `plugin` bundle different extractors they produce different fingerprints → translations unreachable (404). |
+| **Runtime** (independent) | `core`, `react` | Breaking API changes deserve semver majors without forcing a tooling re-release. |
 
 **Release workflow:**
 
 ```bash
-# 1. Describe what changed (pick any bump level — all packages will match)
+# 1. Describe what changed (bump level applies to affected group)
 pnpm changeset
 
-# 2. Apply versions — all packages bump to the same version
+# 2. Apply versions
 pnpm changeset version
 
-# 3. Build + publish all packages
+# 3. Build + publish
 pnpm release
 ```
 
 **Rules:**
 - Never manually edit `version` in individual `package.json` files — let `changeset version` do it
 - Never publish a single package in isolation — always publish all via `pnpm release`
-- `@vocoder/extractor` and `@vocoder/config` are bundled into plugin and CLI (`noExternal` in tsup). Keep them in `devDependencies` in those packages, not `dependencies`
+- `@vocoder/extractor`, `@vocoder/config`, and `@vocoder/core` are bundled into plugin and CLI (`noExternal` in tsup). Keep them in `devDependencies` in those packages, not `dependencies`
 
 ## Bundling Policy
 
-| Package | Bundles extractor? | Bundles config? |
-|---|---|---|
-| `@vocoder/plugin` | yes (`noExternal`) | yes |
-| `@vocoder/cli` | yes (`noExternal`) | yes |
-| `@vocoder/extractor` | no (is the extractor) | no |
-| `@vocoder/react` | no | no |
+| Package | Bundles extractor? | Bundles config? | Bundles core? |
+|---|---|---|---|
+| `@vocoder/plugin` | yes (`noExternal`) | yes | yes |
+| `@vocoder/cli` | yes (`noExternal`) | yes | yes |
+| `@vocoder/extractor` | no (is the extractor) | no | no (runtime dep) |
+| `@vocoder/react` | no | no | no (runtime dep) |
+| `@vocoder/core` | no | no | n/a (is core) |
 
-This means plugin and cli are fully self-contained — consumers install nothing extra. Do not move extractor or config back to runtime `dependencies` in plugin or cli.
+Plugin and CLI are fully self-contained — consumers install nothing extra. Do not move extractor, config, or core back to runtime `dependencies` in plugin or cli.
 
-`VocoderTranslationData` is defined in **two places** that must stay in sync:
-- `@vocoder/config/src/index.ts` — canonical, imported by CLI
-- `@vocoder/plugin/src/types.ts` — local copy, because plugin's DTS generator can't resolve `@vocoder/config` (not in plugin's devDeps)
+`@vocoder/react` and `@vocoder/extractor` declare `@vocoder/core` as a real runtime dependency (users install it). Plugin and CLI bundle core via `noExternal` so they remain self-contained.
 
-If you change the shape in one, change the other.
+`VocoderTranslationData` is the canonical type in `@vocoder/core/src/types.ts`. Both `@vocoder/config` and `@vocoder/plugin` re-export it from core — there is no longer a duplicate local copy to keep in sync.
 
 ## Local Dev (yalc)
 
@@ -76,6 +79,7 @@ When modifying any user-facing API, update the corresponding README.
 | README | Update when... |
 |---|---|
 | **README.md** (root) | Adding/removing packages, changing overall quick start, cross-package behavior |
+| **packages/core/README.md** | Adding/changing exports from `@vocoder/core` |
 | **packages/react/README.md** | Adding/changing components, props, hooks, provider behavior |
 | **packages/plugin/README.md** | Changing bundler setup, fingerprint computation, env vars, build-time constants |
 | **packages/cli/README.md** | Adding/changing CLI commands, flags, sync modes, extraction behavior |

@@ -4,7 +4,7 @@ const external = [
 	"react",
 	"react/jsx-runtime",
 	"react-dom",
-	"intl-messageformat",
+	"@vocoder/core",
 	/^virtual:/,
 ];
 

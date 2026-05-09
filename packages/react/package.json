@@ -66,8 +66,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@formatjs/icu-messageformat-parser": "^2.11.4",
-    "intl-messageformat": "^11.1.2"
+    "@vocoder/core": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18.0.0"

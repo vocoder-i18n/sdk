@@ -1,7 +1,7 @@
 // Core exports (no UI dependencies)
 
 // Lazy loading utilities
-export { generateMessageHash } from "./hash";
+export { generateMessageHash } from "@vocoder/core";
 export { initializeVocoder } from "./runtime";
 export { PREVIEW_MODE, isPreviewEnabled, isVocoderEnabled } from "./preview";
 export { T } from "./T";

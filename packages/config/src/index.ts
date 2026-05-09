@@ -63,25 +63,6 @@ export function defineConfig(config: VocoderConfig): VocoderConfig {
 	return config;
 }
 
-/**
- * Canonical translation bundle format shared by the build plugin and CLI.
- * Both read and write this shape — keeps cache files identical regardless of
- * which tool produced them.
- *
- * translations: locale → sourceKey (hash) → translated text
- * config.locales: locale metadata snapshot for the runtime
- */
-export interface VocoderTranslationData {
-	config: {
-		sourceLocale: string;
-		targetLocales: string[];
-		locales: Record<string, {
-			nativeName: string;
-			dir?: "rtl";
-			currencyCode?: string;
-			ordinalForms?: { type: "suffix"; suffixes: { zero?: string; one?: string; two?: string; few?: string; many?: string; other: string } } | { type: "word"; words: Record<string, Record<number, string>> };
-		}>;
-	};
-	translations: Record<string, Record<string, string>>;
-	updatedAt: string | null;
-}
+// Canonical translation bundle format — defined in @vocoder/core and re-exported here
+// so consumers can import it from either package.
+export type { VocoderTranslationData } from "@vocoder/core";

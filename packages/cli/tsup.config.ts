@@ -16,6 +16,7 @@ export default defineConfig({
 	// Version mismatches between @vocoder/extractor and @vocoder/cli would produce
 	// different extracted string sets → different fingerprints → 404 at build time.
 	noExternal: [
+		"@vocoder/core",
 		"@vocoder/extractor",
 		"@vocoder/config",
 		"@babel/parser",

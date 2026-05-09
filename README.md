@@ -1,40 +1,38 @@
 # Vocoder SDK
 
-Vocoder is an internationalization (i18n) platform that extracts translatable strings from your source code, translates them, and delivers translations to your app at build time. No manual JSON files, no key management.
-
-## How It Works
-
-1. **Wrap strings** in your React components with `<T>` or `t()`
-2. **Push to git** -- Vocoder extracts strings and translates them server-side
-3. **Build your app** -- the build plugin fetches translations and injects them as virtual modules, code-split per locale
-
-Your app ships with translations baked in. No runtime API calls needed for initial page load. A background refresh mechanism keeps translations up to date between deployments.
+The i18n SDK for Vocoder — components, build tooling, and AI assistant integration.
 
 ## Packages
 
-| Package | Description |
-|---|---|
-| [`@vocoder/react`](./packages/react) | React components and hooks for rendering translations |
-| [`@vocoder/plugin`](./packages/plugin) | Build plugin that injects translations at build time (Vite, Next.js, Webpack, Rollup, esbuild) |
-| [`@vocoder/cli`](./packages/cli) | CLI for project setup and automatic string wrapping |
+| Package | Install | Description |
+|---|---|---|
+| [`@vocoder/react`](./packages/react) | `npm install @vocoder/react` | React components, hooks, and provider for rendering translations |
+| [`@vocoder/cli`](./packages/cli) | `npm install -D @vocoder/cli` | CLI for project setup and translation sync |
+| [`@vocoder/plugin`](./packages/plugin) | `npm install -D @vocoder/plugin` | Build plugin that injects translations at build time (Vite, Next.js, Webpack, Rollup, esbuild) |
+| [`@vocoder/mcp`](./packages/mcp) | `npm install -D @vocoder/mcp` | MCP server for AI assistants — implements i18n tooling via the Model Context Protocol |
+| [`@vocoder/core`](./packages/core) | bundled — most users don't install directly | Shared primitives: hash, ICU formatting, locale utilities, and types |
+| [`@vocoder/config`](./packages/config) | bundled — most users don't install directly | `defineConfig` type helper for `vocoder.config.ts` |
+| [`@vocoder/extractor`](./packages/extractor) | bundled — most users don't install directly | Babel AST extractor for `<T>` components and `t()` calls |
+
+Most projects only need three packages: `@vocoder/react`, `@vocoder/cli`, and `@vocoder/plugin`. `@vocoder/core`, `@vocoder/config`, and `@vocoder/extractor` are bundled into the plugin and CLI — you do not install them separately unless you are building tooling on top of the SDK.
 
 ## Quick Start
 
-### 1. Initialize your project
-
 ```bash
+npm install @vocoder/react
+npm install -D @vocoder/cli @vocoder/plugin
 npx @vocoder/cli init
 ```
 
-This connects your repository to Vocoder. No config files or API keys are needed in your codebase -- the build plugin auto-detects your git repository and branch.
+`npx @vocoder/cli init` connects your repository to Vocoder and writes a `VOCODER_API_KEY` to your environment. No manual config files or key management in your source code.
 
-### 2. Add the build plugin
+### Add the build plugin
 
 **Vite:**
 
 ```ts
 // vite.config.ts
-import vocoder from '@vocoder/plugin/vite';
+import vocoder from "@vocoder/plugin/vite";
 
 export default defineConfig({
   plugins: [vocoder()],
@@ -45,17 +43,17 @@ export default defineConfig({
 
 ```js
 // next.config.js
-const { withVocoder } = require('@vocoder/plugin/next');
+const { withVocoder } = require("@vocoder/plugin/next");
 
 module.exports = withVocoder({
   // your Next.js config
 });
 ```
 
-### 3. Wrap your React app with the provider
+### Wrap your app with the provider
 
 ```tsx
-import { VocoderProvider } from '@vocoder/react';
+import { VocoderProvider } from "@vocoder/react";
 
 function App() {
   return (
@@ -66,59 +64,35 @@ function App() {
 }
 ```
 
-### 4. Mark strings for translation
+### Mark strings for translation
 
 ```tsx
-import { T, t } from '@vocoder/react';
+import { T, t } from "@vocoder/react";
 
-// In JSX
+// JSX content
 <T>Hello, world!</T>
 
-// With variables
+// JSX with variables
 <T name={user.name}>Hello, {name}!</T>
 
-// Outside JSX
-const message = t('Hello, world!');
+// Non-JSX strings (toast messages, aria-labels, page titles)
+const label = t("Save changes");
 ```
 
-Or auto-wrap existing strings:
-
-```bash
-npx @vocoder/cli sync
-```
-
-### 5. Push to git
-
-When you push, Vocoder automatically extracts strings and translates them. On the next build, the unplugin fetches the translations and injects them into your bundle.
-
-## Architecture
-
-```
-Your Code                    Server Side                    Build Time
----------                    -----------                    ----------
-<T>Hello</T>  --> git push --> webhook extracts    unplugin --> virtual modules
-t('Hello')                     strings & translates (fetches)    (code-split per locale)
-                                                                     |
-                                                               Background refresh
-                                                               (checks for updates)
-```
-
-The build plugin reads your `.git/config` to identify the repository and `.git/HEAD` for the branch, then computes an opaque fingerprint. This fingerprint is used to fetch translations from the API -- your branch name never appears in network requests.
-
-## Monorepo Support
-
-Vocoder supports monorepos out of the box. Each package within a monorepo can be its own Vocoder project. The build plugin computes a scope path (the relative path from the git root to your package) and includes it in the fingerprint, so translations are scoped correctly.
+Push to git and Vocoder extracts your strings and translates them server-side. On the next build, the plugin fetches translations and injects them as virtual modules — code-split per locale, no runtime API calls needed for initial page load.
 
 ## Development
 
 This is a pnpm workspace monorepo.
 
 ```bash
-pnpm install        # Install dependencies
-pnpm build          # Build all packages
-pnpm dev            # Watch mode for all packages
-pnpm test           # Run tests across all packages
+pnpm install    # install dependencies
+pnpm build      # build all packages
+pnpm dev        # watch mode for all packages
+pnpm test       # run tests across all packages
 ```
+
+All packages are versioned in lockstep. Use `pnpm changeset` to describe changes, then `pnpm changeset version` and `pnpm release` to publish.
 
 ## License
 

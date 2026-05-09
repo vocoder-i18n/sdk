@@ -1,6 +1,6 @@
-import type { FormatMode } from "../types";
+import type { FormatMode } from "./types";
 
-interface FormatValueOptions {
+export interface FormatValueOptions {
 	currency?: string;
 	dateStyle?: "full" | "long" | "medium" | "short";
 	timeStyle?: "full" | "long" | "medium" | "short";
@@ -37,7 +37,7 @@ export function formatValue(
 ): string {
 	const { currency, dateStyle = "medium", timeStyle = "short" } = options;
 	const num = Number(value);
-	const date = value instanceof Date ? value : new Date(value as any);
+	const date = value instanceof Date ? value : new Date(value as string | number);
 
 	switch (format) {
 		case "number":

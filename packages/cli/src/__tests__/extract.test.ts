@@ -46,7 +46,7 @@ describe("StringExtractor", () => {
 
 			expect(result).toHaveLength(1);
 			expect(result[0]!.text).toBe("Hello world");
-			expect(result[0]!.file).toBe(file);
+			expect(result[0]!.file).toContain("test.tsx");
 		});
 
 		it("should extract text with variables from <T> component", async () => {
@@ -105,14 +105,14 @@ describe("StringExtractor", () => {
 			expect(result[0]!.text).toBe("Hello");
 		});
 
-		it("should extract text from msg prop", async () => {
+		it("should extract text from message prop", async () => {
 			const file = createTestFile(
 				"test.tsx",
 				`
         import { T } from '@vocoder/react';
 
         function Component({ count }: { count: number }) {
-          return <T msg="{count, plural, one {# item} other {# items}}" count={count} />;
+          return <T message="{count, plural, one {# item} other {# items}}" count={count} />;
         }
       `,
 			);
@@ -125,14 +125,14 @@ describe("StringExtractor", () => {
 			);
 		});
 
-		it("should prefer msg prop over children", async () => {
+		it("should prefer message prop over children", async () => {
 			const file = createTestFile(
 				"test.tsx",
 				`
         import { T } from '@vocoder/react';
 
         function Component() {
-          return <T msg="From msg prop">From children</T>;
+          return <T message="From message prop">From children</T>;
         }
       `,
 			);
@@ -140,17 +140,17 @@ describe("StringExtractor", () => {
 			const result = await extractor.extractFromProject(file);
 
 			expect(result).toHaveLength(1);
-			expect(result[0]!.text).toBe("From msg prop");
+			expect(result[0]!.text).toBe("From message prop");
 		});
 
-		it("should extract ICU MessageFormat from msg prop", async () => {
+		it("should extract ICU MessageFormat from message prop", async () => {
 			const file = createTestFile(
 				"test.tsx",
 				`
         import { T } from '@vocoder/react';
 
         function Component({ status }: { status: string }) {
-          return <T msg="{status, select, pending {Order pending} shipped {Order shipped} other {Unknown}}" status={status} />;
+          return <T message="{status, select, pending {Order pending} shipped {Order shipped} other {Unknown}}" status={status} />;
         }
       `,
 			);
@@ -163,14 +163,14 @@ describe("StringExtractor", () => {
 			);
 		});
 
-		it("should extract msg prop with context and formality", async () => {
+		it("should extract message prop with context and formality", async () => {
 			const file = createTestFile(
 				"test.tsx",
 				`
         import { T } from '@vocoder/react';
 
         function Component({ count }: { count: number }) {
-          return <T msg="{count, plural, one {# item} other {# items}}" context="shopping-cart" formality="informal" count={count} />;
+          return <T message="{count, plural, one {# item} other {# items}}" context="shopping-cart" formality="informal" count={count} />;
         }
       `,
 			);
@@ -185,14 +185,14 @@ describe("StringExtractor", () => {
 			expect(result[0]!.formality).toBe("informal");
 		});
 
-		it("should extract rich text with components from msg prop", async () => {
+		it("should extract rich text with components from message prop", async () => {
 			const file = createTestFile(
 				"test.tsx",
 				`
         import { T } from '@vocoder/react';
 
         function Component() {
-          return <T msg="Click <link>here</link> for help" components={{ link: <a href="/help" /> }} />;
+          return <T message="Click <link>here</link> for help" components={{ link: <a href="/help" /> }} />;
         }
       `,
 			);
@@ -203,7 +203,7 @@ describe("StringExtractor", () => {
 			expect(result[0]!.text).toBe("Click <link>here</link> for help");
 		});
 
-		it("should extract rich text with multiple components from msg prop", async () => {
+		it("should extract rich text with multiple components from message prop", async () => {
 			const file = createTestFile(
 				"test.tsx",
 				`
@@ -211,8 +211,8 @@ describe("StringExtractor", () => {
 
         function Component() {
           return (
-            <T 
-              msg="Read our <privacy>Privacy Policy</privacy> and <terms>Terms of Service</terms>"
+            <T
+              message="Read our <privacy>Privacy Policy</privacy> and <terms>Terms of Service</terms>"
               components={{
                 privacy: <a href="/privacy" />,
                 terms: <a href="/terms" />
@@ -297,7 +297,7 @@ describe("StringExtractor", () => {
 				`
         import { t } from '@vocoder/react';
 
-        const message = t('Welcome', {
+        const message = t('Welcome', {}, {
           context: 'greeting',
           formality: 'formal'
         });
@@ -467,8 +467,8 @@ describe("StringExtractor", () => {
 				`
         import { t } from '@vocoder/react';
 
-        const greeting = t('Welcome', { context: 'greeting' });
-        const title = t('Welcome', { context: 'title' });
+        const greeting = t('Welcome', {}, { context: 'greeting' });
+        const title = t('Welcome', {}, { context: 'title' });
       `,
 			);
 

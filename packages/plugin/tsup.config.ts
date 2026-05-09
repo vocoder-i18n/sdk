@@ -21,6 +21,7 @@ export default defineConfig({
 	// real dependency ensures __dirname resolves inside unplugin's own dist where the
 	// loader files actually live.
 	noExternal: [
+		"@vocoder/core",
 		"@vocoder/extractor",
 		"@vocoder/config",
 		"@babel/parser",

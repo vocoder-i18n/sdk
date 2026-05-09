@@ -18,17 +18,7 @@ export interface VocoderPluginOptions {
 	preview?: boolean;
 }
 
-export interface VocoderTranslationData {
-	config: {
-		sourceLocale: string;
-		targetLocales: string[];
-		locales: Record<string, {
-			nativeName: string;
-			dir?: "rtl";
-			currencyCode?: string;
-			ordinalForms?: { type: "suffix"; suffixes: { zero?: string; one?: string; two?: string; few?: string; many?: string; other: string } } | { type: "word"; words: Record<string, Record<number, string>> };
-		}>;
-	};
-	translations: Record<string, Record<string, string>>;
-	updatedAt: string | null;
-}
+// VocoderTranslationData is the canonical bundle format shared by plugin and CLI.
+// Defined in @vocoder/core — imported and re-exported here so plugin consumers
+// can reference it without depending on @vocoder/core directly.
+export type { VocoderTranslationData } from "@vocoder/core";

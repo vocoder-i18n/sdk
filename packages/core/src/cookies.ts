@@ -1,12 +1,3 @@
-/**
- * Cookie utilities for locale persistence
- * Works on both server and client (via document.cookie)
- */
-
-/**
- * Get a cookie value by name
- * Works in browser and server-side (if cookies are passed)
- */
 export function getCookie(name: string, cookieString?: string): string | null {
 	const cookies =
 		cookieString || (typeof document !== "undefined" ? document.cookie : "");
@@ -23,15 +14,11 @@ export function getCookie(name: string, cookieString?: string): string | null {
 	return value ? decodeURIComponent(value) : null;
 }
 
-/**
- * Set a cookie value
- * Only works client-side (requires document.cookie)
- */
 export function setCookie(
 	name: string,
 	value: string,
 	options: {
-		maxAge?: number; // in seconds
+		maxAge?: number;
 		path?: string;
 		domain?: string;
 		sameSite?: "Strict" | "Lax" | "None";
@@ -39,13 +26,11 @@ export function setCookie(
 	} = {},
 ): void {
 	if (typeof document === "undefined") {
-		// Server-side: can't set cookies directly
-		// Apps should set cookies via Set-Cookie header
 		return;
 	}
 
 	const {
-		maxAge = 365 * 24 * 60 * 60, // 1 year default
+		maxAge = 365 * 24 * 60 * 60,
 		path = "/",
 		sameSite = "Lax",
 		secure = typeof window !== "undefined" &&

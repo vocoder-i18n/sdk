@@ -1,10 +1,8 @@
 import React from "react";
 import type { ComponentSlot, TProps } from "./types";
-import { generateMessageHash } from "./hash";
+import { formatICU, formatValue, generateMessageHash, rewriteSelectordinalInICU } from "@vocoder/core";
 import { extractText } from "./utils/extractText";
 import { formatElements } from "./utils/formatElements";
-import { formatICU, rewriteSelectordinalInICU } from "./utils/formatMessage";
-import { formatValue } from "./utils/formatValue";
 import { useVocoder } from "./VocoderProvider";
 
 // CLDR plural categories that unambiguously indicate plural mode.

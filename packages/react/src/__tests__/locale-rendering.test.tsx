@@ -21,8 +21,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { T } from "../T";
 import { useVocoder, VocoderContext } from "../VocoderProvider";
-import { generateMessageHash } from "../hash";
-import { formatICU } from "../utils/formatMessage";
+import { formatICU, generateMessageHash } from "@vocoder/core";
 import type { LocalesMap, VocoderContextValue } from "../types";
 
 // ---------------------------------------------------------------------------
