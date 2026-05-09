@@ -44,7 +44,7 @@ export interface CreateAppOptions {
  * push-based sync to function. Use --repo to override auto-detection, or
  * omit repo binding entirely if not in a git repository.
  *
- * Endpoint: POST /api/cli/projects
+ * Endpoint: POST /api/cli/apps
  *
  * @param options.name           Project display name (required).
  * @param options.sourceLocale   Source language BCP 47 code (required).

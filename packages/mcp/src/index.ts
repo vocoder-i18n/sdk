@@ -1,8 +1,12 @@
 import "dotenv/config";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { createClient, NO_API_KEY_MESSAGE } from "./client.js";
+
 import { runImplementI18n } from "./tools/implement-i18n.js";
 // import { runInitStatus } from "./tools/init-status.js";
 // import { runInitComplete, runInitStart, runProjectCreate } from "./tools/project-init.js";
@@ -11,6 +15,9 @@ import { runSetup } from "./tools/setup.js";
 import { runStatus } from "./tools/status.js";
 import { runSync } from "./tools/sync.js";
 import { runGetTranslations } from "./tools/translations.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const loadDoc = (name: string) => readFileSync(join(__dirname, "../docs", name), "utf8");
 
 const server = new McpServer(
 	{ name: "vocoder", version: "0.1.0" },
@@ -24,9 +31,127 @@ Key principles:
 - Plurals and selects belong in <T> props (one/other, _male/_female), not in JavaScript ternaries.
 - Wrap all visible UI strings. Skip: import paths, CSS classes, URLs, console.log, test files, technical HTML attributes.
 - After implementing, always run vocoder_sync to extract strings and submit for translation.
-- If VOCODER_API_KEY is missing or invalid, tell the user to run \`npx @vocoder/cli init\` in their terminal to set up their project, then add VOCODER_API_KEY to their .env and run /mcp reset to reload.`,
+- If VOCODER_API_KEY is missing or invalid, tell the user to run \`npx @vocoder/cli init\` in their terminal to set up their project, then add VOCODER_API_KEY to their .env and run /mcp reset to reload.
+
+Reference resources (read when you need detail):
+- vocoder://docs/sdk-reference — Full @vocoder/react API: <T> props, t(), useVocoder(), VocoderProvider, LocaleSelector, ordinal(), preferred patterns
+- vocoder://docs/icu-patterns — ICU MessageFormat: plurals, selects, ordinals, rich text, formatting, anti-patterns
+- vocoder://docs/t-function — When to use module-level t() vs useVocoder().t and how locale switching causes full retranslation
+- vocoder://docs/framework-setup — Setup for Next.js App Router, Pages Router, Vite SPA, Remix — cookie detection, hydration, isReady
+- vocoder://docs/rtl — RTL layout: applyDir, dir from context, getLocaleDir for SSR, Tailwind rtl: variants
+- vocoder://docs/plugin-reference — Build plugin: framework setup, JSX transforms, virtual modules, injected constants
+- vocoder://docs/extractor — How extraction works: AST parsing, bail cases, hash computation, vocoder sync
+- vocoder://docs/troubleshooting — Debug common issues: missing translations, extraction failures, hydration mismatch, RTL`,
 	},
 );
+
+// ── Resources ─────────────────────────────────────────────────────────────────
+
+server.resource(
+	"vocoder-sdk-reference",
+	"vocoder://docs/sdk-reference",
+	{
+		description:
+			"Full @vocoder/react SDK reference: <T> props, t(), useVocoder() hook, VocoderProvider, LocaleSelector, VocoderProviderServer, getLocaleDir, ordinal(), build plugin setup. Includes preferred patterns and alternatives.",
+		mimeType: "text/markdown",
+	},
+	async () => ({
+		contents: [{ uri: "vocoder://docs/sdk-reference", text: loadDoc("sdk-reference.md"), mimeType: "text/markdown" }],
+	}),
+);
+
+server.resource(
+	"vocoder-icu-patterns",
+	"vocoder://docs/icu-patterns",
+	{
+		description:
+			"ICU MessageFormat patterns for Vocoder: plurals, selects, ordinals, rich text, number/date formatting, preferred vs alternative patterns, anti-patterns.",
+		mimeType: "text/markdown",
+	},
+	async () => ({
+		contents: [{ uri: "vocoder://docs/icu-patterns", text: loadDoc("icu-patterns.md"), mimeType: "text/markdown" }],
+	}),
+);
+
+server.resource(
+	"vocoder-t-function",
+	"vocoder://docs/t-function",
+	{
+		description:
+			"When to use module-level t() vs useVocoder().t: reactivity, locale switching, full retranslation, examples for each use case.",
+		mimeType: "text/markdown",
+	},
+	async () => ({
+		contents: [{ uri: "vocoder://docs/t-function", text: loadDoc("t-function.md"), mimeType: "text/markdown" }],
+	}),
+);
+
+server.resource(
+	"vocoder-framework-setup",
+	"vocoder://docs/framework-setup",
+	{
+		description:
+			"Setup guide for SSR vs SPA: Next.js App Router, Next.js Pages Router, Vite SPA, Remix. Cookie-based locale detection, hydration, isReady, locale persistence.",
+		mimeType: "text/markdown",
+	},
+	async () => ({
+		contents: [{ uri: "vocoder://docs/framework-setup", text: loadDoc("framework-setup.md"), mimeType: "text/markdown" }],
+	}),
+);
+
+server.resource(
+	"vocoder-rtl",
+	"vocoder://docs/rtl",
+	{
+		description:
+			"RTL (right-to-left) layout: applyDir, dir from useVocoder(), getLocaleDir for SSR, Tailwind rtl: variants, CSS logical properties, RTL locale list.",
+		mimeType: "text/markdown",
+	},
+	async () => ({
+		contents: [{ uri: "vocoder://docs/rtl", text: loadDoc("rtl.md"), mimeType: "text/markdown" }],
+	}),
+);
+
+server.resource(
+	"vocoder-plugin-reference",
+	"vocoder://docs/plugin-reference",
+	{
+		description:
+			"Build plugin reference: Next.js/Vite/Webpack/Rollup/esbuild setup, plugin options, JSX transformation, virtual modules, injected constants, branch detection.",
+		mimeType: "text/markdown",
+	},
+	async () => ({
+		contents: [{ uri: "vocoder://docs/plugin-reference", text: loadDoc("plugin-reference.md"), mimeType: "text/markdown" }],
+	}),
+);
+
+server.resource(
+	"vocoder-extractor",
+	"vocoder://docs/extractor",
+	{
+		description:
+			"How the string extractor works: Babel AST parsing, what gets extracted, natural JSX transformation, bail cases, hash computation, fingerprint, vocoder sync CLI.",
+		mimeType: "text/markdown",
+	},
+	async () => ({
+		contents: [{ uri: "vocoder://docs/extractor", text: loadDoc("extractor.md"), mimeType: "text/markdown" }],
+	}),
+);
+
+server.resource(
+	"vocoder-troubleshooting",
+	"vocoder://docs/troubleshooting",
+	{
+		description:
+			"Debugging common Vocoder issues: missing translations, extraction failures, LocaleSelector not showing, locale not persisting, hydration mismatch, RTL not applying, empty build bundles.",
+		mimeType: "text/markdown",
+	},
+	async () => ({
+		contents: [{ uri: "vocoder://docs/troubleshooting", text: loadDoc("troubleshooting.md"), mimeType: "text/markdown" }],
+	}),
+);
+
+// ── Tools ──────────────────────────────────────────────────────────────────────
 
 // vocoder_setup — inspect framework and return setup info.
 // Works without an API key (local detection only).

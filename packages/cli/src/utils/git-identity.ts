@@ -1,9 +1,9 @@
 import { execSync } from "node:child_process";
-import { relative, resolve } from "node:path";
 
 export type GitRepositoryIdentity = {
 	repoCanonical: string;
-	repoAppDir: string;
+	/** Absolute path to the git repository root (`git rev-parse --show-toplevel`). */
+	repoRoot: string;
 };
 
 export type GitContext = {
@@ -124,29 +124,14 @@ export function resolveGitRepositoryIdentity(): GitRepositoryIdentity | null {
 		return null;
 	}
 
-	const repositoryRoot = safeExec("git rev-parse --show-toplevel");
-	const currentDirectory = process.cwd();
-	let repoAppDir = "";
-	if (repositoryRoot) {
-		const relativePath = relative(
-			resolve(repositoryRoot),
-			resolve(currentDirectory),
-		)
-			.replace(/\\/g, "/")
-			.trim();
-
-		if (
-			relativePath &&
-			relativePath !== "." &&
-			!relativePath.startsWith("..")
-		) {
-			repoAppDir = relativePath;
-		}
+	const repoRoot = safeExec("git rev-parse --show-toplevel");
+	if (!repoRoot) {
+		return null;
 	}
 
 	return {
 		repoCanonical: toCanonical(parsed.host, parsed.ownerRepoPath),
-		repoAppDir,
+		repoRoot,
 	};
 }
 

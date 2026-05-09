@@ -31,7 +31,7 @@ describe("VocoderAPI.addLocale", () => {
 
 		expect(result.targetLocales).toEqual(["fr", "de"]);
 		expect(mockFetch).toHaveBeenCalledWith(
-			"https://vocoder.app/api/cli/project/locales",
+			"https://vocoder.app/api/cli/app/locales",
 			expect.objectContaining({
 				method: "POST",
 				body: expect.stringContaining('"locale":"de"'),
@@ -79,7 +79,7 @@ describe("VocoderAPI.removeLocale", () => {
 
 		expect(result.targetLocales).toEqual(["fr"]);
 		expect(mockFetch).toHaveBeenCalledWith(
-			"https://vocoder.app/api/cli/project/locales",
+			"https://vocoder.app/api/cli/app/locales",
 			expect.objectContaining({
 				method: "DELETE",
 				body: expect.stringContaining('"locale":"de"'),
@@ -314,5 +314,128 @@ describe("getTranslations command", () => {
 		delete process.env.VOCODER_API_KEY;
 		const code = await getTranslations({ branch: "main" });
 		expect(code).toBe(1);
+	});
+});
+
+// ── VocoderAPI.addLocale with appId ───────────────────────────────────────────
+
+describe("VocoderAPI.addLocale with appId", () => {
+	it("includes appId in request body when provided", async () => {
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			text: async () => JSON.stringify({ targetLocales: ["fr", "de"] }),
+		});
+		globalThis.fetch = mockFetch as typeof globalThis.fetch;
+
+		const api = new VocoderAPI({ apiKey: "vcp_test", apiUrl: "https://vocoder.app" });
+		await api.addLocale("de", undefined, "cm4appid123");
+
+		const callArgs = mockFetch.mock.calls[0];
+		const body = JSON.parse(callArgs[1].body);
+		expect(body.appId).toBe("cm4appid123");
+		expect(body.locale).toBe("de");
+	});
+
+	it("omits appId from request body when not provided", async () => {
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			text: async () => JSON.stringify({ targetLocales: ["de"] }),
+		});
+		globalThis.fetch = mockFetch as typeof globalThis.fetch;
+
+		const api = new VocoderAPI({ apiKey: "vcp_test", apiUrl: "https://vocoder.app" });
+		await api.addLocale("de");
+
+		const callArgs = mockFetch.mock.calls[0];
+		const body = JSON.parse(callArgs[1].body);
+		expect(body.appId).toBeUndefined();
+	});
+});
+
+// ── VocoderAPI.removeLocale with appId ───────────────────────────────────────
+
+describe("VocoderAPI.removeLocale with appId", () => {
+	it("includes appId in request body when provided", async () => {
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			text: async () => JSON.stringify({ targetLocales: ["fr"] }),
+		});
+		globalThis.fetch = mockFetch as typeof globalThis.fetch;
+
+		const api = new VocoderAPI({ apiKey: "vcp_test", apiUrl: "https://vocoder.app" });
+		await api.removeLocale("de", undefined, "cm4appid123");
+
+		const callArgs = mockFetch.mock.calls[0];
+		const body = JSON.parse(callArgs[1].body);
+		expect(body.appId).toBe("cm4appid123");
+	});
+});
+
+// ── VocoderAPI.createProject new response shape ───────────────────────────────
+
+describe("VocoderAPI.createProject", () => {
+	it("parses apps array from response", async () => {
+		const payload = {
+			projectId: "proj123",
+			projectName: "my-app",
+			apiKey: "vcp_test",
+			sourceLocale: "en",
+			targetLocales: ["fr"],
+			targetBranches: ["main"],
+			repositoryBound: true,
+			apps: [
+				{ appDir: "apps/web", appId: "app1" },
+				{ appDir: "apps/api", appId: "app2" },
+			],
+		};
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			text: async () => JSON.stringify(payload),
+		}) as typeof globalThis.fetch;
+
+		const api = new VocoderAPI({ apiKey: "", apiUrl: "https://vocoder.app" });
+		const result = await api.createProject("user_token", {
+			organizationId: "org1",
+			name: "my-app",
+			sourceLocale: "en",
+			targetLocales: ["fr"],
+			targetBranches: ["main"],
+			appDirs: ["apps/web", "apps/api"],
+		});
+
+		expect(result.apps).toHaveLength(2);
+		expect(result.apps[0]).toEqual({ appDir: "apps/web", appId: "app1" });
+		expect(result.apps[1]).toEqual({ appDir: "apps/api", appId: "app2" });
+		expect(result.apiKey).toBe("vcp_test");
+	});
+
+	it("returns single app in apps array for non-monorepo project", async () => {
+		const payload = {
+			projectId: "proj123",
+			projectName: "my-app",
+			apiKey: "vcp_test",
+			sourceLocale: "en",
+			targetLocales: ["fr"],
+			targetBranches: ["main"],
+			repositoryBound: false,
+			apps: [{ appDir: "", appId: "app1" }],
+		};
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			text: async () => JSON.stringify(payload),
+		}) as typeof globalThis.fetch;
+
+		const api = new VocoderAPI({ apiKey: "", apiUrl: "https://vocoder.app" });
+		const result = await api.createProject("user_token", {
+			organizationId: "org1",
+			name: "my-app",
+			sourceLocale: "en",
+			targetLocales: ["fr"],
+			targetBranches: ["main"],
+			appDirs: [],
+		});
+
+		expect(result.apps).toHaveLength(1);
+		expect(result.apps[0]).toEqual({ appDir: "", appId: "app1" });
 	});
 });

@@ -24,6 +24,11 @@ export type AppIndustry =
 export type Formality = "formal" | "informal" | "neutral";
 
 export interface VocoderConfig {
+	/**
+	 * Unique identifier for this app. Written by `vocoder init` — do not edit manually.
+	 * Used by the CLI to identify which app to update when syncing locales.
+	 */
+	appId?: string;
 	/** Glob patterns for files to extract strings from. */
 	include?: string[];
 	/** Glob patterns to exclude. */

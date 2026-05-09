@@ -614,8 +614,10 @@ export class VocoderAPI {
 			id: string;
 			name: string;
 			planId: string;
-			maxProjects: number;
-			projectCount: number;
+			/** Plan limit on total apps across all projects (-1 = unlimited). */
+			maxApps: number;
+			/** Current total app count across all projects in this organization. */
+			appCount: number;
 			hasGitHubConnection: boolean;
 			connectionLabel: string | null;
 			/** null when no `repo` param was provided */
@@ -649,8 +651,8 @@ export class VocoderAPI {
 				id: string;
 				name: string;
 				planId: string;
-				maxProjects: number;
-				projectCount: number;
+				maxApps: number;
+				appCount: number;
 				hasGitHubConnection: boolean;
 				connectionLabel: string | null;
 				coversRepo: boolean | null;
@@ -665,14 +667,16 @@ export class VocoderAPI {
 		organizationId: string,
 	): Promise<
 		Array<{
-			id: string;
+			appId: string;
+			projectId: string;
 			name: string;
+			appDir: string;
 			sourceLocale: string;
 			targetLocales: string[];
 			targetBranches: string[];
 		}>
 	> {
-		const url = new URL(`${this.apiUrl}/api/cli/projects`);
+		const url = new URL(`${this.apiUrl}/api/cli/apps`);
 		url.searchParams.set("organizationId", organizationId);
 
 		const response = await fetch(url.toString(), {
@@ -685,7 +689,7 @@ export class VocoderAPI {
 			throw new VocoderAPIError({
 				message: extractErrorMessage(
 					payload,
-					`Failed to list projects (${response.status})`,
+					`Failed to list apps (${response.status})`,
 				),
 				status: response.status,
 				payload,
@@ -693,15 +697,17 @@ export class VocoderAPI {
 		}
 
 		const result = payload as {
-			projects: Array<{
-				id: string;
+			apps: Array<{
+				appId: string;
+				projectId: string;
 				name: string;
+				appDir: string;
 				sourceLocale: string;
 				targetLocales: string[];
 				targetBranches: string[];
 			}>;
 		};
-		return result.projects;
+		return result.apps;
 	}
 
 	async regenerateProjectApiKey(
@@ -925,15 +931,17 @@ export class VocoderAPI {
 	async addLocale(
 		locale: string,
 		repoCanonical?: string,
+		appId?: string,
 	): Promise<{ targetLocales: string[] }> {
 		return this.request<{ targetLocales: string[] }>(
-			"/api/cli/project/locales",
+			"/api/cli/app/locales",
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					locale,
 					...(repoCanonical ? { repoCanonical } : {}),
+					...(appId ? { appId } : {}),
 				}),
 			},
 			"Failed to add locale",
@@ -950,15 +958,17 @@ export class VocoderAPI {
 	async removeLocale(
 		locale: string,
 		repoCanonical?: string,
+		appId?: string,
 	): Promise<{ targetLocales: string[] }> {
 		return this.request<{ targetLocales: string[] }>(
-			"/api/cli/project/locales",
+			"/api/cli/app/locales",
 			{
 				method: "DELETE",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					locale,
 					...(repoCanonical ? { repoCanonical } : {}),
+					...(appId ? { appId } : {}),
 				}),
 			},
 			"Failed to remove locale",
@@ -1043,8 +1053,9 @@ export class VocoderAPI {
 		targetBranches: string[];
 		repositoryBound: boolean;
 		configureUrl?: string;
+		apps: Array<{ appDir: string; appId: string }>;
 	}> {
-		const response = await fetch(`${this.apiUrl}/api/cli/projects`, {
+		const response = await fetch(`${this.apiUrl}/api/cli/apps`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1075,6 +1086,7 @@ export class VocoderAPI {
 			targetBranches: string[];
 			repositoryBound: boolean;
 			configureUrl?: string;
+			apps: Array<{ appDir: string; appId: string }>;
 		};
 	}
 
@@ -1090,6 +1102,7 @@ export class VocoderAPI {
 		appDir: string;
 	}): Promise<{
 		exactMatch: {
+			appId: string;
 			projectId: string;
 			projectName: string;
 			organizationName: string;
@@ -1098,11 +1111,15 @@ export class VocoderAPI {
 		} | null;
 		existingApps: Array<{
 			appDir: string;
+			/** Unique identifier for this app — written to vocoder.config.ts. */
+			appId: string;
 			projectId: string;
 			projectName: string;
 			organizationName: string;
 		}>;
 		hasWholeRepoApp: boolean;
+		/** Present when this repo is linked to a Vocoder organization (with or without a project). */
+		organizationContext: { organizationId: string; organizationName: string } | null;
 	}> {
 		try {
 			const response = await fetch(`${this.apiUrl}/api/cli/init/lookup`, {
@@ -1115,11 +1132,12 @@ export class VocoderAPI {
 			});
 
 			if (!response.ok) {
-				return { exactMatch: null, existingApps: [], hasWholeRepoApp: false };
+				return { exactMatch: null, existingApps: [], hasWholeRepoApp: false, organizationContext: null };
 			}
 
 			const data = (await response.json()) as {
 				exactMatch?: {
+					appId: string;
 					projectId: string;
 					projectName: string;
 					organizationName: string;
@@ -1128,19 +1146,22 @@ export class VocoderAPI {
 				} | null;
 				existingApps?: Array<{
 					appDir: string;
+					appId: string;
 					projectId: string;
 					projectName: string;
 					organizationName: string;
 				}>;
 				hasWholeRepoApp?: boolean;
+				organizationContext?: { organizationId: string; organizationName: string } | null;
 			};
 			return {
 				exactMatch: data.exactMatch ?? null,
 				existingApps: data.existingApps ?? [],
 				hasWholeRepoApp: data.hasWholeRepoApp ?? false,
+				organizationContext: data.organizationContext ?? null,
 			};
 		} catch {
-			return { exactMatch: null, existingApps: [], hasWholeRepoApp: false };
+			return { exactMatch: null, existingApps: [], hasWholeRepoApp: false, organizationContext: null };
 		}
 	}
 
@@ -1162,10 +1183,9 @@ export class VocoderAPI {
 		appId: string;
 		projectId: string;
 		projectName: string;
-		apiKey: string;
 		appDir: string;
 	}> {
-		const response = await fetch(`${this.apiUrl}/api/cli/project/apps`, {
+		const response = await fetch(`${this.apiUrl}/api/cli/apps`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1191,7 +1211,6 @@ export class VocoderAPI {
 			appId: string;
 			projectId: string;
 			projectName: string;
-			apiKey: string;
 			appDir: string;
 		};
 	}

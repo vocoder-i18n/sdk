@@ -144,10 +144,9 @@ function buildList(
 	filter: string,
 	customPatterns: string[],
 	addCursor: boolean,
-	optional = false,
 	excludedPatterns: Set<string> = new Set(),
 ): string {
-	const lines: string[] = [];
+	const lines: string[] = [info(S_BAR)];
 	const end = Math.min(filtered.length, scrollOffset + MAX_VISIBLE);
 
 	for (let i = scrollOffset; i < end; i++) {
@@ -171,10 +170,9 @@ function buildList(
 
 	// "Add pattern" option
 	const trimmed = filter.trim();
-	const allItems = [...filtered]; // simplified: just check filtered
 	const isNewPattern =
 		trimmed.length > 0 &&
-		!allItems.some((i) => i.value === trimmed) &&
+		!filtered.some((i) => i.value === trimmed) &&
 		!customPatterns.includes(trimmed);
 
 	if (isNewPattern) {
@@ -194,11 +192,6 @@ function buildList(
 
 	const hidden = filtered.length - (end - scrollOffset);
 	if (hidden > 0) lines.push(dim(`${S_BAR}  ${hidden} more`));
-	if (selected.size > 0) {
-		lines.push(dim(`${S_BAR}  ${selected.size} selected — Enter to confirm`));
-	} else if (optional) {
-		lines.push(dim(`${S_BAR}  Enter to skip`));
-	}
 
 	return lines.join("\n");
 }
@@ -261,10 +254,17 @@ export async function filterableBranchSelect(params: {
 				clampCursor(filtered);
 
 				const hdr = `${dim(S_BAR)}\n${symbol(this.state)}  ${message}\n`;
-				const hint =
+				const inputHint =
 					filter.length > 0
 						? filter
-						: dim("type to filter or add pattern, ↑↓ navigate, space select");
+						: dim("type to filter  ·  type a custom pattern to add it");
+
+				const footer =
+					selected.size > 0
+						? dim(`${S_BAR}  ${selected.size} selected  ·  ↑↓ navigate  ·  Space to select  ·  Enter to confirm`)
+						: optional
+							? dim(`${S_BAR}  ↑↓ navigate  ·  Space to select  ·  Enter to skip`)
+							: dim(`${S_BAR}  ↑↓ navigate  ·  Space to select  ·  Enter to confirm`);
 
 				switch (this.state) {
 					case "submit": {
@@ -279,36 +279,18 @@ export async function filterableBranchSelect(params: {
 					case "error":
 						return [
 							hdr.trimEnd(),
-							`${ylw(S_BAR)}  ${dim("/")} ${hint}`,
-							buildList(
-								filtered,
-								cursor,
-								scrollOffset,
-								selected,
-								filter,
-								customPatterns,
-								addCursor,
-								optional,
-								excludedSet,
-							),
+							`${ylw(S_BAR)}  ${dim("/")} ${inputHint}`,
+							buildList(filtered, cursor, scrollOffset, selected, filter, customPatterns, addCursor, excludedSet),
+							footer,
 							`${ylw(S_BAR_END)}  ${ylw(this.error)}`,
 							"",
 						].join("\n");
 					default:
 						return [
 							hdr.trimEnd(),
-							`${info(S_BAR)}  ${dim("/")} ${hint}`,
-							buildList(
-								filtered,
-								cursor,
-								scrollOffset,
-								selected,
-								filter,
-								customPatterns,
-								addCursor,
-								optional,
-								excludedSet,
-							),
+							`${info(S_BAR)}  ${dim("/")} ${inputHint}`,
+							buildList(filtered, cursor, scrollOffset, selected, filter, customPatterns, addCursor, excludedSet),
+							footer,
 							`${info(S_BAR_END)}`,
 							"",
 						].join("\n");

@@ -6,7 +6,6 @@ import {
 	getPackagesToInstall,
 	getSetupSnippets,
 } from "@vocoder/cli/lib";
-import { SDK_REFERENCE } from "../sdk-reference.js";
 
 export interface ImplementI18nInput {
 	sourceLocale?: string;
@@ -44,7 +43,7 @@ export interface ImplementI18nResult {
 		patternsToSkip: string[];
 		tFunctionUsage: string;
 	};
-	sdkReference: string;
+	sdkReferenceUri: string;
 	steps: string[];
 }
 
@@ -347,7 +346,7 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 			tFunctionUsage:
 				"Use t() (not <T>) for: non-JSX contexts, strings passed as function arguments (toast, alert, console), aria-label/title/placeholder attributes, window.document.title. Example: document.title = t('Settings | MyApp')",
 		},
-		sdkReference: SDK_REFERENCE,
+		sdkReferenceUri: "vocoder://docs/sdk-reference",
 		steps,
 	};
 }

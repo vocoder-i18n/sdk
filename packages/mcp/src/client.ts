@@ -132,7 +132,7 @@ export class VocoderClient {
 	): Promise<{ targetLocales: string[] }> {
 		return this.request<{ targetLocales: string[] }>(
 			"POST",
-			"/api/cli/project/locales",
+			"/api/cli/app/locales",
 			{ locale, repoCanonical },
 		);
 	}
@@ -149,7 +149,7 @@ export class VocoderClient {
 	): Promise<{ targetLocales: string[] }> {
 		return this.request<{ targetLocales: string[] }>(
 			"DELETE",
-			"/api/cli/project/locales",
+			"/api/cli/app/locales",
 			{ locale, repoCanonical },
 		);
 	}

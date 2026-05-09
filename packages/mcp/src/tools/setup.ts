@@ -6,7 +6,6 @@ import {
 	getPackagesToInstall,
 	getSetupSnippets,
 } from "@vocoder/cli/lib";
-import { SDK_REFERENCE } from "../sdk-reference.js";
 
 export interface SetupInput {
 	sourceLocale?: string;
@@ -31,7 +30,7 @@ export interface SetupResult {
 		patternsToWrap: string[];
 		patternsToSkip: string[];
 	};
-	sdkReference: string;
+	sdkReferenceUri: string;
 	nextSteps: string[];
 }
 
@@ -166,7 +165,7 @@ export function runSetup(input: SetupInput, hasApiKey: boolean): SetupResult {
 				"Single-word strings that are identifiers or enum values",
 			],
 		},
-		sdkReference: SDK_REFERENCE,
+		sdkReferenceUri: "vocoder://docs/sdk-reference",
 		nextSteps,
 	};
 }

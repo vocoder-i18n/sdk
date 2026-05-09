@@ -1,6 +1,7 @@
 import * as p from "@clack/prompts";
 import chalk from "chalk";
 import type { VocoderAPI } from "./api.js";
+import { collectAppDirs, promptSingleAppDir } from "./app-dir-select.js";
 import { detectGitBranches, filterableBranchSelect } from "./branch-select.js";
 import type { LocaleOption } from "./locale-search.js";
 import {
@@ -10,6 +11,7 @@ import {
 
 export interface ExistingApp {
 	appDir: string;
+	appId: string;
 	projectId: string;
 	projectName: string;
 	organizationName: string;
@@ -27,12 +29,14 @@ export interface ProjectCreateParams {
 	repoCanonical?: string;
 	/** Default target branches */
 	defaultBranches?: string[];
+	/** Git repository root — used as base for app directory validation */
+	repoRoot?: string;
 	/**
-	 * Auto-detected scope path (CWD relative to git root).
-	 * Non-empty when running from a subdirectory of the repo — monorepo use case.
-	 * e.g. "apps/web"
+	 * Maximum number of app directories the user may add in this session.
+	 * Derived from the workspace's remaining app entitlement (maxApps - appCount).
+	 * Undefined means unlimited.
 	 */
-	defaultAppDir?: string;
+	maxAppDirs?: number;
 }
 
 export interface AppCreateParams {
@@ -42,7 +46,6 @@ export interface AppCreateParams {
 	projectName: string;
 	organizationName: string;
 	repoCanonical?: string;
-	defaultAppDir?: string;
 	/** Existing apps to display and validate against */
 	existingApps: ExistingApp[];
 }
@@ -50,8 +53,8 @@ export interface AppCreateParams {
 export interface AppCreateResult {
 	projectId: string;
 	projectName: string;
-	apiKey: string;
 	appDir: string;
+	appId: string;
 	sourceLocale: string;
 	targetLocales: string[];
 	targetBranches: string[];
@@ -60,12 +63,15 @@ export interface AppCreateResult {
 export interface ProjectCreateResult {
 	projectId: string;
 	projectName: string;
+	/** Project-scoped API key (vcp_) — one key covers all apps in this project. */
 	apiKey: string;
 	sourceLocale: string;
 	targetLocales: string[];
 	targetBranches: string[];
 	repositoryBound: boolean;
 	configureUrl?: string;
+	/** One entry per created app, each with its own appId for vocoder.config.ts. */
+	apps: Array<{ appDir: string; appId: string }>;
 }
 
 /** All locales — used for target language selection. */
@@ -104,15 +110,16 @@ function buildLanguageOptions(
 }
 
 /**
- * Run the full project configuration TUI: prompts for name, source locale,
- * target locales, and target branches, then calls POST /api/cli/projects.
+ * Run the full project configuration TUI: prompts for app directories, source locale,
+ * target locales, and target branches, then calls POST /api/cli/apps.
  *
- * Returns the created project info (including API key), or null if cancelled.
+ * Returns the created project info (including project-scoped API key and per-app IDs),
+ * or null if cancelled.
  */
 export async function runProjectCreate(
 	params: ProjectCreateParams,
 ): Promise<ProjectCreateResult | null> {
-	const { api, userToken, organizationId, repoCanonical } = params;
+	const { api, userToken, organizationId, repoCanonical, repoRoot } = params;
 
 	// ── Project name ────────────────────────────────────────────────────────────
 	// Use the detected repo name automatically — no prompt needed.
@@ -132,10 +139,12 @@ export async function runProjectCreate(
 
 	const languageOptions = buildLanguageOptions(sourceLocales);
 
-	// ── Scope path (monorepo) ───────────────────────────────────────────────────
-	const appDir = params.defaultAppDir ?? "";
-	if (appDir) {
-		p.log.success(`App directory: ${chalk.bold(appDir)}`);
+	// ── App directories (monorepo support) ──────────────────────────────────────
+	const appDirs = await collectAppDirs({ cwd: repoRoot, maxDirs: params.maxAppDirs });
+	if (appDirs === null) return null;
+
+	if (appDirs.length > 0) {
+		p.log.success(`App directories: ${appDirs.map((d) => chalk.bold(d)).join(", ")}`);
 	}
 
 	// ── Source locale ───────────────────────────────────────────────────────────
@@ -178,16 +187,12 @@ export async function runProjectCreate(
 		);
 	}
 
-	// ── Branch triggers — per-trigger selection ────────────────────────────────
-	// Ask which branches should fire for each trigger type. Branches can appear
-	// in both push and PR (they get both triggers). Manual is mutually exclusive:
-	// a branch cannot be both automatic (push/PR) and manual-only.
+	// ── Branch triggers ─────────────────────────────────────────────────────────
 	const detected = detectGitBranches();
 	const initialBranches = params.defaultBranches?.length
 		? params.defaultBranches
 		: [detected.defaultBranch];
 
-	// Step 1: push (required)
 	let pushBranches: string[] = [];
 	{
 		let initial = initialBranches;
@@ -220,12 +225,22 @@ export async function runProjectCreate(
 			sourceLocale,
 			targetLocales,
 			targetBranches,
-			appDirs: appDir ? [appDir] : [],
+			appDirs,
 			repoCanonical,
 		});
 
 		p.log.success(`Project ${chalk.bold(result.projectName)} created!`);
-		return result;
+		return {
+			projectId: result.projectId,
+			projectName: result.projectName,
+			apiKey: result.apiKey,
+			sourceLocale,
+			targetLocales,
+			targetBranches,
+			repositoryBound: result.repositoryBound,
+			configureUrl: result.configureUrl,
+			apps: result.apps,
+		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Unknown error";
 		p.log.error(`Failed to create project: ${message}`);
@@ -242,7 +257,14 @@ export async function runAppCreate(
 	params: AppCreateParams,
 ): Promise<AppCreateResult | null> {
 	const { api, userToken, projectId, projectName, repoCanonical } = params;
-	const existingScopes = new Set(params.existingApps.map((a) => a.appDir));
+	const existingDirs = params.existingApps.map((a) => a.appDir);
+
+	// ── App directory ───────────────────────────────────────────────────────────
+	const appDir = await promptSingleAppDir({ existingDirs });
+	if (appDir === null) return null;
+	if (appDir) {
+		p.log.success(`App directory: ${chalk.bold(appDir)}`);
+	}
 
 	// ── Fetch source locales ────────────────────────────────────────────────────
 	let sourceLocales: Array<{ code: string; name: string; nativeName?: string }>;
@@ -256,16 +278,6 @@ export async function runAppCreate(
 	}
 
 	const languageOptions = buildLanguageOptions(sourceLocales);
-
-	// ── App directory ───────────────────────────────────────────────────────────
-	const appDir = params.defaultAppDir ?? "";
-	if (existingScopes.has(appDir)) {
-		p.log.error(`App directory "${appDir}" is already configured for this project.`);
-		return null;
-	}
-	if (appDir) {
-		p.log.success(`App directory: ${chalk.bold(appDir)}`);
-	}
 
 	// ── Source locale ───────────────────────────────────────────────────────────
 	const sourceLocale = await searchSelectLocale(
@@ -301,7 +313,7 @@ export async function runAppCreate(
 		);
 	}
 
-	// ── Branch triggers — per-trigger selection (same logic as runProjectCreate) ─
+	// ── Branch triggers ─────────────────────────────────────────────────────────
 	const detectedApp = detectGitBranches();
 
 	let appPushBranches: string[] = [];
@@ -328,7 +340,7 @@ export async function runAppCreate(
 
 	// ── Create the App ─────────────────────────────────────────────────────────
 	try {
-		const result = await api.createProject(userToken, {
+		const result = await api.createApp(userToken, {
 			projectId,
 			appDir,
 			sourceLocale,
@@ -338,13 +350,13 @@ export async function runAppCreate(
 		});
 
 		p.log.success(
-			`App ${chalk.bold(appDir)} added to ${chalk.bold(projectName)}!`,
+			`App ${chalk.bold(appDir || "(root)")} added to ${chalk.bold(projectName)}!`,
 		);
 		return {
 			projectId: result.projectId,
 			projectName: result.projectName,
-			apiKey: result.apiKey,
 			appDir: result.appDir,
+			appId: result.appId,
 			sourceLocale,
 			targetLocales,
 			targetBranches,

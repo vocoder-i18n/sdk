@@ -26,15 +26,27 @@ export function findExistingConfig(cwd: string = process.cwd()): string | null {
  * Returns the filename that was written, or null if the file already existed
  * or the write failed.
  */
+/**
+ * Write a vocoder.config file to cwd if one doesn't already exist.
+ * Pass `useTypeScript: false` for plain-JS projects — writes vocoder.config.js
+ * instead of vocoder.config.ts. The config content is identical; only the
+ * file extension (and therefore the import style in the user's editor) differs.
+ *
+ * Returns the filename that was written, or null if the file already existed
+ * or the write failed.
+ */
 export function writeVocoderConfig(options: {
 	targetBranches?: string[];
 	useTypeScript?: boolean;
 	cwd?: string;
+	/** App ID to embed in the config — written by init, used by CLI to identify the app. */
+	appId?: string;
 }): string | null {
 	const {
 		targetBranches = ["main"],
 		useTypeScript = true,
 		cwd = process.cwd(),
+		appId,
 	} = options;
 
 	// Don't write if any config variant already exists
@@ -50,6 +62,7 @@ export function writeVocoderConfig(options: {
 	// extraction when the CLI or build plugin runs with the app dir as cwd).
 	const includes = ["**/*.{tsx,jsx,ts,js}"];
 	const includesStr = includes.map((p) => `'${p}'`).join(", ");
+	const appIdLine = appId ? `  appId: '${appId}',\n` : "";
 
 	// Both TS and JS use ESM import syntax — the content is identical.
 	// TypeScript users get type-checking from defineConfig; JS users get
@@ -57,7 +70,7 @@ export function writeVocoderConfig(options: {
 	const content = `import { defineConfig } from '@vocoder/config'
 
 export default defineConfig({
-  targetBranches: [${branchesStr}],
+${appIdLine}  targetBranches: [${branchesStr}],
   include: [${includesStr}],
 })
 `;

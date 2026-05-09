@@ -2,13 +2,31 @@ import * as p from "@clack/prompts";
 import chalk from "chalk";
 import { active, highlight } from "../utils/theme.js";
 import { config as loadEnv } from "dotenv";
+import { readFileSync } from "node:fs";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
+import { findExistingConfig } from "../utils/write-config.js";
 import { getLimitErrorGuidance } from "./sync.js";
 
 loadEnv();
 
 export interface LocaleCommandOptions {
 	apiUrl?: string;
+}
+
+/**
+ * Read the appId from the nearest vocoder.config.ts/js in the CWD.
+ * Returns undefined when no config file is found or it contains no appId.
+ */
+function readLocalAppId(): string | undefined {
+	const configPath = findExistingConfig(process.cwd());
+	if (!configPath) return undefined;
+	try {
+		const content = readFileSync(configPath, "utf-8");
+		const match = content.match(/appId:\s*['"]([^'"]+)['"]/);
+		return match?.[1];
+	} catch {
+		return undefined;
+	}
 }
 
 function getApiConfig(options: LocaleCommandOptions): {
@@ -71,7 +89,7 @@ export async function listProjectLocales(options: LocaleCommandOptions = {}): Pr
  * Loops per locale — the API accepts one locale at a time.
  * Idempotent: locales already configured are silently skipped.
  *
- * Endpoint: POST /api/cli/project/locales (one call per locale)
+ * Endpoint: POST /api/cli/app/locales (one call per locale)
  *
  * @param locales  Array of BCP 47 locale codes to add, e.g. ["fr", "de", "pt-BR"].
  * @throws {VocoderAPIError} status 422 for invalid/unsupported locale code.
@@ -90,6 +108,7 @@ export async function addLocales(
 	if (!config) return 1;
 
 	const api = new VocoderAPI(config);
+	const appId = readLocalAppId();
 	let lastTargetLocales: string[] = [];
 	let hadError = false;
 
@@ -98,7 +117,7 @@ export async function addLocales(
 		spinner.start(`Adding ${locale}…`);
 
 		try {
-			const result = await api.addLocale(locale);
+			const result = await api.addLocale(locale, undefined, appId);
 			lastTargetLocales = result.targetLocales;
 			spinner.stop(`Added ${highlight(locale)}`);
 		} catch (error) {
@@ -135,7 +154,7 @@ export async function addLocales(
  * Loops per locale — the API accepts one locale at a time.
  * Idempotent: locales not currently configured are silently skipped.
  *
- * Endpoint: DELETE /api/cli/project/locales (one call per locale)
+ * Endpoint: DELETE /api/cli/app/locales (one call per locale)
  *
  * @param locales  Array of BCP 47 locale codes to remove, e.g. ["fr", "de"].
  */
@@ -152,6 +171,7 @@ export async function removeLocales(
 	if (!config) return 1;
 
 	const api = new VocoderAPI(config);
+	const appId = readLocalAppId();
 	let lastTargetLocales: string[] = [];
 	let hadError = false;
 
@@ -160,7 +180,7 @@ export async function removeLocales(
 		spinner.start(`Removing ${locale}…`);
 
 		try {
-			const result = await api.removeLocale(locale);
+			const result = await api.removeLocale(locale, undefined, appId);
 			lastTargetLocales = result.targetLocales;
 			spinner.stop(`Removed ${highlight(locale)}`);
 		} catch (error) {

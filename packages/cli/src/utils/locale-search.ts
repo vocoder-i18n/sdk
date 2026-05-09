@@ -54,7 +54,7 @@ function buildList(
 ): string {
 	const isMulti = selected !== null;
 	const end = Math.min(filtered.length, scrollOffset + MAX_VISIBLE);
-	const visibleLines: string[] = [];
+	const visibleLines: string[] = [info(S_BAR)];
 
 	for (let i = scrollOffset; i < end; i++) {
 		const opt = filtered[i]!;
@@ -82,11 +82,6 @@ function buildList(
 	if (hidden > 0)
 		visibleLines.push(dim(`${S_BAR}  ${hidden} more — keep typing to narrow`));
 	if (filtered.length === 0) visibleLines.push(dim(`${S_BAR}  No matches`));
-	if (isMulti && selected!.size > 0) {
-		visibleLines.push(
-			dim(`${S_BAR}  ${selected!.size} selected — Enter to confirm`),
-		);
-	}
 
 	return visibleLines.join("\n");
 }
@@ -141,12 +136,13 @@ async function runFilterablePrompt(opts: {
 				clampCursor(filtered);
 
 				const hdr = `${dim(S_BAR)}\n${symbol(this.state)}  ${message}\n`;
-				const hint =
-					filter.length > 0
-						? filter
-						: dim(
-								`type to filter, ↑↓ navigate${multi ? ", space select" : ""}`,
-							);
+				const inputHint = filter.length > 0 ? filter : dim("type to filter");
+
+				const footer = multi
+					? selected.size > 0
+						? dim(`${S_BAR}  ${selected.size} selected  ·  ↑↓ navigate  ·  Space to select  ·  Enter to confirm`)
+						: dim(`${S_BAR}  ↑↓ navigate  ·  Space to select  ·  Enter to confirm`)
+					: dim(`${S_BAR}  ↑↓ navigate  ·  Enter to confirm`);
 
 				switch (this.state) {
 					case "submit": {
@@ -163,26 +159,18 @@ async function runFilterablePrompt(opts: {
 					case "error":
 						return [
 							hdr.trimEnd(),
-							`${ylw(S_BAR)}  ${dim("/")} ${hint}`,
-							buildList(
-								filtered,
-								cursor,
-								scrollOffset,
-								multi ? selected : null,
-							),
+							`${ylw(S_BAR)}  ${dim("/")} ${inputHint}`,
+							buildList(filtered, cursor, scrollOffset, multi ? selected : null),
+							footer,
 							`${ylw(S_BAR_END)}  ${ylw(this.error)}`,
 							"",
 						].join("\n");
 					default:
 						return [
 							hdr.trimEnd(),
-							`${info(S_BAR)}  ${dim("/")} ${hint}`,
-							buildList(
-								filtered,
-								cursor,
-								scrollOffset,
-								multi ? selected : null,
-							),
+							`${info(S_BAR)}  ${dim("/")} ${inputHint}`,
+							buildList(filtered, cursor, scrollOffset, multi ? selected : null),
+							footer,
 							`${info(S_BAR_END)}`,
 							"",
 						].join("\n");
