@@ -1,7 +1,8 @@
-import { spawn } from "node:child_process";
 import * as p from "@clack/prompts";
-import chalk from "chalk";
+
 import type { VocoderAPI } from "./api.js";
+import chalk from "chalk";
+import { spawn } from "node:child_process";
 import { startCallbackServer } from "./local-server.js";
 
 async function tryOpenBrowser(url: string): Promise<boolean> {
@@ -90,7 +91,6 @@ export async function runGitHubInstallFlow(params: {
 	);
 
 	p.log.info("Opening GitHub to install the Vocoder App...");
-	p.note(installUrl, "Install URL");
 
 	if (
 		process.stdin.isTTY &&
