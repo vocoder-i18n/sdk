@@ -1,5 +1,11 @@
 # @vocoder/extractor
 
+## 0.18.0
+
+### Patch Changes
+
+- @vocoder/config@0.18.0
+
 ## 0.17.2
 
 ### Patch Changes
