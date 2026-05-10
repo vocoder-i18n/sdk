@@ -1,5 +1,11 @@
 # @vocoder/cli
 
+## 0.16.5
+
+### Patch Changes
+
+- Migrate user-facing "project" terminology to "app" across CLI and MCP. Renames `ProjectConfig` type to `AppConfig`. Updates all help text, error messages, MCP tool descriptions, and JSDoc comments.
+
 ## 0.16.4
 
 ### Patch Changes

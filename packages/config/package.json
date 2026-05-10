@@ -1,6 +1,6 @@
 {
   "name": "@vocoder/config",
-  "version": "0.16.4",
+  "version": "0.16.5",
   "description": "Type helper for vocoder.config.ts",
   "files": [
     "dist"
