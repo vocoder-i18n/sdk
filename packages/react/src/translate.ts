@@ -1,4 +1,4 @@
-import { formatICU, generateMessageHash } from "@vocoder/core";
+import { applyOrdinalForms, formatICU, generateMessageHash } from "@vocoder/core";
 import type { LocalesMap, TOptions } from "./types";
 
 /**
@@ -55,27 +55,9 @@ export function _setGlobalLocales(locales: LocalesMap): void {
  * ```
  */
 export function ordinal(value: number, gender?: string): string {
-	const localeInfo = globalLocales[globalLocale];
-	const forms = localeInfo?.ordinalForms;
-
+	const forms = globalLocales[globalLocale]?.ordinalForms;
 	if (!forms) return String(value);
-
-	if (forms.type === "suffix") {
-		const pr = new Intl.PluralRules(globalLocale, { type: "ordinal" });
-		const category = pr.select(value) as keyof typeof forms.suffixes;
-		const pattern = forms.suffixes[category] ?? forms.suffixes.other;
-		if (!pattern) return String(value);
-		return pattern.replace("#", String(value));
-	}
-
-	if (forms.type === "word") {
-		const genderKey = gender ?? "masculine";
-		const genderMap = forms.words[genderKey] ?? forms.words["masculine"] ?? Object.values(forms.words)[0];
-		const word = genderMap?.[value];
-		if (word) return word;
-	}
-
-	return String(value);
+	return applyOrdinalForms(value, globalLocale, forms, gender) ?? String(value);
 }
 
 /**

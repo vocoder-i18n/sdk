@@ -1,15 +1,9 @@
 import React from "react";
 import type { ComponentSlot, TProps } from "./types";
-import { formatICU, formatValue, generateMessageHash, rewriteSelectordinalInICU } from "@vocoder/core";
+import { ALL_CLDR, DEFAULT_ORDINAL_ICU, PLURAL_CLDR, applyOrdinalForms, buildPluralICU, buildSelectICU, formatICU, formatValue, generateMessageHash, rewriteSelectordinalInICU } from "@vocoder/core";
 import { extractText } from "./utils/extractText";
 import { formatElements } from "./utils/formatElements";
 import { useVocoder } from "./VocoderProvider";
-
-// CLDR plural categories that unambiguously indicate plural mode.
-// "other" is excluded because it doubles as the fallback in select mode.
-const PLURAL_CLDR = new Set(["zero", "one", "two", "few", "many"]);
-// Full set used in ICU builders where mode is already resolved.
-const ALL_CLDR = new Set(["zero", "one", "two", "few", "many", "other"]);
 
 /**
  * Classify a rest prop key for plural/select mode detection.
@@ -27,55 +21,6 @@ function classifyProp(key: string): "plural" | "select" | "other" | "ignore" {
 	return "ignore";
 }
 
-// Must stay byte-for-byte identical to DEFAULT_ORDINAL_ICU in @vocoder/extractor/src/index.ts.
-// Locale-neutral: no source-language ordinal suffixes. The actual ordinal form is
-// resolved via ordinalForms (Tier 1). Tier 2 evaluates `other {#}` to String(rank).
-const DEFAULT_ORDINAL_ICU = "{count, selectordinal, other {#}}";
-
-/**
- * Build an ICU plural string from plural props.
- * Exact matches (_0 → =0) come before CLDR categories.
- * Internal variable is always "count" for consistent lookup keys.
- * Must stay byte-for-byte identical to buildPluralICU in @vocoder/extractor/src/index.ts.
- */
-function buildPluralICU(props: Record<string, string>): string {
-	const exact: string[] = [];
-	const cldr: string[] = [];
-
-	for (const [key, text] of Object.entries(props)) {
-		const exactMatch = key.match(/^_(\d+)$/);
-		if (exactMatch) {
-			exact.push(`=${exactMatch[1]} {${text}}`);
-		} else if (ALL_CLDR.has(key)) {
-			cldr.push(`${key} {${text}}`);
-		}
-	}
-
-	return `{count, plural, ${[...exact, ...cldr].join(" ")}}`;
-}
-
-/**
- * Build an ICU select string from select props.
- * Internal variable is always "value" for consistent lookup keys.
- * Must stay byte-for-byte identical to buildSelectICU in @vocoder/extractor/src/index.ts.
- */
-function buildSelectICU(props: Record<string, string>): string {
-	const cases: string[] = [];
-	let hasOther = false;
-
-	for (const [key, text] of Object.entries(props)) {
-		if (key === "other") {
-			hasOther = true;
-			cases.push(`other {${text}}`);
-		} else {
-			const wordCase = key.match(/^_([a-zA-Z].*)$/);
-			if (wordCase) cases.push(`${wordCase[1]} {${text}}`);
-		}
-	}
-
-	if (!hasOther) cases.push("other {other}");
-	return `{value, select, ${cases.join(" ")}}`;
-}
 
 /** Translate and format message text in JSX. Supports three modes:
  *
@@ -157,26 +102,12 @@ export const T: React.FC<TProps> = ({
 			const rank = Number(value);
 			const forms = locales?.[locale]?.ordinalForms;
 
-			if (forms?.type === "suffix") {
-				const pr = new Intl.PluralRules(locale, { type: "ordinal" });
-				const category = pr.select(rank) as keyof typeof forms.suffixes;
-				const pattern = forms.suffixes[category] ?? forms.suffixes.other;
-				return <>{pattern ? pattern.replace("#", String(value)) : String(value)}</>;
+			if (forms) {
+				const result = applyOrdinalForms(rank, locale, forms, gender);
+				if (result !== null) return <>{result}</>;
 			}
 
-			if (forms?.type === "word") {
-				const genderKey = gender ?? "masculine";
-				const genderMap = forms.words[genderKey] ?? forms.words["masculine"] ?? Object.values(forms.words)[0];
-				const word = genderMap?.[rank];
-				if (word) return <>{word}</>;
-				// Rank not in the word map (e.g. rank > 100 or a gap in coverage).
-				// Return String(value) directly — do NOT fall through to Tier 2 bundle
-				// lookup. For word-based locales the pipeline's tryBuildOrdinalFromDB
-				// returns null, so whatever the provider stored for DEFAULT_ORDINAL_ICU
-				// is unreliable garbage ("21الـ", etc.). Consistent with ordinal() hook.
-				return <>{String(value)}</>;
-			}
-
+			// Tier 2: ICU bundle lookup (locales without ordinalForms in the manifest)
 			const ordinalValues = { count: value, ...(valuesObj ?? {}) };
 			const lookupKey = id ?? generateMessageHash(DEFAULT_ORDINAL_ICU, _context);
 			if (hasTranslation(lookupKey)) {

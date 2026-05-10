@@ -24,7 +24,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import { getBestMatchingLocale, getCookie, setCookie } from "@vocoder/core";
+import { applyOrdinalForms, getBestMatchingLocale, getCookie, setCookie } from "@vocoder/core";
 import {
 	getConfig,
 	getLocales,
@@ -35,6 +35,7 @@ import {
 } from "./runtime";
 
 import type React from "react";
+import type { TOptions } from "./types";
 import { formatICU, generateMessageHash } from "@vocoder/core";
 
 export const VocoderContext = createContext<VocoderContextValue | null>(null);
@@ -293,8 +294,10 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	// t — reactive translate. Takes source text + optional values/options.
 	// options.id skips hash computation (used by <T> which has a pre-computed hash).
 	const t = useCallback(
-		(text: string, values?: Record<string, unknown>, options?: { context?: string; id?: string }): string => {
-			const hash = options?.id ?? generateMessageHash(text, options?.context);
+		(text: string, values?: Record<string, unknown>, options?: TOptions): string => {
+			const hash = options?.id
+				? options.id + (options.formality === "formal" || options.formality === "informal" ? `\x05${options.formality}` : "")
+				: generateMessageHash(text, options?.context, options?.formality);
 			const translated = translations[locale]?.[hash] ?? text;
 			if (values && Object.keys(values).length > 0) {
 				return formatICU(translated, values as Record<string, unknown>, locale);
@@ -306,41 +309,20 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 
 	const ordinal = useCallback(
 		(value: number, gender?: string): string => {
-			const localeInfo = locales?.[locale];
-			const forms = localeInfo?.ordinalForms;
-
+			const forms = locales?.[locale]?.ordinalForms;
 			if (!forms) return String(value);
-
-			if (forms.type === "suffix") {
-				const pr = new Intl.PluralRules(locale, { type: "ordinal" });
-				const category = pr.select(value) as keyof typeof forms.suffixes;
-				const pattern = forms.suffixes[category] ?? forms.suffixes.other;
-				if (!pattern) return String(value);
-				return pattern.replace("#", String(value));
-			}
-
-			if (forms.type === "word") {
-				const genderKey = gender ?? "masculine";
-				const genderMap = forms.words[genderKey] ?? forms.words["masculine"] ?? Object.values(forms.words)[0];
-				const word = genderMap?.[value];
-				if (word) return word;
-			}
-
-			return String(value);
+			return applyOrdinalForms(value, locale, forms, gender) ?? String(value);
 		},
 		[locale, locales],
 	);
 
-	// hasTranslation(key) — key is always a hash.
-	// For user-facing callers passing source text, compute hash first.
+	// hasTranslation(key) — always a pre-computed hash. Use generateMessageHash(text) first
+	// if you have source text. Magic dual-mode (hash-or-text) was removed — too surprising.
 	const hasTranslation = useCallback(
 		(key: string): boolean => {
 			const map = translations[locale];
 			if (!map) return false;
-			// Direct lookup (hash from T component) — fast path
-			if (Object.prototype.hasOwnProperty.call(map, key)) return true;
-			// Source text from user code — compute hash and retry
-			return Object.prototype.hasOwnProperty.call(map, generateMessageHash(key));
+			return Object.prototype.hasOwnProperty.call(map, key);
 		},
 		[translations, locale],
 	);

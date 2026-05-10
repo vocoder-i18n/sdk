@@ -264,3 +264,41 @@ export function rewriteSelectordinalInICU(
 		return icu;
 	}
 }
+
+/**
+ * Apply ordinal forms data to produce a locale-correct ordinal string.
+ *
+ * Returns the formatted ordinal when ordinalForms covers the value, or
+ * `String(value)` for word-based locales when the rank is outside the
+ * compiled word map (e.g. ranks > 100). Returns `null` only when the
+ * forms type is unrecognised — callers should fall through to their ICU
+ * bundle or String(value) in that case.
+ */
+export function applyOrdinalForms(
+	value: number,
+	locale: string,
+	forms: OrdinalForms,
+	gender?: string,
+): string | null {
+	if (forms.type === "suffix") {
+		const pr = new Intl.PluralRules(locale, { type: "ordinal" });
+		const category = pr.select(value) as keyof typeof forms.suffixes;
+		const pattern = forms.suffixes[category] ?? forms.suffixes.other;
+		return pattern ? pattern.replace("#", String(value)) : null;
+	}
+
+	if (forms.type === "word") {
+		const genderKey = gender ?? "masculine";
+		const genderMap =
+			forms.words[genderKey] ??
+			forms.words["masculine"] ??
+			Object.values(forms.words)[0];
+		const word = genderMap?.[value];
+		if (word) return word;
+		// Rank outside the word map — don't fall through to ICU (unreliable for
+		// word-based locales where the pipeline's ordinal DB returns null).
+		return String(value);
+	}
+
+	return null;
+}

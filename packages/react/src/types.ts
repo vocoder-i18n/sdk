@@ -43,7 +43,8 @@ export interface VocoderContextValue {
 	 * re-runs on locale change. Use inside components. Use global `t()` in callbacks/utilities.
 	 */
 	t: (text: string, values?: Record<string, unknown>, options?: TOptions) => string;
-	hasTranslation: (text: string) => boolean;
+	/** Check whether a translation exists for a pre-computed hash key. Use generateMessageHash(text) to get a key from source text. */
+	hasTranslation: (key: string) => boolean;
 	/** Format a number as a locale-aware ordinal (e.g. "1st" in en, "1.º" in es, "الأول" in ar). */
 	ordinal: (value: number, gender?: string) => string;
 }

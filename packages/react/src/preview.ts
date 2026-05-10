@@ -3,6 +3,7 @@ import { getCookie, setCookie } from "@vocoder/core";
 declare const __VOCODER_PREVIEW__: boolean;
 
 const COOKIE_KEY = "vocoder_preview";
+const QUERY_PARAM = "vocoder"; // URL opt-in: ?vocoder=true|false
 
 export const PREVIEW_MODE: boolean = (() => {
 	try {
@@ -29,17 +30,17 @@ export function isVocoderEnabled(preview?: boolean): boolean {
 }
 
 /**
- * Reads ?vocoder=true|false from the URL, syncs to cookie, then redirects to strip the param.
- * Call this once from a useEffect — never during render.
+ * Reads ?vocoder=true|false from the URL, syncs to the vocoder_preview cookie,
+ * then redirects to strip the param. Call once from a useEffect — never during render.
  */
 export function syncPreviewQueryParam(): void {
 	if (typeof window === "undefined") return;
 	try {
 		const url = new URL(window.location.href);
-		const param = url.searchParams.get(COOKIE_KEY);
+		const param = url.searchParams.get(QUERY_PARAM);
 		if (param === "true" || param === "false") {
 			setCookie(COOKIE_KEY, param);
-			url.searchParams.delete(COOKIE_KEY);
+			url.searchParams.delete(QUERY_PARAM);
 			window.location.replace(url.toString());
 		}
 	} catch {
