@@ -1,5 +1,14 @@
 # @vocoder/mcp
 
+## 0.17.1
+
+### Patch Changes
+
+- Rename `vocoder_project_create` → `vocoder_app_create` to match user-facing "app" terminology. Fix `ProjectCreateResult` to include `apps: Array<{ appDir, appId }>` from the actual API response. Update instructions to include ready-to-write `vocoder.config.ts` content with the correct `appId` per app.
+  - @vocoder/cli@0.17.1
+  - @vocoder/extractor@0.17.1
+  - @vocoder/plugin@0.17.1
+
 ## 0.17.0
 
 ### Minor Changes

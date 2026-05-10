@@ -246,7 +246,7 @@ server.tool(
 // vocoder_init_complete — poll for auth token after user completes the browser flow.
 server.tool(
 	"vocoder_init_complete",
-	"Poll for the authentication token after the user completes the browser flow from vocoder_init_start. Pass the sessionId returned by vocoder_init_start. Once authenticated, ask the user for sourceLocale, targetLocales, and targetBranches, then call vocoder_project_create.",
+	"Poll for the authentication token after the user completes the browser flow from vocoder_init_start. Pass the sessionId returned by vocoder_init_start. Once authenticated, ask the user for sourceLocale, targetLocales, and targetBranches, then call vocoder_app_create.",
 	{
 		sessionId: z.string().describe("sessionId returned by vocoder_init_start"),
 	},
@@ -267,10 +267,10 @@ server.tool(
 	},
 );
 
-// vocoder_project_create — create the Vocoder project and get the API key.
+// vocoder_app_create — create the Vocoder app and get the API key.
 server.tool(
-	"vocoder_project_create",
-	"Create a Vocoder project for this repo and return the API key. Requires a completed auth session from vocoder_init_complete. Returns apiKey, project config, and step-by-step instructions for what to write to disk. After calling this, write VOCODER_API_KEY to .env, then call vocoder_implement_i18n to scaffold the SDK.",
+	"vocoder_app_create",
+	"Create a Vocoder app for this repo and return the API key. Requires a completed auth session from vocoder_init_complete. Returns apiKey, app config including appId(s), and step-by-step instructions for what to write to disk. After calling this, write VOCODER_API_KEY to .env and vocoder.config.ts with the appId, then call vocoder_implement_i18n to scaffold the SDK.",
 	{
 		sessionId: z.string().describe("sessionId from vocoder_init_start"),
 		sourceLocale: z.string().describe('Source language code, e.g. "en"'),
@@ -281,7 +281,7 @@ server.tool(
 		projectName: z
 			.string()
 			.optional()
-			.describe("Project name (defaults to repo name)"),
+			.describe("App name (defaults to repo name)"),
 	},
 	async ({ sessionId, sourceLocale, targetLocales, targetBranches, projectName }) => {
 		try {

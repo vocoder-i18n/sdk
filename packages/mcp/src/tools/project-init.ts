@@ -53,6 +53,7 @@ export interface ProjectCreateResult {
 	targetBranches: string[];
 	repositoryBound: boolean;
 	configureUrl?: string;
+	apps: Array<{ appDir: string; appId: string }>;
 	instructions: string;
 }
 
@@ -310,24 +311,45 @@ export async function runProjectCreate(
 
 	pendingSessions.delete(input.sessionId);
 
+	const apps: Array<{ appDir: string; appId: string }> =
+		(projectResult as typeof projectResult & { apps?: Array<{ appDir: string; appId: string }> }).apps ?? [];
+
+	const configLines = apps.length > 0
+		? apps.map((app) =>
+				[
+					`import { defineConfig } from '@vocoder/config';`,
+					``,
+					`export default defineConfig({`,
+					`  appId: '${app.appId}',`,
+					`  localesPath: 'src/locales',`,
+					`  targetBranches: [${input.targetBranches.map((b) => `'${b}'`).join(", ")}],`,
+					`});`,
+				].join("\n"),
+			)
+		: [];
+
+	const configInstructions =
+		configLines.length > 0
+			? `\n\n2. Write vocoder.config.ts${apps.length > 1 ? " per app directory" : ""}:\n${configLines.map((c, i) => (apps[i]?.appDir ? `   # ${apps[i]!.appDir}\n${c}` : c)).join("\n\n")}`
+			: `\n\n2. Call vocoder_implement_i18n — it will generate vocoder.config.ts and the full SDK implementation plan.`;
+
 	const repoWarning = !projectResult.repositoryBound
-		? "\n\nWARNING: Repository not bound — translations won't run automatically until you grant the Vocoder GitHub App access to this repository in your GitHub installation settings."
+		? `\n\nWARNING: Repository not bound — translations won't run automatically until you grant the Vocoder GitHub App access to this repository in your GitHub installation settings.`
 		: "";
 
 	return {
 		...projectResult,
+		apps,
 		instructions: [
-			`Project "${projectResult.projectName}" created. Next steps:`,
+			`App "${projectResult.projectName}" created. Next steps:`,
 			``,
 			`1. Write to .env at the project root:`,
 			`   VOCODER_API_KEY=${projectResult.apiKey}`,
+			configInstructions,
 			``,
-			`2. Call vocoder_implement_i18n to generate the full SDK implementation plan.`,
-			`   It will create vocoder.config.ts, install packages, set up VocoderProvider,`,
-			`   and give you the file list to wrap strings in.`,
+			`3. Call vocoder_implement_i18n to install packages, set up VocoderProvider, and get the list of files to wrap strings in.`,
 			``,
-			`3. Tell the user: "Add VOCODER_API_KEY=${projectResult.apiKey} to your MCP server`,
-			`   environment config and restart your editor to reload the MCP server."`,
+			`4. Tell the user: add VOCODER_API_KEY=${projectResult.apiKey} to their MCP server environment config and restart their editor.`,
 			repoWarning,
 		]
 			.join("\n")
