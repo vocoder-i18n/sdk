@@ -210,7 +210,6 @@ export async function runGitHubDiscoveryFlow(params: {
 	});
 
 	p.log.info("Opening GitHub to authorize your account...");
-	p.note("Complete authorization in your browser.");
 
 	if (
 		process.stdin.isTTY &&
@@ -300,7 +299,7 @@ export async function selectGitHubInstallation(
 			label: inst.accountLogin,
 			hint:
 				[
-					inst.accountType === "Organization" ? "organization" : "personal",
+					inst.accountType === "Organization" ? "GitHub org" : "personal account",
 					inst.conflictLabel ? `connected to ${inst.conflictLabel}` : "",
 					inst.isSuspended ? "suspended" : "",
 				]
@@ -311,12 +310,12 @@ export async function selectGitHubInstallation(
 	if (canInstallNew) {
 		options.push({
 			value: "install_new",
-			label: `Install on a new account ${chalk.dim("(creates a new personal workspace)")}`,
+			label: `Install on a new account ${chalk.dim("(creates a new workspace)")}`,
 		});
 	}
 
 	const selected = await p.select<SelectValue>({
-		message: "Select a GitHub installation",
+		message: "Which GitHub account should this workspace connect to?",
 		options,
 	});
 

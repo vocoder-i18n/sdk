@@ -118,8 +118,13 @@ function extractFromObject(obj: any): VocoderConfig {
 			config.localesPath = prop.value.value as string;
 		}
 
+		if (key === "industry" && prop.value.type === "StringLiteral") {
+			config.industry = prop.value.value as VocoderConfig["industry"];
+		}
+
 		if (key === "appIndustry" && prop.value.type === "StringLiteral") {
-			config.appIndustry = prop.value.value as VocoderConfig["appIndustry"];
+			// Legacy field — mapped to industry for backward compat
+			config.industry = prop.value.value as VocoderConfig["industry"];
 		}
 
 		if (key === "formality" && prop.value.type === "StringLiteral") {

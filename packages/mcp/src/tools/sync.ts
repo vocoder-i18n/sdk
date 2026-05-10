@@ -55,7 +55,7 @@ export async function runSync(
 		const sortedKeys = [...strings.map((s) => s.key)].sort();
 		stringsHash = crypto
 			.createHash("sha256")
-			.update(JSON.stringify({ strings: sortedKeys, appIndustry: null }))
+			.update(JSON.stringify({ strings: sortedKeys, industry: null }))
 			.digest("hex");
 	}
 

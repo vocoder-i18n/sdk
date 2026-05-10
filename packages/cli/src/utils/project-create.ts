@@ -218,34 +218,30 @@ export async function runProjectCreate(
 	const targetBranches = pushBranches;
 
 	// ── Create project ──────────────────────────────────────────────────────────
-	try {
-		const result = await api.createProject(userToken, {
-			organizationId,
-			name: projectName,
-			sourceLocale,
-			targetLocales,
-			targetBranches,
-			appDirs,
-			repoCanonical,
-		});
+	// Errors (including plan limit errors) propagate to the caller so it can
+	// decide whether to show an upgrade link or a generic error message.
+	const result = await api.createProject(userToken, {
+		organizationId,
+		name: projectName,
+		sourceLocale,
+		targetLocales,
+		targetBranches,
+		appDirs,
+		repoCanonical,
+	});
 
-		p.log.success(`Project ${chalk.bold(result.projectName)} created!`);
-		return {
-			projectId: result.projectId,
-			projectName: result.projectName,
-			apiKey: result.apiKey,
-			sourceLocale,
-			targetLocales,
-			targetBranches,
-			repositoryBound: result.repositoryBound,
-			configureUrl: result.configureUrl,
-			apps: result.apps,
-		};
-	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
-		p.log.error(`Failed to create project: ${message}`);
-		return null;
-	}
+	p.log.success(`Project ${chalk.bold(result.projectName)} created!`);
+	return {
+		projectId: result.projectId,
+		projectName: result.projectName,
+		apiKey: result.apiKey,
+		sourceLocale,
+		targetLocales,
+		targetBranches,
+		repositoryBound: result.repositoryBound,
+		configureUrl: result.configureUrl,
+		apps: result.apps,
+	};
 }
 
 /**
@@ -339,31 +335,26 @@ export async function runAppCreate(
 	const targetBranches = appPushBranches;
 
 	// ── Create the App ─────────────────────────────────────────────────────────
-	try {
-		const result = await api.createApp(userToken, {
-			projectId,
-			appDir,
-			sourceLocale,
-			targetLocales,
-			targetBranches,
-			repoCanonical: repoCanonical ?? "",
-		});
+	// Errors propagate to the caller for consistent plan-limit / error handling.
+	const result = await api.createApp(userToken, {
+		projectId,
+		appDir,
+		sourceLocale,
+		targetLocales,
+		targetBranches,
+		repoCanonical: repoCanonical ?? "",
+	});
 
-		p.log.success(
-			`App ${chalk.bold(appDir || "(root)")} added to ${chalk.bold(projectName)}!`,
-		);
-		return {
-			projectId: result.projectId,
-			projectName: result.projectName,
-			appDir: result.appDir,
-			appId: result.appId,
-			sourceLocale,
-			targetLocales,
-			targetBranches,
-		};
-	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
-		p.log.error(`Failed to add app: ${message}`);
-		return null;
-	}
+	p.log.success(
+		`App ${chalk.bold(appDir || "(root)")} added to ${chalk.bold(projectName)}!`,
+	);
+	return {
+		projectId: result.projectId,
+		projectName: result.projectName,
+		appDir: result.appDir,
+		appId: result.appId,
+		sourceLocale,
+		targetLocales,
+		targetBranches,
+	};
 }

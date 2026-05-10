@@ -128,7 +128,7 @@ export async function collectAppDirs(opts: { cwd?: string; maxDirs?: number } = 
 
 						for (let i = 0; i < added.length; i++) {
 							const isCursor = i === cursor && !addCursor;
-							const icon = isCursor ? active("◼") : info("◼");
+							const icon = active("◼");
 							const label = isCursor ? bld(added[i]!) : added[i]!;
 							lines.push(`${info(S_BAR)}  ${icon}  ${label}`);
 						}

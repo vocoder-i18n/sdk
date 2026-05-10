@@ -63,9 +63,7 @@ function buildList(
 
 		const icon = isMulti
 			? isChecked
-				? isCursor
-					? info("◼")
-					: info("◼")
+				? active("◼")
 				: isCursor
 					? active("◻")
 					: dim("◻")
@@ -79,8 +77,7 @@ function buildList(
 	}
 
 	const hidden = filtered.length - (end - scrollOffset);
-	if (hidden > 0)
-		visibleLines.push(dim(`${S_BAR}  ${hidden} more — keep typing to narrow`));
+	if (hidden > 0) visibleLines.push(dim(`${S_BAR}  ${hidden} more — keep typing to narrow`));
 	if (filtered.length === 0) visibleLines.push(dim(`${S_BAR}  No matches`));
 
 	return visibleLines.join("\n");

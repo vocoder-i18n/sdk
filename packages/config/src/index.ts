@@ -1,20 +1,26 @@
 /**
- * Supported app industry classifications.
+ * Supported industry classifications for an app.
  * Set once in vocoder.config.ts; synced to App at extraction time.
+ * Used as a TM pool bucket key — matching values across orgs share cache entries.
  * Cannot be edited from the dashboard — config file is the source of truth.
- *
- * Keep in sync with APP_INDUSTRIES in
- * vocoder-app/lib/vocoder/translation/context-constants.ts.
  */
-export type AppIndustry =
+export type Industry =
 	| "ecommerce"
-	| "saas"
+	| "b2b_saas"
 	| "healthcare"
 	| "fintech"
 	| "gaming"
 	| "education"
 	| "media"
-	| "productivity";
+	| "productivity"
+	| "travel"
+	| "legal"
+	| "government"
+	| "nonprofit"
+	| "other";
+
+/** @deprecated Use `Industry` */
+export type AppIndustry = Industry;
 
 /**
  * Translation formality level.
@@ -49,7 +55,9 @@ export interface VocoderConfig {
 	 * and to isolate cache entries by industry in the global translation cache.
 	 * Synced to App at extraction time.
 	 */
-	appIndustry?: AppIndustry;
+	industry?: Industry;
+	/** @deprecated Use `industry` */
+	appIndustry?: Industry;
 	/**
 	 * Project-wide default formality level for translations.
 	 * Can be overridden per-string via <T formality="..."> on the AI plan.

@@ -21,14 +21,14 @@ import type {
  */
 type StringsHashInput = {
 	keys: string[];
-	appIndustry?: string | null;
+	industry?: string | null;
 };
 
 function computeStringsHash(input: StringsHashInput): string {
 	const { createHash } = require("node:crypto") as typeof import("node:crypto");
 	const sorted = [...input.keys].sort();
 	return createHash("sha256")
-		.update(JSON.stringify({ strings: sorted, appIndustry: input.appIndustry ?? null }))
+		.update(JSON.stringify({ strings: sorted, industry: input.industry ?? null }))
 		.digest("hex");
 }
 
@@ -274,7 +274,7 @@ export class VocoderAPI {
 			clientRunId?: string;
 			force?: boolean;
 			/** From vocoder.config.ts — synced to App on every push */
-			appIndustry?: string;
+			industry?: string;
 		},
 		repoIdentity?: RepoIdentityPayload,
 	): Promise<TranslationBatchResponse> {
@@ -283,7 +283,7 @@ export class VocoderAPI {
 		// Filter them out for API submission; they still count toward the fingerprint.
 		const stringEntries = allEntries.filter((e): e is TranslationStringEntry & { text: string } => e.text != null);
 
-		const stringsHash = computeStringsHash({ keys: allEntries.map((e) => e.key), appIndustry: options?.appIndustry ?? null });
+		const stringsHash = computeStringsHash({ keys: allEntries.map((e) => e.key), industry: options?.industry ?? null });
 
 		return this.request<TranslationBatchResponse>(
 			"/api/cli/sync",
@@ -313,7 +313,7 @@ export class VocoderAPI {
 					...(repoIdentity?.commitSha
 						? { commitSha: repoIdentity.commitSha }
 						: {}),
-					...(options?.appIndustry ? { appIndustry: options.appIndustry } : {}),
+					...(options?.industry ? { industry: options.industry } : {}),
 				}),
 			},
 			"Translation submission failed",

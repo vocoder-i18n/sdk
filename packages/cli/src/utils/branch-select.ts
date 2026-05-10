@@ -155,9 +155,7 @@ function buildList(
 		const isChecked = selected.has(item.value);
 
 		const icon = isChecked
-			? isCursor
-				? info("◼")
-				: info("◼")
+			? active("◼")
 			: isCursor
 				? active("◻")
 				: dim("◻");
@@ -191,7 +189,7 @@ function buildList(
 	}
 
 	const hidden = filtered.length - (end - scrollOffset);
-	if (hidden > 0) lines.push(dim(`${S_BAR}  ${hidden} more`));
+	if (hidden > 0) lines.push(dim(`${S_BAR}  ${hidden} more — keep typing to narrow`));
 
 	return lines.join("\n");
 }
@@ -259,12 +257,18 @@ export async function filterableBranchSelect(params: {
 						? filter
 						: dim("type to filter  ·  type a custom pattern to add it");
 
-				const footer =
-					selected.size > 0
-						? dim(`${S_BAR}  ${selected.size} selected  ·  ↑↓ navigate  ·  Space to select  ·  Enter to confirm`)
-						: optional
-							? dim(`${S_BAR}  ↑↓ navigate  ·  Space to select  ·  Enter to skip`)
-							: dim(`${S_BAR}  ↑↓ navigate  ·  Space to select  ·  Enter to confirm`);
+				const trimmedFilter = filter.trim();
+				const footer = (() => {
+					if (trimmedFilter.length > 0 && isNewPattern()) {
+						return dim(`${S_BAR}  Space to add "${trimmedFilter}"  ·  ↑↓ navigate  ·  Enter to confirm`);
+					}
+					if (selected.size > 0) {
+						return dim(`${S_BAR}  ${selected.size} selected  ·  ↑↓ navigate  ·  Space to select  ·  Enter to confirm`);
+					}
+					return optional
+						? dim(`${S_BAR}  ↑↓ navigate  ·  Space to select  ·  Enter to skip`)
+						: dim(`${S_BAR}  ↑↓ navigate  ·  Space to select  ·  Enter to confirm`);
+				})();
 
 				switch (this.state) {
 					case "submit": {
@@ -314,6 +318,10 @@ export async function filterableBranchSelect(params: {
 			scrollOffset = 0;
 			addCursor = false;
 		}
+		// Auto-focus the "+" row as soon as typed text diverges from all existing branches
+		if (isNewPattern()) {
+			addCursor = true;
+		}
 	});
 
 	prompt.on("cursor", (action: string | undefined) => {
@@ -332,9 +340,9 @@ export async function filterableBranchSelect(params: {
 					addCursor = true;
 				else if (!addCursor) cursor = Math.min(filtered.length - 1, cursor + 1);
 				break;
-			case "space":
-				if (addCursor) {
-					const t = filter.trim();
+			case "space": {
+				const t = filter.trim();
+				if (addCursor || (t.length > 0 && isNewPattern())) {
 					const err =
 						validateBranchPattern(t) ??
 						(excludedSet.has(t)
@@ -356,6 +364,7 @@ export async function filterableBranchSelect(params: {
 					}
 				}
 				break;
+			}
 		}
 	});
 

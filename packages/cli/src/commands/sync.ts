@@ -439,7 +439,7 @@ export async function sync(options: TranslateOptions = {}): Promise<number> {
 			includePattern: mergedConfig.includePattern,
 			excludePattern: mergedConfig.excludePattern,
 			timeout: waitTimeoutMs,
-			...(fileConfig?.appIndustry ? { appIndustry: fileConfig.appIndustry } : {}),
+			...(fileConfig?.industry ?? fileConfig?.appIndustry ? { industry: fileConfig?.industry ?? fileConfig?.appIndustry } : {}),
 			...(fileConfig?.formality ? { formality: fileConfig.formality } : {}),
 		};
 
@@ -554,8 +554,7 @@ export async function sync(options: TranslateOptions = {}): Promise<number> {
 				requestedMaxWaitMs: waitTimeoutMs,
 				clientRunId: randomUUID(),
 				force: options.force,
-				// Sync appIndustry from vocoder.config.ts to App on every push
-				...(config.appIndustry ? { appIndustry: config.appIndustry } : {}),
+				...(config.industry ? { industry: config.industry } : {}),
 			},
 			repoIdentity ? { ...repoIdentity, commitSha } : { commitSha },
 		);

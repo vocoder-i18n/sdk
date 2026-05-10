@@ -27,7 +27,7 @@ export interface SyncBody {
 	force?: boolean;
 	requestedMaxWaitMs?: number;
 	clientRunId?: string;
-	appIndustry?: string;
+	industry?: string;
 }
 
 export class VocoderClient {

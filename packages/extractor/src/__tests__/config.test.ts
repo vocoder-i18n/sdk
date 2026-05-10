@@ -35,12 +35,19 @@ describe("parseVocoderConfig", () => {
 		expect(config).toBeNull();
 	});
 
-	it("parses formality and appIndustry fields", () => {
-		const source = `export default { formality: "formal", appIndustry: "legal" };`;
+	it("parses formality and industry fields", () => {
+		const source = `export default { formality: "formal", industry: "legal" };`;
 		const config = parseVocoderConfig(source);
 		expect(config).not.toBeNull();
 		expect(config!.formality).toBe("formal");
-		expect(config!.appIndustry).toBe("legal");
+		expect(config!.industry).toBe("legal");
+	});
+
+	it("maps legacy appIndustry field to industry", () => {
+		const source = `export default { appIndustry: "ecommerce" };`;
+		const config = parseVocoderConfig(source);
+		expect(config).not.toBeNull();
+		expect(config!.industry).toBe("ecommerce");
 	});
 
 	it("parses targetBranches array", () => {

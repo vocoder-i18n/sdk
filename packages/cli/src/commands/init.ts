@@ -29,7 +29,7 @@ import {
 
 import type { InitOptions } from "../types.js";
 import chalk from "chalk";
-import { getSetupSnippets } from "../utils/setup-snippets.js";
+
 import { config as loadEnv } from "dotenv";
 import { resolveGitContext } from "../utils/git-identity.js";
 import { selectOrganization } from "../utils/organization.js";
@@ -109,12 +109,11 @@ function printPlanLimitMessage(apiUrl: string, message: string): void {
 }
 
 interface ScaffoldParams {
-  sourceLocale: string;
   targetBranches: string[];
 }
 
 function runScaffold(params: ScaffoldParams): void {
-  const { sourceLocale, targetBranches } = params;
+  const { targetBranches } = params;
 
   const detection = detectLocalEcosystem();
   const useTypeScript = detection.isTypeScript;
@@ -168,53 +167,11 @@ function runScaffold(params: ScaffoldParams): void {
     p.log.info(`Packages:  ${chalk.green("already installed")}`);
   }
 
-  const snippets = getSetupSnippets({
-    framework: detection.framework,
-    ecosystem: detection.ecosystem,
-    sourceLocale,
-    targetBranches,
-  });
-
-  const steps: Array<{ label: string; hint: string; code: string }> = [];
-
-  if (snippets.pluginStep) {
-    steps.push({
-      label: snippets.pluginStep.file,
-      hint: "register the build plugin so Vocoder can extract your strings",
-      code: snippets.pluginStep.code,
-    });
-  }
-
-  if (snippets.providerStep) {
-    steps.push({
-      label: snippets.providerStep.file,
-      hint: "wrap your app so translations load at runtime",
-      code: snippets.providerStep.code,
-    });
-  }
-
-  steps.push({
-    label: "wrap translatable text",
-    hint: "mark strings for extraction — Vocoder picks these up on push",
-    code: snippets.wrapStep.code,
-  });
-
-  p.log.message("");
-  p.log.message(chalk.bold("Finish setup in your code"));
-  p.log.message("");
-
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i]!;
-    p.log.step(`${chalk.bold(step.label)}  ${chalk.dim(`— ${step.hint}`)}`);
-    printCodeBlock(step.code);
-    if (i < steps.length - 1) p.log.message("");
-  }
-
-  p.log.message("");
   const branchList =
     targetBranches.length > 0
       ? targetBranches.map((b) => highlight(b)).join(" or ")
       : highlight("your target branch");
+  p.log.message("");
   p.log.success(`Push to ${branchList} to trigger your first translation run.`);
   p.log.message(info("  Docs: https://vocoder.app/docs/getting-started"));
 }
@@ -286,62 +243,111 @@ function writeAppConfigs(
   }
 }
 
-// TODO: uncomment when @vocoder/mcp is published and functional
-// function printMcpSetup(apiKey: string): void {
-// 	const addCommand = `claude mcp add --scope project --transport stdio \\\n  --env VOCODER_API_KEY=${apiKey} \\\n  vocoder -- npx -y @vocoder/mcp`;
-//
-// 	const teamConfig = JSON.stringify(
-// 		{
-// 			mcpServers: {
-// 				vocoder: {
-// 					type: "stdio",
-// 					command: "npx",
-// 					args: ["-y", "@vocoder/mcp"]
-// 				},
-// 			},
-// 		},
-// 		null,
-// 		2,
-// 	);
-//
-// 	p.log.message("");
-// 	p.log.message(chalk.bold("Use Vocoder with Claude Code"));
-// 	p.log.message("");
-// 	p.log.message("Run once to register the MCP server (embeds your key locally):");
-// 	printCodeBlock(addCommand);
-// 	p.log.message("");
-// 	p.log.message(
-// 		"To share with your team, commit " +
-// 			highlight(".mcp.json") +
-// 			" with an env var reference —",
-// 	);
-// 	p.log.message(
-// 		"each developer sets " + highlight("VOCODER_API_KEY") + " in their own .env:",
-// 	);
-// 	printCodeBlock(teamConfig);
-// 	p.log.message("");
-// 	p.log.message(chalk.gray("Docs: https://vocoder.app/docs/mcp"));
-// }
+const MCP_DOCS_URL = "https://vocoder.app/docs/mcp";
+
+function mcpServerJson(apiKey: string): string {
+  return JSON.stringify(
+    {
+      mcpServers: {
+        vocoder: {
+          type: "stdio",
+          command: "npx",
+          args: ["-y", "@vocoder/mcp"],
+          env: { VOCODER_API_KEY: apiKey },
+        },
+      },
+    },
+    null,
+    2,
+  );
+}
+
+async function runMcpSetup(apiKey: string): Promise<void> {
+  type Tool = "claude" | "cursor" | "windsurf" | "vscode" | "other";
+
+  const tool = await p.select<Tool>({
+    message: "Which AI editor?",
+    options: [
+      { value: "claude", label: "Claude Code" },
+      { value: "cursor", label: "Cursor" },
+      { value: "windsurf", label: "Windsurf" },
+      { value: "vscode", label: "VS Code (GitHub Copilot)" },
+      { value: "other", label: "Other — show the config JSON" },
+    ],
+  });
+
+  if (p.isCancel(tool)) return;
+
+  if (tool === "claude") {
+    try {
+      execSync(
+        `claude mcp add --scope user --transport stdio --env VOCODER_API_KEY=${apiKey} vocoder -- npx -y @vocoder/mcp`,
+        { stdio: "pipe" },
+      );
+      p.log.success("Vocoder MCP server registered in Claude Code.");
+    } catch {
+      p.log.message("Run this to register the MCP server:");
+      printCommand(
+        `claude mcp add --scope user --transport stdio --env VOCODER_API_KEY=${apiKey} vocoder -- npx -y @vocoder/mcp`,
+      );
+      p.log.message(info(`  Docs: ${MCP_DOCS_URL}`));
+    }
+    return;
+  }
+
+  const configPaths: Record<Exclude<Tool, "claude">, { path: string; merge: boolean }> = {
+    cursor: { path: "~/.cursor/mcp.json", merge: true },
+    windsurf: { path: "~/.codeium/windsurf/mcp_config.json", merge: true },
+    vscode: { path: ".vscode/mcp.json", merge: true },
+    other: { path: ".mcp.json", merge: false },
+  };
+
+  const { path: configPath, merge } = configPaths[tool];
+  const mergeNote = merge
+    ? chalk.dim(`  Merge into ${highlight(configPath)} (create if missing):`)
+    : chalk.dim(`  Add to ${highlight(configPath)}:`);
+
+  p.log.message(mergeNote);
+  printCodeBlock(mcpServerJson(apiKey));
+  p.log.message(info(`  Docs: ${MCP_DOCS_URL}`));
+}
+
+function tryClipboard(text: string): boolean {
+  const tools: Array<{ cmd: string; args?: string[] }> = [
+    { cmd: "pbcopy" },
+    { cmd: "xclip", args: ["-selection", "clipboard"] },
+    { cmd: "xsel", args: ["--clipboard", "--input"] },
+    { cmd: "wl-copy" },
+    { cmd: "clip" },
+  ];
+  for (const { cmd, args = [] } of tools) {
+    try {
+      execSync([cmd, ...args].join(" "), {
+        input: text,
+        stdio: ["pipe", "ignore", "ignore"],
+      });
+      return true;
+    } catch {
+      continue;
+    }
+  }
+  return false;
+}
+
+function printCommand(cmd: string): void {
+  const copied = tryClipboard(cmd);
+  process.stdout.write("\n");
+  process.stdout.write(`  ${chalk.dim("$")} ${chalk.cyan(cmd)}\n`);
+  if (copied) process.stdout.write(`  ${chalk.dim("↑ copied to clipboard")}\n`);
+  process.stdout.write("\n");
+}
 
 function printCodeBlock(code: string): void {
-  const lines = code.split("\n");
-  const maxLen = lines.reduce(
-    (max: number, line: string) => Math.max(max, line.length),
-    0,
-  );
-  const bar = chalk.gray("│");
-  const pad = (s: string) => s + " ".repeat(maxLen - s.length);
-
-  process.stdout.write(`${chalk.gray("│")}\n`);
-  process.stdout.write(
-    `${chalk.gray("│")}  ${chalk.gray(`┌${"─".repeat(maxLen + 2)}┐`)}\n`,
-  );
-  for (const line of lines) {
-    process.stdout.write(`${chalk.gray("│")}  ${bar} ${pad(line)} ${bar}\n`);
+  process.stdout.write("\n");
+  for (const line of code.split("\n")) {
+    process.stdout.write(`  ${line}\n`);
   }
-  process.stdout.write(
-    `${chalk.gray("│")}  ${chalk.gray(`└${"─".repeat(maxLen + 2)}┘`)}\n`,
-  );
+  process.stdout.write("\n");
 }
 
 // ── Auth helpers ─────────────────────────────────────────────────────────────
@@ -389,6 +395,7 @@ async function runAuthFlow(
     ? session.verificationUrl
     : (session.installUrl ?? session.verificationUrl);
   const expiresAt = new Date(session.expiresAt).getTime();
+  p.log.info(browserUrl)
 
   if (options.ci) {
     // Machine-readable output for automated test harnesses.
@@ -1115,10 +1122,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
       }
 
       const detection = detectLocalEcosystem();
-      runScaffold({
-        sourceLocale: appResult.sourceLocale,
-        targetBranches: appResult.targetBranches,
-      });
+      runScaffold({ targetBranches: appResult.targetBranches });
       writeAppConfigs(
         [{ appDir: appResult.appDir, appId: appResult.appId }],
         appResult.targetBranches,
@@ -1169,7 +1173,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
         remainingApps = ws.maxApps === -1 ? undefined : Math.max(0, ws.maxApps - ws.appCount);
       }
     } catch {
-      // Non-fatal — server enforces limits on creation
+      p.log.warn("Could not verify plan limits — proceeding, the server will enforce them.");
     }
 
     // ── Project configuration ────────────────────────────────────────────────────
@@ -1187,10 +1191,8 @@ export async function init(options: InitOptions = {}): Promise<number> {
       maxAppDirs: remainingApps,
     });
 
-    if (!projectResult) {
-      p.log.error("Project creation failed. Run `vocoder init` again.");
-      return 1;
-    }
+    // null means user cancelled a prompt — individual steps already logged.
+    if (!projectResult) return 1;
 
     // Warn if the current repo isn't accessible to the GitHub App installation.
     // This means translations won't trigger on push until the App is granted access.
@@ -1208,10 +1210,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 
     // ── Scaffold: ecosystem detection, install instructions, setup snippets ──────
     const detection = detectLocalEcosystem();
-    runScaffold({
-      sourceLocale: projectResult.sourceLocale,
-      targetBranches: projectResult.targetBranches,
-    });
+    runScaffold({ targetBranches: projectResult.targetBranches });
 
     // ── Write per-app config files and the shared project key ────────────────────
     writeAppConfigs(
@@ -1222,19 +1221,22 @@ export async function init(options: InitOptions = {}): Promise<number> {
     );
     printApiKey(projectResult.apiKey, identity?.repoRoot);
 
+    const wantsMcp = await p.confirm({
+      message: "Set up the Vocoder MCP server for your AI editor?",
+    });
+    if (!p.isCancel(wantsMcp) && wantsMcp) {
+      await runMcpSetup(projectResult.apiKey);
+    }
+
     p.outro("You're all set.");
     return 0;
   } catch (error) {
-    if (error instanceof Error) {
-      if (isPlanLimitFailure(error.message)) {
-        printPlanLimitMessage(apiUrl, error.message);
-        return 1;
-      }
-      p.log.error(`Error: ${error.message}`);
+    const message = error instanceof Error ? error.message : "Unknown setup error";
+    if (isPlanLimitFailure(message)) {
+      printPlanLimitMessage(apiUrl, message);
     } else {
-      p.log.error("Unknown setup error");
+      p.log.error(message);
     }
-
     return 1;
   }
 }
