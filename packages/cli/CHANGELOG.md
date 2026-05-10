@@ -1,5 +1,11 @@
 # @vocoder/cli
 
+## 0.16.1
+
+### Patch Changes
+
+- Refactor init command into focused modules; fix plan limit errors showing upgrade URL; use app externalId in generated config files
+
 ## 0.16.0
 
 ### Minor Changes

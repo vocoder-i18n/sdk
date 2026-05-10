@@ -1,5 +1,14 @@
 # @vocoder/mcp
 
+## 0.16.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @vocoder/cli@0.16.1
+  - @vocoder/extractor@0.16.1
+  - @vocoder/plugin@0.16.1
+
 ## 0.16.0
 
 ### Patch Changes

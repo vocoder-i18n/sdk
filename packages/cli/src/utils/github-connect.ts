@@ -2,59 +2,8 @@ import * as p from "@clack/prompts";
 
 import type { VocoderAPI } from "./api.js";
 import chalk from "chalk";
-import { spawn } from "node:child_process";
 import { startCallbackServer } from "./local-server.js";
-
-async function tryOpenBrowser(url: string): Promise<boolean> {
-	if (!process.stdout.isTTY || process.env.CI === "true") {
-		return false;
-	}
-
-	const platform = process.platform;
-	let command: string;
-	let args: string[];
-
-	if (platform === "darwin") {
-		command = "open";
-		args = [url];
-	} else if (platform === "win32") {
-		command = "rundll32";
-		args = ["url.dll,FileProtocolHandler", url];
-	} else {
-		command = "xdg-open";
-		args = [url];
-	}
-
-	return new Promise<boolean>((resolve) => {
-		try {
-			const child = spawn(command, args, {
-				detached: true,
-				stdio: "ignore",
-				windowsHide: true,
-			});
-
-			let settled = false;
-			child.once("spawn", () => {
-				if (settled) return;
-				settled = true;
-				child.unref();
-				resolve(true);
-			});
-			child.once("error", () => {
-				if (settled) return;
-				settled = true;
-				resolve(false);
-			});
-			setTimeout(() => {
-				if (settled) return;
-				settled = true;
-				resolve(false);
-			}, 300);
-		} catch {
-			resolve(false);
-		}
-	});
-}
+import { tryOpenBrowser } from "./browser.js";
 
 export interface GitHubConnectResult {
 	organizationId: string;

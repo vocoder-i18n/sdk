@@ -6,8 +6,15 @@ export interface OrganizationInfo {
 	name: string;
 	planId: string;
 	projectCount: number;
+	/** Total app count across all projects. */
+	appCount: number;
+	/** Plan limit on total apps (-1 = unlimited). */
+	maxApps: number;
 	hasGitHubConnection: boolean;
 	connectionLabel: string | null;
+	/** True when this org's GitHub App installation covers the queried repo. Null when no repo was queried. */
+	coversRepo: boolean | null;
+	installationConfigureUrl: string | null;
 }
 
 export interface OrganizationListResult {
@@ -19,27 +26,6 @@ export type OrganizationSelection =
 	| { action: "use"; organization: OrganizationInfo }
 	| { action: "create" }
 	| { action: "cancelled" };
-
-function _organizationLabel(org: OrganizationInfo): string {
-	const parts: string[] = [org.name];
-	const meta: string[] = [];
-
-	if (org.projectCount === 1) {
-		meta.push("1 project");
-	} else if (org.projectCount > 1) {
-		meta.push(`${org.projectCount} projects`);
-	}
-
-	if (org.connectionLabel) {
-		meta.push(`GitHub: ${org.connectionLabel}`);
-	}
-
-	if (meta.length > 0) {
-		parts.push(chalk.dim(`(${meta.join(", ")})`));
-	}
-
-	return parts.join(" ");
-}
 
 /**
  * Prompt the user to select an organization or create a new one.
@@ -58,19 +44,20 @@ export async function selectOrganization(
 	type SelectValue = string | "create";
 
 	const options: Array<{ value: SelectValue; label: string; hint?: string }> =
-		organizations.map((org) => ({
-			value: org.id,
-			label: org.name,
-			hint:
+		organizations.map((org) => {
+			const atLimit = org.maxApps !== -1 && org.appCount >= org.maxApps;
+			const hint =
 				[
 					org.projectCount > 0
 						? `${org.projectCount} project${org.projectCount !== 1 ? "s" : ""}`
 						: "",
 					org.connectionLabel ? `GitHub: ${org.connectionLabel}` : "",
+					atLimit ? chalk.yellow(`${org.appCount}/${org.maxApps} apps — upgrade for more`) : "",
 				]
 					.filter(Boolean)
-					.join(" · ") || undefined,
-		}));
+					.join(" · ") || undefined;
+			return { value: org.id, label: org.name, hint };
+		});
 
 	if (canCreateOrganization) {
 		options.push({ value: "create", label: "Create new workspace" });
