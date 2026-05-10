@@ -13,6 +13,7 @@ import { appConfig } from "./commands/app-config.js";
 import { sync } from "./commands/sync.js";
 import { getTranslations } from "./commands/translations.js";
 import { createApp } from "./commands/create-app.js";
+import { regenerateKey } from "./commands/regenerate-key.js";
 import { whoami } from "./commands/whoami.js";
 
 /**
@@ -167,5 +168,11 @@ program
 		};
 		return runCommand(createApp, translated);
 	});
+
+program
+	.command("regenerate-key")
+	.description("Generate a new API key for the Vocoder app in this repo")
+	.option("--api-url <url>", "Override Vocoder API URL")
+	.action((options) => runCommand(regenerateKey, options));
 
 program.parse(process.argv);

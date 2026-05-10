@@ -11,6 +11,7 @@ import { runImplementI18n } from "./tools/implement-i18n.js";
 import { runInitStatus } from "./tools/init-status.js";
 import { runInitComplete, runInitStart, runProjectCreate } from "./tools/project-init.js";
 import { runAddLocale, runRemoveLocale } from "./tools/locale.js";
+import { runRegenerateKey } from "./tools/regenerate-key.js";
 import { runSetup } from "./tools/setup.js";
 import { runStatus } from "./tools/status.js";
 import { runSync } from "./tools/sync.js";
@@ -41,7 +42,8 @@ Reference resources (read when you need detail):
 - vocoder://docs/rtl — RTL layout: applyDir, dir from context, getLocaleDir for SSR, Tailwind rtl: variants
 - vocoder://docs/plugin-reference — Build plugin: framework setup, JSX transforms, virtual modules, injected constants
 - vocoder://docs/extractor — How extraction works: AST parsing, bail cases, hash computation, vocoder sync
-- vocoder://docs/troubleshooting — Debug common issues: missing translations, extraction failures, hydration mismatch, RTL`,
+- vocoder://docs/troubleshooting — Debug common issues: missing translations, extraction failures, hydration mismatch, RTL
+- vocoder://docs/app-config — API key, appId, and project/app structure: one API key per repo, each app directory gets its own appId in vocoder.config.ts`,
 	},
 );
 
@@ -148,6 +150,19 @@ server.resource(
 	},
 	async () => ({
 		contents: [{ uri: "vocoder://docs/troubleshooting", text: loadDoc("troubleshooting.md"), mimeType: "text/markdown" }],
+	}),
+);
+
+server.resource(
+	"vocoder-app-config",
+	"vocoder://docs/app-config",
+	{
+		description:
+			"API key and appId setup: one API key per repo (VOCODER_API_KEY), each app directory gets its own appId in vocoder.config.ts. Covers single-app and monorepo layouts, key rotation, and common setup issues.",
+		mimeType: "text/markdown",
+	},
+	async () => ({
+		contents: [{ uri: "vocoder://docs/app-config", text: loadDoc("app-config.md"), mimeType: "text/markdown" }],
 	}),
 );
 
@@ -299,6 +314,29 @@ server.tool(
 					{
 						type: "text",
 						text: `Project creation failed: ${error instanceof Error ? error.message : String(error)}`,
+					},
+				],
+			};
+		}
+	},
+);
+
+// vocoder_regenerate_key — generate a new API key for the Vocoder app in this repo.
+// Requires admin or owner role. Uses stored auth token; throws if none (user must run CLI in terminal).
+server.tool(
+	"vocoder_regenerate_key",
+	"Generate a new API key for the Vocoder app in this repo. Requires admin or owner role. Uses stored browser auth — if no auth token is found, instructs the user to run `vocoder regenerate-key` in their terminal instead. On success, returns the new key with instructions to write it to .env and restart the MCP server.",
+	{},
+	async () => {
+		try {
+			const result = await runRegenerateKey();
+			return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+		} catch (error) {
+			return {
+				content: [
+					{
+						type: "text",
+						text: `Key regeneration failed: ${error instanceof Error ? error.message : String(error)}`,
 					},
 				],
 			};

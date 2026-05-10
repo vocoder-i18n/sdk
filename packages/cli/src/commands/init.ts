@@ -67,61 +67,10 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				p.log.info(
 					`Configured apps: ${allApps.map((a) => highlight(a.appDir || "(entire repo)")).join(", ")}`,
 				);
+				p.log.info(`Need a new API key? Run ${highlight("vocoder regenerate-key")}`);
 
-				const routeAction = await p.select<string>({
-					message: "This repo is already set up. What would you like to do?",
-					options: [
-						{ value: "key", label: "Get an API key for this app" },
-						{ value: "add", label: "Add a new app directory" },
-					],
-				});
-
-				if (p.isCancel(routeAction)) {
-					p.cancel("Setup cancelled.");
-					return 1;
-				}
-
-				if (routeAction === "key") {
-					const anonApi2 = new VocoderAPI({ apiUrl, apiKey: "" });
-					const authResult = await runAuthFlow(anonApi2, options, /* reauth */ true);
-					if (!authResult) return 1;
-
-					const spinner = p.spinner();
-					spinner.start("Generating API key...");
-					let apiKey: string;
-					try {
-						({ apiKey } = await anonApi2.regenerateProjectApiKey(
-							authResult.token,
-							firstApp.projectId,
-						));
-						spinner.stop("API key ready");
-					} catch (err) {
-						spinner.stop("Failed to generate key");
-						const msg = err instanceof Error ? err.message : String(err);
-						p.log.error(`Could not generate API key: ${msg}`);
-						p.log.info("Try again or generate one from the dashboard.");
-						return 1;
-					}
-
-					printApiKey(apiKey, identity.repoRoot);
-
-					const detection = detectLocalEcosystem();
-					const targetBranches = lookup.exactMatch?.targetBranches ?? ["main"];
-					writeAppConfigs(
-						allApps.map((a) => ({ appDir: a.appDir, appId: a.appId })),
-						targetBranches,
-						detection.isTypeScript,
-						identity.repoRoot,
-					);
-
-					p.outro("Vocoder is set up for this repository.");
-					return 0;
-				}
-
-				// "add" path — fall through to runAppCreate block below
-				existingAppsForRepo = allApps;
-				repoProjectId = firstApp.projectId;
-				repoProjectName = firstApp.projectName;
+				p.outro("Already set up.");
+				return 0;
 			}
 		}
 
