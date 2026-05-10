@@ -217,7 +217,7 @@ server.tool(
 // Returns an authUrl for the user to open in their browser, or null if already authenticated.
 server.tool(
 	"vocoder_init_start",
-	"Start the Vocoder project setup flow. Checks for an existing auth token, performs an anonymous lookup to detect if this repo already has a Vocoder app, then returns a browser URL for the user to authenticate. If already authenticated, returns authUrl=null and mode='existing'. Call vocoder_init_complete after the user confirms they've completed the browser flow.",
+	"Start the Vocoder app setup flow. Checks for an existing auth token, performs an anonymous lookup to detect if this repo already has a Vocoder app, then returns a browser URL for the user to authenticate. If already authenticated, returns authUrl=null and mode='existing'. Call vocoder_init_complete after the user confirms they've completed the browser flow.",
 	{
 		mode: z
 			.enum(["install", "link"])

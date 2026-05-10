@@ -49,7 +49,7 @@ export async function selectOrganization(
 			const hint =
 				[
 					org.projectCount > 0
-						? `${org.projectCount} project${org.projectCount !== 1 ? "s" : ""}`
+						? `${org.projectCount} app${org.projectCount !== 1 ? "s" : ""}`
 						: "",
 					org.connectionLabel ? `GitHub: ${org.connectionLabel}` : "",
 					atLimit ? chalk.yellow(`${org.appCount}/${org.maxApps} apps — upgrade for more`) : "",

@@ -42,8 +42,8 @@ export function validateAppDirPath(
 
 	const hasWholeRepo = existing.includes("");
 	const hasScoped = existing.some((d) => d !== "");
-	if (val === "" && hasScoped) return "Cannot add whole-repo scope to a monorepo project";
-	if (val !== "" && hasWholeRepo) return "Cannot add a scoped directory to a whole-repo project";
+	if (val === "" && hasScoped) return "Cannot add whole-repo scope to a monorepo app";
+	if (val !== "" && hasWholeRepo) return "Cannot add a scoped directory to a whole-repo app";
 	if (existing.includes(val)) return `Already added: ${val}`;
 
 	// Reject nested paths — e.g. adding "apps" when "apps/vite" already exists (or vice versa)
@@ -107,7 +107,7 @@ export async function collectAppDirs(opts: { cwd?: string; maxDirs?: number } = 
 						const summary =
 							added.length > 0
 								? bld(added.join(", "))
-								: dim("none (single-app project)");
+								: dim("none (whole-repo app)");
 						return `${hdr}${dim(S_BAR)}  ${summary}`;
 					}
 					case "cancel":

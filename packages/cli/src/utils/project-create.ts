@@ -124,7 +124,7 @@ export async function runProjectCreate(
 	// ── Project name ────────────────────────────────────────────────────────────
 	// Use the detected repo name automatically — no prompt needed.
 	const projectName = (params.defaultName ?? "my-project").trim();
-	p.log.success(`Project: ${chalk.bold(projectName)}`);
+	p.log.success(`App: ${chalk.bold(projectName)}`);
 
 	// ── Fetch source locales ────────────────────────────────────────────────────
 	let sourceLocales: Array<{ code: string; name: string; nativeName?: string }>;
@@ -230,7 +230,7 @@ export async function runProjectCreate(
 		repoCanonical,
 	});
 
-	p.log.success(`Project ${chalk.bold(result.projectName)} created!`);
+	p.log.success(`App ${chalk.bold(result.projectName)} created!`);
 	return {
 		projectId: result.projectId,
 		projectName: result.projectName,

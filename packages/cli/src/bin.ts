@@ -49,7 +49,7 @@ program
 		"Non-interactive mode: print auth URL to stdout, skip browser open",
 	)
 	.option("--app-name <name>", "Starter app name to create")
-	.option("--source-locale <locale>", "Source locale for the starter project")
+	.option("--source-locale <locale>", "Source locale for the starter app")
 	.option(
 		"--target-locales <list>",
 		"Comma-separated target locales (e.g. es,fr,de)",
@@ -118,7 +118,8 @@ localesCmd
 	.action((options) => runCommand(listSupportedLocales, options));
 
 program
-	.command("project")
+	.command("app")
+	.alias("project")
 	.description("Show current app configuration")
 	.option("--api-url <url>", "Override Vocoder API URL")
 	.action((options) => runCommand(appConfig, options));

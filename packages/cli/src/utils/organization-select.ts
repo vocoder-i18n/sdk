@@ -194,7 +194,7 @@ export async function selectOrganizationForInit(
 					p.log.warn(
 						`None of your GitHub App installations belong to "${repoOwner}", ` +
 							`the account that owns this repository.\n` +
-							`  The project will be created but translations won't trigger automatically.\n` +
+							`  The app will be created but translations won't trigger automatically.\n` +
 							`  To fix: install the Vocoder GitHub App on "${repoOwner}" instead.`,
 					);
 				}

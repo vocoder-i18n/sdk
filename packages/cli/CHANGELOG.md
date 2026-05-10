@@ -1,5 +1,11 @@
 # @vocoder/cli
 
+## 0.17.2
+
+### Patch Changes
+
+- Fix remaining "project" terminology in user-facing strings. Rename CLI `vocoder project` command to `vocoder app` (with `project` kept as alias for backward compatibility). Update log messages, TUI labels, error messages, and MCP tool descriptions to use "app" consistently.
+
 ## 0.17.1
 
 ## 0.17.0
