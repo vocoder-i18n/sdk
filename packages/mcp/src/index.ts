@@ -157,7 +157,7 @@ server.resource(
 // Works without an API key (local detection only).
 server.tool(
 	"vocoder_setup",
-	"Detect the current project's framework and return everything needed to understand the Vocoder i18n setup: install commands, build plugin snippet, provider placement (exact file path), usage example, string-wrapping guidance, and the full SDK API reference. Call this first to assess the project. For a step-by-step implementation plan with file discovery, call vocoder_implement_i18n instead.",
+	"Detect the current app's framework and return everything needed to understand the Vocoder i18n setup: install commands, build plugin snippet, provider placement (exact file path), usage example, string-wrapping guidance, and the full SDK API reference. Call this first to assess the app. For a step-by-step implementation plan with file discovery, call vocoder_implement_i18n instead.",
 	{
 		sourceLocale: z
 			.string()
@@ -192,7 +192,7 @@ server.tool(
 // Call this first when the user asks about Vocoder setup status or if the key is missing.
 server.tool(
 	"vocoder_init_status",
-	"Check whether Vocoder is configured for this project. Returns ready=true with app name and locale config if VOCODER_API_KEY is valid, or ready=false with instructions to run vocoder_init_start if not. Call this before any other tool when you are unsure whether the project is set up.",
+	"Check whether Vocoder is configured for this app. Returns ready=true with app name and locale config if VOCODER_API_KEY is valid, or ready=false with instructions to run vocoder_init_start if not. Call this before any other tool when you are unsure whether the app is set up.",
 	{},
 	async () => {
 		try {
