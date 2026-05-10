@@ -1,6 +1,6 @@
 {
   "name": "@vocoder/extractor",
-  "version": "0.16.3",
+  "version": "0.16.4",
   "description": "Shared string extractor for Vocoder — Babel AST extraction of <T> components and t() calls",
   "files": [
     "dist"

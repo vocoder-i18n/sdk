@@ -92,18 +92,17 @@ export function writeApiKeyToEnv(apiKey: string, repoRoot?: string): boolean {
 }
 
 /**
- * Displays the API key, saves it to .env if possible, and instructs the user
- * to add it manually otherwise.
+ * Saves the API key to .env and confirms. Avoids printing the raw key in the terminal.
+ * If .env write fails, directs the user to the dashboard to retrieve it.
  */
 export function printApiKey(apiKey: string, repoRoot?: string): void {
 	const saved = writeApiKeyToEnv(apiKey, repoRoot);
 
-	p.log.message("");
-	p.log.message(chalk.bold("Your API Key"));
-	printCodeBlock(`VOCODER_API_KEY=${apiKey}`);
 	if (saved) {
-		p.log.success(chalk.dim("Saved to .env"));
+		p.log.success("API key saved to .env");
 	} else {
-		p.log.message(chalk.dim("  Add the above to your .env file"));
+		p.log.warn(
+			"Could not write to .env — find your API key at https://vocoder.app/settings",
+		);
 	}
 }

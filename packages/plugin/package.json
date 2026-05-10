@@ -1,6 +1,6 @@
 {
   "name": "@vocoder/plugin",
-  "version": "0.16.3",
+  "version": "0.16.4",
   "description": "Build plugin for Vocoder — injects translations as virtual modules at build time",
   "files": [
     "dist"

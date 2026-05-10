@@ -1,5 +1,11 @@
 # @vocoder/cli
 
+## 0.16.4
+
+### Patch Changes
+
+- Fix MCP claude mcp add command: move server name before flags to avoid env var parse error; remove raw API key display from init output
+
 ## 0.16.3
 
 ### Patch Changes
