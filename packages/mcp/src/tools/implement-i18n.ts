@@ -15,6 +15,8 @@ export interface ImplementI18nInput {
 }
 
 export interface ImplementI18nResult {
+	detectedFramework: string | null;
+	detectedEcosystem: string | null;
 	phase1_install: {
 		devInstallCommand: string | null;
 		runtimeInstallCommand: string | null;
@@ -130,7 +132,7 @@ function resolveProviderFile(
 			return {
 				file: found ?? "app/layout.tsx",
 				ssrNote:
-					"Next.js App Router: VocoderProvider must be in a Client Component. Create app/providers.tsx with 'use client' that wraps VocoderProvider. In app/layout.tsx (Server Component), import cookies from 'next/headers' and pass (await cookies()).toString() to the provider. See fullCode for the complete pattern.",
+					"Next.js App Router: layout.tsx is a Server Component — it reads the vocoder_locale and vocoder_preview cookies and passes initialLocale and preview props to VocoderProvider. Also import getLocaleDir from '@vocoder/react/server' and config from 'virtual:vocoder/manifest' to set lang and dir on <html> server-side for correct RTL on first paint. See fullCode for the complete pattern.",
 			};
 		}
 		const pagesCandidates = [
@@ -163,12 +165,11 @@ function resolveProviderFile(
 	return { file: "src/main.tsx", ssrNote: null };
 }
 
-function buildNextAppRouterProviderCode(sourceLocale: string): {
-	layoutCode: string;
-	providersCode: string;
-} {
-	const layoutCode = `import { cookies } from 'next/headers';
-import Providers from './providers';
+function buildNextAppRouterLayoutCode(): string {
+	return `import { cookies } from 'next/headers';
+import { config } from 'virtual:vocoder/manifest';
+import { getLocaleDir } from '@vocoder/react/server';
+import { VocoderProvider } from '@vocoder/react';
 
 export default async function RootLayout({
   children,
@@ -176,36 +177,21 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
+  const initialLocale = cookieStore.get('vocoder_locale')?.value;
+  const preview = cookieStore.get('vocoder_preview')?.value === 'true';
+  const locale = initialLocale ?? config.sourceLocale;
+  const dir = getLocaleDir(locale, config.locales);
+
   return (
-    <html>
+    <html lang={locale} dir={dir}>
       <body>
-        <Providers cookies={cookieStore.toString()}>
+        <VocoderProvider initialLocale={initialLocale} preview={preview}>
           {children}
-        </Providers>
+        </VocoderProvider>
       </body>
     </html>
   );
 }`;
-
-	const providersCode = `'use client';
-
-import { VocoderProvider } from '@vocoder/react';
-
-export default function Providers({
-  children,
-  cookies,
-}: {
-  children: React.ReactNode;
-  cookies: string;
-}) {
-  return (
-    <VocoderProvider cookies={cookies}>
-      {children}
-    </VocoderProvider>
-  );
-}`;
-
-	return { layoutCode, providersCode };
 }
 
 export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult {
@@ -271,13 +257,17 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 	let wrapInstruction =
 		"Add VocoderProvider wrapping your root children. Import from '@vocoder/react'.";
 
-	if (detection.framework === "nextjs" && !providerFileExists) {
-		const { layoutCode } = buildNextAppRouterProviderCode(sourceLocale);
-		providerFullCode = layoutCode;
-		wrapInstruction =
-			"Create app/providers.tsx as a 'use client' component wrapping VocoderProvider. Update app/layout.tsx to pass cookies from next/headers to Providers. See fullCode for the layout.tsx pattern; you also need to create app/providers.tsx separately.";
+	if (detection.framework === "nextjs") {
+		if (!providerFileExists) {
+			providerFullCode = buildNextAppRouterLayoutCode();
+			wrapInstruction =
+				"Create app/layout.tsx using the fullCode — it reads vocoder_locale and vocoder_preview cookies and passes initialLocale and preview to VocoderProvider. Also sets lang and dir on <html> using getLocaleDir for correct RTL server-side rendering.";
+		} else {
+			wrapInstruction =
+				`In ${providerFile}, read the vocoder_locale and vocoder_preview cookies with \`(await cookies()).get('vocoder_locale')?.value\`, then pass initialLocale and preview props to VocoderProvider. Import getLocaleDir from '@vocoder/react/server' and config from 'virtual:vocoder/manifest' to set lang and dir on <html>. See vocoder://docs/framework-setup for the complete pattern.`;
+		}
 	} else if (providerFileExists) {
-		wrapInstruction = `In ${providerFile}, wrap your root children with <VocoderProvider>. For SSR, pass cookies from request headers.`;
+		wrapInstruction = `In ${providerFile}, wrap your root children with <VocoderProvider>. Import from '@vocoder/react'.`;
 	}
 
 	const filesFound: string[] = [];
@@ -303,6 +293,8 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 	];
 
 	return {
+		detectedFramework: detection.framework,
+		detectedEcosystem: detection.ecosystem,
 		phase1_install: {
 			devInstallCommand,
 			runtimeInstallCommand,
@@ -382,9 +374,9 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 			componentVsFunction:
 				"Use <T> for JSX text content. Use t() for everything else: string attributes (placeholder, aria-label, title, alt), callback arguments (toast, alert), document.title, non-JSX modules. Both are imported from '@vocoder/react'. t() from useVocoder() is reactive (re-runs on locale change); module-level t() is not reactive but safe for use outside components.",
 			variables: {
-				rule: "Never interpolate variables with JSX expressions or string concatenation inside <T>. Always use the message prop + values object.",
-				correct: "<T message=\"Hello {name}, you have {count} messages\" values={{ name, count }} />",
-				wrong: "<T>Hello {name}, you have {count} messages</T>  // extractor cannot extract — dynamic children bail",
+				rule: "The build plugin handles natural JSX variable interpolation automatically — write <T>Hello {name}!</T> and the plugin transforms it. Bail cases are: template literals, ternary expressions, logical &&, or a lone variable as the only child with no surrounding text.",
+				correct: "<T>Hello {name}, you have {count} messages</T>  // plugin transforms to message prop + values automatically",
+				wrong: "<T>{`Hello ${name}`}</T>  // template literal — bail. Use: <T message=\"Hello {name}!\" values={{ name }} />",
 			},
 			plurals: {
 				rule: "Use <T> plural props (one/other/few/many) for count-based strings. Never use ternaries or if-statements to switch between plural forms.",
