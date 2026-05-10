@@ -55,6 +55,7 @@ program
 		"--target-locales <list>",
 		"Comma-separated target locales (e.g. es,fr,de)",
 	)
+	.option("--verbose", "Log each API request URL and response status")
 	.action((options) => runCommand(init, options));
 
 program

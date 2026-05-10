@@ -403,7 +403,7 @@ export async function sync(options: TranslateOptions = {}): Promise<number> {
 		p.log.info("  npx @vocoder/cli init");
 		p.log.info("");
 		p.log.info(
-			"  Or add your key to .env: VOCODER_API_KEY=vca_...",
+			"  Or add your key to .env or .env.local: VOCODER_API_KEY=vca_...",
 		);
 		p.outro("Run `npx @vocoder/cli init` to set up your app.");
 		return 1;

@@ -138,15 +138,27 @@ describe("printCodeBlock", () => {
 // ── writeApiKeyToEnv ──────────────────────────────────────────────────────────
 
 describe("writeApiKeyToEnv", () => {
-	it("returns false when .env does not exist", () => {
-		expect(writeApiKeyToEnv("key123", tmpDir)).toBe(false);
+	it("creates .env.local when neither .env nor .env.local exists", () => {
+		const result = writeApiKeyToEnv("key123", tmpDir);
+		expect(result).toBe(".env.local");
+		const content = readFileSync(join(tmpDir, ".env.local"), "utf-8");
+		expect(content).toContain("VOCODER_API_KEY=key123");
 	});
 
-	it("appends key to existing .env", () => {
+	it("prefers .env.local over .env when both exist", () => {
+		writeFileSync(join(tmpDir, ".env"), "OTHER_VAR=foo\n");
+		writeFileSync(join(tmpDir, ".env.local"), "EXISTING=bar\n");
+		const result = writeApiKeyToEnv("key123", tmpDir);
+		expect(result).toBe(".env.local");
+		const content = readFileSync(join(tmpDir, ".env.local"), "utf-8");
+		expect(content).toContain("VOCODER_API_KEY=key123");
+	});
+
+	it("appends key to existing .env when no .env.local exists", () => {
 		const envPath = join(tmpDir, ".env");
 		writeFileSync(envPath, "OTHER_VAR=foo\n");
 		const result = writeApiKeyToEnv("key123", tmpDir);
-		expect(result).toBe(true);
+		expect(result).toBe(".env");
 		const content = readFileSync(envPath, "utf-8");
 		expect(content).toContain("VOCODER_API_KEY=key123");
 		expect(content).toContain("OTHER_VAR=foo");

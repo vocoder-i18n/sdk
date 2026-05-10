@@ -4,9 +4,9 @@ import { active, highlight } from "../utils/theme.js";
 
 import { VocoderAPI } from "../utils/api.js";
 import chalk from "chalk";
-import { config as loadEnv } from "dotenv";
+import { loadEnvFiles } from "../utils/load-env.js";
 
-loadEnv();
+loadEnvFiles();
 
 export interface AppConfigOptions {
 	apiUrl?: string;

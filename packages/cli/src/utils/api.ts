@@ -81,7 +81,7 @@ function extractErrorMessage(payload: unknown, fallback: string): string {
 	return fallback;
 }
 
-function parsePayload(raw: string): unknown {
+function parsePayload(raw: string, context?: { url: string; status: number }): unknown {
 	if (raw.length === 0) {
 		return null;
 	}
@@ -90,9 +90,9 @@ function parsePayload(raw: string): unknown {
 	// Wrapping raw HTML as the error message causes it to leak into the TUI.
 	const trimmed = raw.trimStart();
 	if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) {
+		const detail = context ? ` [${context.status} from ${context.url}]` : "";
 		return {
-			message:
-				"Unexpected response from server (received HTML). Check your network connection or try again.",
+			message: `Unexpected response from server (received HTML)${detail}. Check your network connection or try again.`,
 		};
 	}
 
@@ -103,13 +103,18 @@ function parsePayload(raw: string): unknown {
 	}
 }
 
-async function readPayload(response: {
-	text?: () => Promise<string>;
-	json?: () => Promise<unknown>;
-}): Promise<unknown> {
+async function readPayload(
+	response: { text?: () => Promise<string>; json?: () => Promise<unknown> },
+	context?: { url: string; status: number },
+	debug = false,
+): Promise<unknown> {
 	if (typeof response.text === "function") {
 		const raw = await response.text();
-		return parsePayload(raw);
+		if (debug && context && context.status >= 400 && raw.length > 0) {
+			const preview = raw.length > 500 ? `${raw.slice(0, 500)}…` : raw;
+			process.stderr.write(`[vocoder] ↳ ${preview}\n`);
+		}
+		return parsePayload(raw, context);
 	}
 
 	if (typeof response.json === "function") {
@@ -144,10 +149,52 @@ export class VocoderAPIError extends Error {
 export class VocoderAPI {
 	private apiUrl: string;
 	private apiKey: string;
+	private debug: boolean;
 
-	constructor(config: LocalConfig) {
+	constructor(config: LocalConfig & { debug?: boolean }) {
 		this.apiUrl = config.apiUrl;
 		this.apiKey = config.apiKey;
+		this.debug = config.debug ?? false;
+	}
+
+	private log(method: string, url: string, status?: number): void {
+		if (!this.debug) return;
+		const statusPart = status != null ? ` → ${status}` : "";
+		process.stderr.write(`[vocoder] ${method} ${url}${statusPart}\n`);
+	}
+
+	private async fetchRaw(url: string, init: RequestInit = {}): Promise<Response> {
+		this.log(init.method ?? "GET", url);
+		const response = await fetch(url, init);
+		this.log(init.method ?? "GET", url, response.status);
+		return response;
+	}
+
+	private async userRequest<T>(
+		userToken: string,
+		url: string,
+		init: RequestInit = {},
+		errorMessage?: string,
+	): Promise<T> {
+		const response = await this.fetchRaw(url, {
+			...init,
+			headers: {
+				Authorization: `Bearer ${userToken}`,
+				...(init.headers as Record<string, string> | undefined ?? {}),
+			},
+		});
+		const payload = await readPayload(response, { url, status: response.status }, this.debug);
+		if (!response.ok) {
+			throw new VocoderAPIError({
+				message: extractErrorMessage(
+					payload,
+					errorMessage ?? `Request failed with status ${response.status}`,
+				),
+				status: response.status,
+				payload,
+			});
+		}
+		return payload as T;
 	}
 
 	private async request<T>(
@@ -155,7 +202,10 @@ export class VocoderAPI {
 		init: RequestInit = {},
 		errorPrefix?: string,
 	): Promise<T> {
-		const response = await fetch(`${this.apiUrl}${path}`, {
+		const url = `${this.apiUrl}${path}`;
+		this.log(init.method ?? "GET", url);
+
+		const response = await fetch(url, {
 			...init,
 			headers: {
 				Authorization: `Bearer ${this.apiKey}`,
@@ -163,7 +213,9 @@ export class VocoderAPI {
 			},
 		});
 
-		const payload = await readPayload(response);
+		this.log(init.method ?? "GET", url, response.status);
+
+		const payload = await readPayload(response, { url, status: response.status }, this.debug);
 
 		if (!response.ok) {
 			const limitError = isLimitErrorResponse(payload) ? payload : null;
@@ -402,15 +454,14 @@ export class VocoderAPI {
 		repoCanonical?: string;
 		repoAppDir?: string;
 	}): Promise<InitStartResponse> {
-		const response = await fetch(`${this.apiUrl}/api/cli/init/start`, {
+		const url = `${this.apiUrl}/api/cli/init/start`;
+		const response = await this.fetchRaw(url, {
 			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(input),
 		});
 
-		const payload = await readPayload(response);
+		const payload = await readPayload(response, { url, status: response.status }, this.debug);
 
 		if (!response.ok) {
 			throw new VocoderAPIError({
@@ -430,16 +481,12 @@ export class VocoderAPI {
 		sessionId: string;
 		pollToken: string;
 	}): Promise<InitStatusResponse> {
-		const response = await fetch(
-			`${this.apiUrl}/api/cli/init/status/${params.sessionId}`,
-			{
-				headers: {
-					Authorization: `Bearer ${params.pollToken}`,
-				},
-			},
-		);
+		const url = `${this.apiUrl}/api/cli/init/status/${params.sessionId}`;
+		const response = await this.fetchRaw(url, {
+			headers: { Authorization: `Bearer ${params.pollToken}` },
+		});
 
-		const payload = await readPayload(response);
+		const payload = await readPayload(response, { url, status: response.status }, this.debug);
 
 		if (!response.ok) {
 			throw new VocoderAPIError({
@@ -470,7 +517,8 @@ export class VocoderAPI {
 		installUrl?: string;
 		expiresAt: string;
 	}> {
-		const response = await fetch(`${this.apiUrl}/api/cli/auth/start`, {
+		const url = `${this.apiUrl}/api/cli/auth/start`;
+		const response = await this.fetchRaw(url, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
@@ -479,7 +527,7 @@ export class VocoderAPI {
 			}),
 		});
 
-		const payload = await readPayload(response);
+		const payload = await readPayload(response, { url, status: response.status }, this.debug);
 
 		if (!response.ok) {
 			throw new VocoderAPIError({
@@ -512,11 +560,10 @@ export class VocoderAPI {
 		| { status: "complete"; token: string; organizationId?: string }
 		| { status: "failed"; reason: string }
 	> {
-		const response = await fetch(
-			`${this.apiUrl}/api/cli/auth/session?session=${encodeURIComponent(pollToken)}`,
-		);
+		const url = `${this.apiUrl}/api/cli/auth/session?session=${encodeURIComponent(pollToken)}`;
+		const response = await this.fetchRaw(url);
 
-		const payload = await readPayload(response);
+		const payload = await readPayload(response, { url, status: response.status }, this.debug);
 
 		if (response.status === 202) {
 			return { status: "pending" };
@@ -562,46 +609,24 @@ export class VocoderAPI {
 		email: string;
 		name: string | null;
 	}> {
-		const response = await fetch(`${this.apiUrl}/api/cli/auth/me`, {
-			headers: { Authorization: `Bearer ${userToken}` },
-		});
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Token validation failed (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as { userId: string; email: string; name: string | null };
+		return this.userRequest<{ userId: string; email: string; name: string | null }>(
+			userToken,
+			`${this.apiUrl}/api/cli/auth/me`,
+			{},
+			`Token validation failed`,
+		);
 	}
 
 	/**
 	 * Revoke the given CLI user token server-side.
 	 */
 	async revokeCliToken(userToken: string): Promise<void> {
-		const response = await fetch(`${this.apiUrl}/api/cli/auth/token`, {
-			method: "DELETE",
-			headers: { Authorization: `Bearer ${userToken}` },
-		});
-
-		if (!response.ok) {
-			const payload = await readPayload(response);
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Token revocation failed (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
+		await this.userRequest<unknown>(
+			userToken,
+			`${this.apiUrl}/api/cli/auth/token`,
+			{ method: "DELETE" },
+			`Token revocation failed`,
+		);
 	}
 
 	// ── Organizations ─────────────────────────────────────────────────────────────
@@ -628,25 +653,7 @@ export class VocoderAPI {
 	}> {
 		const url = new URL(`${this.apiUrl}/api/cli/organizations`);
 		if (params?.repo) url.searchParams.set("repo", params.repo);
-
-		const response = await fetch(url.toString(), {
-			headers: { Authorization: `Bearer ${userToken}` },
-		});
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to list organizations (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as {
+		return this.userRequest<{
 			organizations: Array<{
 				id: string;
 				name: string;
@@ -659,7 +666,7 @@ export class VocoderAPI {
 				installationConfigureUrl: string | null;
 			}>;
 			canCreateOrganization: boolean;
-		};
+		}>(userToken, url.toString(), {}, "Failed to list organizations");
 	}
 
 	async listApps(
@@ -678,25 +685,7 @@ export class VocoderAPI {
 	> {
 		const url = new URL(`${this.apiUrl}/api/cli/apps`);
 		url.searchParams.set("organizationId", organizationId);
-
-		const response = await fetch(url.toString(), {
-			headers: { Authorization: `Bearer ${userToken}` },
-		});
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to list apps (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		const result = payload as {
+		const result = await this.userRequest<{
 			apps: Array<{
 				appId: string;
 				projectId: string;
@@ -706,7 +695,7 @@ export class VocoderAPI {
 				targetLocales: string[];
 				targetBranches: string[];
 			}>;
-		};
+		}>(userToken, url.toString(), {}, "Failed to list apps");
 		return result.apps;
 	}
 
@@ -714,32 +703,12 @@ export class VocoderAPI {
 		userToken: string,
 		projectId: string,
 	): Promise<{ apiKey: string }> {
-		const response = await fetch(
+		return this.userRequest<{ apiKey: string }>(
+			userToken,
 			`${this.apiUrl}/api/cli/project/regenerate-key`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${userToken}`,
-				},
-				body: JSON.stringify({ projectId }),
-			},
+			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId }) },
+			"Failed to regenerate API key",
 		);
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to regenerate API key (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as { apiKey: string };
 	}
 
 	// ── CLI GitHub endpoints ──────────────────────────────────────────────────────
@@ -748,32 +717,12 @@ export class VocoderAPI {
 		userToken: string,
 		params: { organizationId?: string; callbackPort?: number },
 	): Promise<{ installUrl: string }> {
-		const response = await fetch(
+		return this.userRequest<{ installUrl: string }>(
+			userToken,
 			`${this.apiUrl}/api/cli/github/install/start`,
-			{
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${userToken}`,
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(params),
-			},
+			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
+			"Failed to start GitHub install",
 		);
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to start GitHub install (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as { installUrl: string };
 	}
 
 	/**
@@ -785,19 +734,17 @@ export class VocoderAPI {
 		sessionId: string,
 		callbackPort?: number,
 	): Promise<{ oauthUrl: string }> {
-		const response = await fetch(
-			`${this.apiUrl}/api/cli/github/oauth/link-start`,
-			{
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					sessionId,
-					...(callbackPort != null ? { callbackPort } : {}),
-				}),
-			},
-		);
+		const url = `${this.apiUrl}/api/cli/github/oauth/link-start`;
+		const response = await this.fetchRaw(url, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				sessionId,
+				...(callbackPort != null ? { callbackPort } : {}),
+			}),
+		});
 
-		const payload = await readPayload(response);
+		const payload = await readPayload(response, { url, status: response.status }, this.debug);
 
 		if (!response.ok) {
 			throw new VocoderAPIError({
@@ -817,29 +764,12 @@ export class VocoderAPI {
 		userToken: string,
 		params: { organizationId?: string; callbackPort?: number },
 	): Promise<{ oauthUrl: string }> {
-		const response = await fetch(`${this.apiUrl}/api/cli/github/oauth/start`, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${userToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(params),
-		});
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to start GitHub OAuth (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as { oauthUrl: string };
+		return this.userRequest<{ oauthUrl: string }>(
+			userToken,
+			`${this.apiUrl}/api/cli/github/oauth/start`,
+			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
+			"Failed to start GitHub OAuth",
+		);
 	}
 
 	async getCliGitHubDiscovery(userToken: string): Promise<{
@@ -851,24 +781,7 @@ export class VocoderAPI {
 			conflictLabel: string | null;
 		}>;
 	}> {
-		const response = await fetch(`${this.apiUrl}/api/cli/github/discovery`, {
-			headers: { Authorization: `Bearer ${userToken}` },
-		});
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to fetch GitHub discovery (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as {
+		return this.userRequest<{
 			installations: Array<{
 				installationId: number;
 				accountLogin: string;
@@ -876,7 +789,7 @@ export class VocoderAPI {
 				isSuspended: boolean;
 				conflictLabel: string | null;
 			}>;
-		};
+		}>(userToken, `${this.apiUrl}/api/cli/github/discovery`, {}, "Failed to fetch GitHub discovery");
 	}
 
 	async claimCliGitHubInstallation(
@@ -888,34 +801,17 @@ export class VocoderAPI {
 		connectionLabel: string;
 		repoCount: number;
 	}> {
-		const response = await fetch(`${this.apiUrl}/api/cli/github/claim`, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${userToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(params),
-		});
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to claim GitHub installation (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as {
+		return this.userRequest<{
 			organizationId: string;
 			organizationName: string;
 			connectionLabel: string;
 			repoCount: number;
-		};
+		}>(
+			userToken,
+			`${this.apiUrl}/api/cli/github/claim`,
+			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
+			"Failed to claim GitHub installation",
+		);
 	}
 
 	// ── Locales ───────────────────────────────────────────────────────────────────
@@ -979,28 +875,10 @@ export class VocoderAPI {
 		sourceLocales: Array<{ code: string; name: string; nativeName?: string }>;
 		targetLocales: Array<{ code: string; name: string; nativeName?: string }>;
 	}> {
-		const response = await fetch(`${this.apiUrl}/api/cli/locales`, {
-			headers: { Authorization: `Bearer ${userToken}` },
-		});
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to list locales (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		const result = payload as {
+		return this.userRequest<{
 			sourceLocales: Array<{ code: string; name: string; nativeName?: string }>;
 			targetLocales: Array<{ code: string; name: string; nativeName?: string }>;
-		};
-		return result;
+		}>(userToken, `${this.apiUrl}/api/cli/locales`, {}, "Failed to list locales");
 	}
 
 	async listCompatibleLocales(
@@ -1008,26 +886,9 @@ export class VocoderAPI {
 		sourceLocale: string,
 	): Promise<Array<{ code: string; name: string; nativeName?: string }>> {
 		const url = `${this.apiUrl}/api/cli/locales/compatible?source=${encodeURIComponent(sourceLocale)}`;
-		const response = await fetch(url, {
-			headers: { Authorization: `Bearer ${userToken}` },
-		});
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to list compatible locales (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		const result = payload as {
+		const result = await this.userRequest<{
 			locales: Array<{ code: string; name: string; nativeName?: string }>;
-		};
+		}>(userToken, url, {}, "Failed to list compatible locales");
 		return result.locales;
 	}
 
@@ -1055,29 +916,7 @@ export class VocoderAPI {
 		configureUrl?: string;
 		apps: Array<{ appDir: string; appId: string }>;
 	}> {
-		const response = await fetch(`${this.apiUrl}/api/cli/apps`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${userToken}`,
-			},
-			body: JSON.stringify(params),
-		});
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to create project (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as {
+		return this.userRequest<{
 			projectId: string;
 			projectName: string;
 			apiKey: string;
@@ -1087,7 +926,12 @@ export class VocoderAPI {
 			repositoryBound: boolean;
 			configureUrl?: string;
 			apps: Array<{ appDir: string; appId: string }>;
-		};
+		}>(
+			userToken,
+			`${this.apiUrl}/api/cli/apps`,
+			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
+			"Failed to create project",
+		);
 	}
 
 	// ── Project lookup ────────────────────────────────────────────────────────────
@@ -1122,7 +966,8 @@ export class VocoderAPI {
 		organizationContext: { organizationId: string; organizationName: string } | null;
 	}> {
 		try {
-			const response = await fetch(`${this.apiUrl}/api/cli/init/lookup`, {
+			const url = `${this.apiUrl}/api/cli/init/lookup`;
+			const response = await this.fetchRaw(url, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -1185,33 +1030,16 @@ export class VocoderAPI {
 		projectName: string;
 		appDir: string;
 	}> {
-		const response = await fetch(`${this.apiUrl}/api/cli/apps`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${userToken}`,
-			},
-			body: JSON.stringify(params),
-		});
-
-		const payload = await readPayload(response);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to create app (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as {
+		return this.userRequest<{
 			appId: string;
 			projectId: string;
 			projectName: string;
 			appDir: string;
-		};
+		}>(
+			userToken,
+			`${this.apiUrl}/api/cli/apps`,
+			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
+			"Failed to create app",
+		);
 	}
 }

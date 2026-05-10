@@ -65,15 +65,24 @@ export function printCodeBlock(code: string): void {
 }
 
 /**
- * Writes VOCODER_API_KEY to the .env file at repoRoot (or cwd).
- * Updates an existing entry in-place; appends if absent. Returns false if no .env exists.
+ * Writes VOCODER_API_KEY to an env file at repoRoot (or cwd).
+ * Prefers .env.local (secrets shouldn't be committed). Falls back to .env if it
+ * exists. Creates .env.local if neither file exists.
+ * Updates an existing entry in-place; appends if absent.
+ * Returns the filename written to, or null on failure.
  */
-export function writeApiKeyToEnv(apiKey: string, repoRoot?: string): boolean {
-	const envPath = join(repoRoot ?? process.cwd(), ".env");
-	if (!existsSync(envPath)) return false;
+export function writeApiKeyToEnv(apiKey: string, repoRoot?: string): string | null {
+	const base = repoRoot ?? process.cwd();
+	const localPath = join(base, ".env.local");
+	const envPath = join(base, ".env");
+
+	// Pick target: prefer .env.local; fall back to .env; create .env.local if neither exists
+	const targetPath = existsSync(localPath) ? localPath
+		: existsSync(envPath) ? envPath
+		: localPath;
 
 	try {
-		const content = readFileSync(envPath, "utf-8");
+		const content = existsSync(targetPath) ? readFileSync(targetPath, "utf-8") : "";
 		const keyLine = `VOCODER_API_KEY=${apiKey}`;
 		let updated: string;
 
@@ -84,25 +93,25 @@ export function writeApiKeyToEnv(apiKey: string, repoRoot?: string): boolean {
 			updated = `${content}${sep}${keyLine}\n`;
 		}
 
-		writeFileSync(envPath, updated);
-		return true;
+		writeFileSync(targetPath, updated);
+		return targetPath.endsWith(".env.local") ? ".env.local" : ".env";
 	} catch {
-		return false;
+		return null;
 	}
 }
 
 /**
- * Saves the API key to .env and confirms. Avoids printing the raw key in the terminal.
- * If .env write fails, directs the user to the dashboard to retrieve it.
+ * Saves the API key to .env.local (or .env) and confirms. Avoids printing the
+ * raw key in the terminal. If write fails, directs the user to the dashboard.
  */
 export function printApiKey(apiKey: string, repoRoot?: string): void {
-	const saved = writeApiKeyToEnv(apiKey, repoRoot);
+	const file = writeApiKeyToEnv(apiKey, repoRoot);
 
-	if (saved) {
-		p.log.success("API key saved to .env");
+	if (file) {
+		p.log.success(`API key saved to ${file}`);
 	} else {
 		p.log.warn(
-			"Could not write to .env — find your API key at https://vocoder.app/settings",
+			"Could not write to .env.local — find your API key at https://vocoder.app/settings",
 		);
 	}
 }

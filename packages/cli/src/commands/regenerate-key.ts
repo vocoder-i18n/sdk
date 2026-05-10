@@ -1,6 +1,6 @@
 import * as p from "@clack/prompts";
 import chalk from "chalk";
-import { config as loadEnv } from "dotenv";
+import { loadEnvFiles } from "../utils/load-env.js";
 import { detectRepoIdentity } from "@vocoder/plugin";
 import { VocoderAPI } from "../utils/api.js";
 import { verifyStoredAuth } from "../utils/auth-store.js";
@@ -9,7 +9,7 @@ import { printApiKey } from "../utils/output.js";
 import { writeAppConfigs } from "../utils/scaffold.js";
 import { detectLocalEcosystem } from "../utils/detect-local.js";
 
-loadEnv();
+loadEnvFiles();
 
 export interface RegenerateKeyOptions {
 	apiUrl?: string;

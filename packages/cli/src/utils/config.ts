@@ -1,7 +1,7 @@
 import * as p from "@clack/prompts";
 import chalk from "chalk";
 import { active, highlight } from "./theme.js";
-import { config as loadEnv } from "dotenv";
+import { loadEnvFiles } from "./load-env.js";
 import { loadVocoderConfig } from "@vocoder/extractor";
 import type {
 	LocalConfig,
@@ -9,8 +9,8 @@ import type {
 	TranslateOptions,
 } from "../types.js";
 
-// Load .env file if present
-loadEnv();
+// Load .env and .env.local files if present
+loadEnvFiles();
 
 /**
  * Extracts the app short code embedded in the API key token.
@@ -26,7 +26,7 @@ export function extractShortCodeFromApiKey(apiKey: string): string {
  */
 export function validateLocalConfig(config: LocalConfig): void {
 	if (!config.apiKey || config.apiKey.length === 0) {
-		throw new Error("VOCODER_API_KEY is required. Set it in your .env file.");
+		throw new Error("VOCODER_API_KEY is required. Set it in your .env or .env.local file.");
 	}
 
 	if (!config.apiKey.startsWith("vca_")) {

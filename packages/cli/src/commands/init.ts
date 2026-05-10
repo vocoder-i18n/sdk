@@ -13,20 +13,25 @@ import { VocoderAPI } from "../utils/api.js";
 import chalk from "chalk";
 import { detectLocalEcosystem } from "../utils/detect-local.js";
 import { highlight } from "../utils/theme.js";
-import { config as loadEnv } from "dotenv";
+import { loadEnvFiles } from "../utils/load-env.js";
 import { printApiKey } from "../utils/output.js";
 import { resolveGitContext } from "../utils/git-identity.js";
 import { runAuthFlow } from "../utils/auth-flow.js";
 import { runMcpSetup } from "../utils/mcp-setup.js";
 import { selectOrganizationForInit } from "../utils/organization-select.js";
 
-loadEnv();
+loadEnvFiles();
 
 // ── Main command ──────────────────────────────────────────────────────────────
 
 export async function init(options: InitOptions = {}): Promise<number> {
 	const apiUrl =
 		options.apiUrl || process.env.VOCODER_API_URL || "https://vocoder.app";
+	const debug = options.verbose ?? false;
+
+	if (debug) {
+		process.stderr.write(`[vocoder] API URL: ${apiUrl}\n`);
+	}
 
 	p.intro(chalk.bold("Vocoder Setup"));
 
@@ -53,7 +58,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		let lookup: Awaited<ReturnType<VocoderAPI["lookupAppByRepo"]>> | null = null;
 
 		if (identity) {
-			const anonApi = new VocoderAPI({ apiUrl, apiKey: "" });
+			const anonApi = new VocoderAPI({ apiUrl, apiKey: "", debug });
 			lookup = await anonApi.lookupAppByRepo({
 				repoCanonical: identity.repoCanonical,
 				appDir: "",
@@ -75,7 +80,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		}
 
 		// ── 3. Auth: check stored token, prompt if missing ──────────────────────
-		const api = new VocoderAPI({ apiUrl, apiKey: "" });
+		const api = new VocoderAPI({ apiUrl, apiKey: "", debug });
 		let userToken: string;
 		let userEmail: string;
 		let userName: string | null;
@@ -162,7 +167,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				detection.isTypeScript,
 				identity?.repoRoot,
 			);
-			p.log.info(chalk.dim("Use the VOCODER_API_KEY already in your root .env"));
+			p.log.info(chalk.dim("Use the VOCODER_API_KEY already in your .env or .env.local"));
 			p.outro("You're all set.");
 			return 0;
 		}

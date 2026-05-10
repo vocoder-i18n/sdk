@@ -1,13 +1,13 @@
 import * as p from "@clack/prompts";
 import chalk from "chalk";
 import { active, highlight } from "../utils/theme.js";
-import { config as loadEnv } from "dotenv";
+import { loadEnvFiles } from "../utils/load-env.js";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
 import { readAuthData } from "../utils/auth-store.js";
 import { resolveGitRepositoryIdentity } from "../utils/git-identity.js";
 import { getLimitErrorGuidance } from "./sync.js";
 
-loadEnv();
+loadEnvFiles();
 
 export interface CreateAppOptions {
 	/** Project display name (required). */
@@ -124,7 +124,7 @@ export async function createApp(options: CreateAppOptions): Promise<number> {
 				? [`Repository:     ${highlight(repoCanonical)}${appDir !== "." ? ` (${appDir})` : ""}`]
 				: []),
 			"",
-			`Add this to your .env file:`,
+			`Add this to your .env.local file:`,
 			`  ${chalk.bold("VOCODER_API_KEY")}=${highlight(result.apiKey)}`,
 		];
 

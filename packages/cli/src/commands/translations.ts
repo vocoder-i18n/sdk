@@ -3,11 +3,11 @@ import { join } from "node:path";
 import * as p from "@clack/prompts";
 import chalk from "chalk";
 import { active, highlight } from "../utils/theme.js";
-import { config as loadEnv } from "dotenv";
+import { loadEnvFiles } from "../utils/load-env.js";
 import { VocoderAPI } from "../utils/api.js";
 import { detectBranch } from "../utils/branch.js";
 
-loadEnv();
+loadEnvFiles();
 
 export interface TranslationsOptions {
 	/** Git branch. Auto-detected from git/CI env if omitted. */

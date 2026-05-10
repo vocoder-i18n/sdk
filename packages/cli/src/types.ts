@@ -34,6 +34,7 @@ export interface InitOptions {
 	appName?: string;
 	sourceLocale?: string;
 	targetLocales?: string;
+	verbose?: boolean;
 }
 
 export interface RepoIdentityPayload {

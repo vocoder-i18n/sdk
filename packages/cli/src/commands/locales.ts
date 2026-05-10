@@ -1,13 +1,13 @@
 import * as p from "@clack/prompts";
 import chalk from "chalk";
 import { active, highlight } from "../utils/theme.js";
-import { config as loadEnv } from "dotenv";
+import { loadEnvFiles } from "../utils/load-env.js";
 import { readFileSync } from "node:fs";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
 import { findExistingConfig } from "../utils/write-config.js";
 import { getLimitErrorGuidance } from "./sync.js";
 
-loadEnv();
+loadEnvFiles();
 
 export interface LocaleCommandOptions {
 	apiUrl?: string;

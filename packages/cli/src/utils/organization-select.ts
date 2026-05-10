@@ -321,16 +321,37 @@ export async function selectOrganizationForInit(
 		};
 	}
 
-	const selectedInstallationId = await selectGitHubInstallation(
-		installations.map((inst) => ({
-			installationId: inst.installationId,
-			accountLogin: inst.accountLogin,
-			accountType: inst.accountType,
-			isSuspended: inst.isSuspended,
-			conflictLabel: inst.conflictLabel,
-		})),
-		true,
-	);
+	const mappedInstallations = installations.map((inst) => ({
+		installationId: inst.installationId,
+		accountLogin: inst.accountLogin,
+		accountType: inst.accountType,
+		isSuspended: inst.isSuspended,
+		conflictLabel: inst.conflictLabel,
+	}));
+
+	// Match installations to the repo owner so we can auto-select or warn
+	const repoOwner = repoCanonical?.split(":")[1]?.split("/")[0]?.toLowerCase() ?? null;
+	const ownerMatches = repoOwner
+		? mappedInstallations.filter(
+				(i) => !i.isSuspended && !i.conflictLabel && i.accountLogin.toLowerCase() === repoOwner,
+			)
+		: [];
+
+	let selectedInstallationId: number | string | null;
+	if (ownerMatches.length === 1) {
+		// Exactly one installation covers this repo's owner — skip the prompt
+		selectedInstallationId = ownerMatches[0]!.installationId;
+		p.log.info(`Using GitHub installation: ${chalk.bold(ownerMatches[0]!.accountLogin)}`);
+	} else {
+		if (repoOwner && ownerMatches.length === 0) {
+			p.log.warn(
+				`No GitHub installation found for "${repoOwner}".\n` +
+					`  Translations won't sync automatically for this repo.\n` +
+					`  To fix: install the Vocoder GitHub App on "${repoOwner}".`,
+			);
+		}
+		selectedInstallationId = await selectGitHubInstallation(mappedInstallations, true);
+	}
 
 	if (selectedInstallationId === null) {
 		p.cancel("Setup cancelled.");
