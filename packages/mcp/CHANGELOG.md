@@ -1,5 +1,24 @@
 # @vocoder/mcp
 
+## 0.16.0
+
+### Patch Changes
+
+- Provider API improvements and SDK audit fixes
+  - `VocoderProvider`: replace `cookies` prop with `initialLocale` and `preview` boolean props — server resolves cookie values and passes them down; provider normalizes initialLocale against available locales automatically
+  - Remove `VocoderProviderServer` (RSC cannot provide context; was a no-op)
+  - Move `DEFAULT_ORDINAL_ICU`, `buildPluralICU`, `buildSelectICU`, `PLURAL_CLDR`, `ALL_CLDR` to `@vocoder/core` — single source of truth for T.tsx and extractor
+  - Add `applyOrdinalForms()` to `@vocoder/core` — shared ordinal suffix/word logic replaces triplicated implementations
+  - Fix `context.t()` missing formality support — now uses full `TOptions` consistent with global `t()` and `<T>`
+  - Fix `hasTranslation()` to be hash-only — remove hidden dual-mode (hash-or-source-text)
+  - Fix preview query param: `syncPreviewQueryParam()` now reads `?vocoder=true|false` as intended
+  - `Industry` type replaces `AppIndustry` (deprecated alias kept); adds travel, legal, government, nonprofit, other
+
+- Updated dependencies
+  - @vocoder/extractor@0.16.0
+  - @vocoder/cli@0.16.0
+  - @vocoder/plugin@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes

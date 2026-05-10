@@ -1,6 +1,6 @@
 {
   "name": "@vocoder/core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shared primitives for the Vocoder i18n SDK — hash, ICU formatting, locale utilities, and types",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
