@@ -379,7 +379,6 @@ export class VocoderAPI {
 	): Promise<{
 		sessionId: string;
 		verificationUrl: string;
-		installUrl?: string;
 		expiresAt: string;
 	}> {
 		const url = `${this.apiUrl}/api/cli/auth/start`;
@@ -408,7 +407,6 @@ export class VocoderAPI {
 		return payload as {
 			sessionId: string;
 			verificationUrl: string;
-			installUrl?: string;
 			expiresAt: string;
 		};
 	}
@@ -573,109 +571,6 @@ export class VocoderAPI {
 			`${this.apiUrl}/api/cli/project/regenerate-key`,
 			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId }) },
 			"Failed to regenerate API key",
-		);
-	}
-
-	// ── CLI GitHub endpoints ──────────────────────────────────────────────────────
-
-	async startCliGitHubInstall(
-		userToken: string,
-		params: { organizationId?: string; callbackPort?: number },
-	): Promise<{ installUrl: string }> {
-		return this.userRequest<{ installUrl: string }>(
-			userToken,
-			`${this.apiUrl}/api/cli/github/install/start`,
-			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
-			"Failed to start GitHub install",
-		);
-	}
-
-	/**
-	 * Start the "link existing installation" discovery flow.
-	 * Unlike startCliGitHubOAuth, this requires no bearer token — the Vocoder
-	 * account is created from the OAuth code in the callback.
-	 */
-	async startCliGitHubLinkSession(
-		sessionId: string,
-		callbackPort?: number,
-	): Promise<{ oauthUrl: string }> {
-		const url = `${this.apiUrl}/api/cli/github/oauth/link-start`;
-		const response = await this.fetchRaw(url, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				sessionId,
-				...(callbackPort != null ? { callbackPort } : {}),
-			}),
-		});
-
-		const payload = await readPayload(response, { url, status: response.status }, this.debug);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to start GitHub link session (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as { oauthUrl: string };
-	}
-
-	async startCliGitHubOAuth(
-		userToken: string,
-		params: { organizationId?: string; callbackPort?: number },
-	): Promise<{ oauthUrl: string }> {
-		return this.userRequest<{ oauthUrl: string }>(
-			userToken,
-			`${this.apiUrl}/api/cli/github/oauth/start`,
-			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
-			"Failed to start GitHub OAuth",
-		);
-	}
-
-	async getCliGitHubDiscovery(userToken: string): Promise<{
-		installations: Array<{
-			installationId: number;
-			accountLogin: string;
-			accountType: string;
-			isSuspended: boolean;
-			conflictLabel: string | null;
-		}>;
-	}> {
-		return this.userRequest<{
-			installations: Array<{
-				installationId: number;
-				accountLogin: string;
-				accountType: string;
-				isSuspended: boolean;
-				conflictLabel: string | null;
-			}>;
-		}>(userToken, `${this.apiUrl}/api/cli/github/discovery`, {}, "Failed to fetch GitHub discovery");
-	}
-
-	async claimCliGitHubInstallation(
-		userToken: string,
-		params: { installationId: string; organizationId: string | null },
-	): Promise<{
-		organizationId: string;
-		organizationName: string;
-		connectionLabel: string;
-		repoCount: number;
-	}> {
-		return this.userRequest<{
-			organizationId: string;
-			organizationName: string;
-			connectionLabel: string;
-			repoCount: number;
-		}>(
-			userToken,
-			`${this.apiUrl}/api/cli/github/claim`,
-			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
-			"Failed to claim GitHub installation",
 		);
 	}
 
