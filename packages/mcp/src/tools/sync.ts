@@ -30,7 +30,7 @@ export async function runSync(
 	const config = await client.getConfig();
 
 	if (config.targetLocales.length === 0) {
-		return "No target locales configured. Add target locales to your project before syncing.";
+		return "No target locales configured. Add target locales to your app before syncing.";
 	}
 
 	const branch = input.branch ?? detectBranch();
@@ -133,7 +133,7 @@ function formatCompleted(
 ): string {
 	const parts = [`Sync complete.`, `${newStrings} new string(s) translated.`];
 	if (deletedStrings) parts.push(`${deletedStrings} string(s) removed.`);
-	parts.push(`${totalStrings} total string(s) in project.`);
+	parts.push(`${totalStrings} total string(s) in app.`);
 	return parts.join(" ");
 }
 

@@ -39,7 +39,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			p.log.warn(warning);
 		}
 
-		// ── 2. Fast lookup: does a project already exist for this repo? ─────────
+		// ── 2. Fast lookup: does an app already exist for this repo? ─────────
 		// No spinner — fast DB read, and we don't want a stray ◇ on a miss.
 		let existingAppsForRepo: Array<{
 			appDir: string;
@@ -63,7 +63,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				const allApps = lookup.existingApps;
 				const firstApp = allApps[0]!;
 
-				p.log.success(`Project: ${chalk.bold(firstApp.projectName)}`);
+				p.log.success(`App: ${chalk.bold(firstApp.projectName)}`);
 				p.log.info(
 					`Configured apps: ${allApps.map((a) => highlight(a.appDir || "(entire repo)")).join(", ")}`,
 				);
@@ -71,7 +71,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				const routeAction = await p.select<string>({
 					message: "This repo is already set up. What would you like to do?",
 					options: [
-						{ value: "key", label: "Get an API key for this project" },
+						{ value: "key", label: "Get an API key for this app" },
 						{ value: "add", label: "Add a new app directory" },
 					],
 				});
@@ -187,7 +187,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		const { organizationId: selectedOrganizationId, organizationName: selectedOrganizationName } =
 			organizationResult;
 
-		// ── 5. Add-app path: repo already has a project with scoped apps ─────────
+		// ── 5. Add-app path: repo already has scoped apps ─────────────────────────
 		// Skips plan limit check — only a new App is added, not a new Project.
 		if (repoProjectId && repoProjectName && existingAppsForRepo.length > 0) {
 			const appResult = await runAppCreate({

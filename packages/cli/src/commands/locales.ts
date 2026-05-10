@@ -36,7 +36,7 @@ function getApiConfig(options: LocaleCommandOptions): {
 	const apiKey = process.env.VOCODER_API_KEY;
 	if (!apiKey) {
 		p.log.error(
-			"VOCODER_API_KEY is not set. Run `npx @vocoder/cli init` to set up your project.",
+			"VOCODER_API_KEY is not set. Run `npx @vocoder/cli init` to set up your app.",
 		);
 		return null;
 	}
@@ -47,8 +47,8 @@ function getApiConfig(options: LocaleCommandOptions): {
 }
 
 /**
- * Lists the project's configured source locale and target locales.
- * Reads the project API key from VOCODER_API_KEY.
+ * Lists the app's configured source locale and target locales.
+ * Reads the app API key from VOCODER_API_KEY.
  *
  * Endpoint: GET /api/cli/config
  *
@@ -78,14 +78,14 @@ export async function listProjectLocales(options: LocaleCommandOptions = {}): Pr
 		return 0;
 	} catch (error) {
 		p.log.error(
-			error instanceof Error ? error.message : "Failed to fetch project locales.",
+			error instanceof Error ? error.message : "Failed to fetch app locales.",
 		);
 		return 1;
 	}
 }
 
 /**
- * Adds one or more target locales to the project.
+ * Adds one or more target locales to the app.
  * Loops per locale — the API accepts one locale at a time.
  * Idempotent: locales already configured are silently skipped.
  *
@@ -93,7 +93,7 @@ export async function listProjectLocales(options: LocaleCommandOptions = {}): Pr
  *
  * @param locales  Array of BCP 47 locale codes to add, e.g. ["fr", "de", "pt-BR"].
  * @throws {VocoderAPIError} status 422 for invalid/unsupported locale code.
- * @throws {VocoderAPIError} status 403 when the plan's maxTargetLocalesPerProject limit is reached.
+ * @throws {VocoderAPIError} status 403 when the plan's maxTargetLocalesPerApp limit is reached.
  */
 export async function addLocales(
 	locales: string[],
@@ -150,7 +150,7 @@ export async function addLocales(
 }
 
 /**
- * Removes one or more target locales from the project.
+ * Removes one or more target locales from the app.
  * Loops per locale — the API accepts one locale at a time.
  * Idempotent: locales not currently configured are silently skipped.
  *
@@ -207,7 +207,7 @@ export async function removeLocales(
  * Lists all locales supported by Vocoder.
  * Useful for discovering valid BCP 47 codes before calling `add`.
  *
- * Endpoint: GET /api/cli/locales (accepts both user tokens and project API keys)
+ * Endpoint: GET /api/cli/locales (accepts both user tokens and app API keys)
  */
 export async function listSupportedLocales(options: LocaleCommandOptions = {}): Promise<number> {
 	const config = getApiConfig(options);
@@ -216,7 +216,7 @@ export async function listSupportedLocales(options: LocaleCommandOptions = {}): 
 	const api = new VocoderAPI(config);
 
 	try {
-		// GET /api/cli/locales accepts both user tokens and project API keys as Bearer tokens
+		// GET /api/cli/locales accepts both user tokens and app API keys as Bearer tokens
 		const result = await api.listLocales(config.apiKey);
 		p.log.info(chalk.bold("Source locales:"));
 		printLocaleTable(result.sourceLocales);

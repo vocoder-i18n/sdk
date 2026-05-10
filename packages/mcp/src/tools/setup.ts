@@ -113,7 +113,7 @@ export function runSetup(input: SetupInput, hasApiKey: boolean): SetupResult {
 	nextSteps.push(snippets.whatsNext);
 	if (!hasApiKey) {
 		nextSteps.push(
-			"Run `npx @vocoder/cli init` to connect this project and get your API key",
+			"Run `npx @vocoder/cli init` to connect this app and get your API key",
 		);
 	}
 

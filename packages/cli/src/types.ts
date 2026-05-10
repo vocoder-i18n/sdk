@@ -59,7 +59,7 @@ export interface APIAppConfig {
 }
 
 // Combined configuration used by CLI
-export interface ProjectConfig extends LocalConfig, APIAppConfig {
+export interface AppConfig extends LocalConfig, APIAppConfig {
 	includePattern: string | string[];
 	excludePattern?: string | string[];
 	timeout: number;

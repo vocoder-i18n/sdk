@@ -21,7 +21,7 @@ export async function runGetTranslations(
 		const config = await client.getConfig(identity?.repoCanonical);
 		locales = config.targetLocales;
 		if (locales.length === 0) {
-			return "No target locales configured. Add locales to your project first.";
+			return "No target locales configured. Add locales to your app first.";
 		}
 	}
 

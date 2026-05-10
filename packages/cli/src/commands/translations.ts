@@ -24,7 +24,7 @@ export interface TranslationsOptions {
 }
 
 /**
- * Downloads the current translation snapshot for the project.
+ * Downloads the current translation snapshot for the app.
  *
  * With --output <dir>: writes one <locale>.json file per locale to the
  * specified directory. Each file shape: { "source text": "translated text" }.
@@ -32,7 +32,7 @@ export interface TranslationsOptions {
  * Without --output: prints the full snapshot JSON to stdout, suitable
  * for piping or programmatic use.
  *
- * Reads the project API key from VOCODER_API_KEY.
+ * Reads the app API key from VOCODER_API_KEY.
  * Endpoint: GET /api/cli/sync/snapshot
  *
  * @param options.branch  Git branch (auto-detected from git/CI if omitted).
@@ -45,7 +45,7 @@ export async function getTranslations(options: TranslationsOptions = {}): Promis
 	const apiKey = process.env.VOCODER_API_KEY;
 	if (!apiKey) {
 		p.log.error(
-			"VOCODER_API_KEY is not set. Run `npx @vocoder/cli init` to set up your project.",
+			"VOCODER_API_KEY is not set. Run `npx @vocoder/cli init` to set up your app.",
 		);
 		return 1;
 	}
@@ -67,7 +67,7 @@ export async function getTranslations(options: TranslationsOptions = {}): Promis
 	spinner.start(`Fetching translations for ${highlight(branch)}…`);
 
 	try {
-		// Fetch the project config to resolve which target locales to request
+		// Fetch the app config to resolve which target locales to request
 		const projectConfig = await api.getAppConfig();
 		const targetLocales = options.locale
 			? [options.locale]

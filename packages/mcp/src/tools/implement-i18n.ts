@@ -43,6 +43,11 @@ export interface ImplementI18nResult {
 		patternsToSkip: string[];
 		tFunctionUsage: string;
 	};
+	phase5_localeSelector: {
+		recommendation: string;
+		builtIn: { importStatement: string; usage: string };
+		custom: { importStatement: string; usage: string };
+	};
 	sdkReferenceUri: string;
 	steps: string[];
 }
@@ -285,7 +290,8 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 			: "Step 3: (No build plugin needed for this framework)",
 		`Step 4: ${providerFileExists ? "Update" : "Create"} ${providerFile} to add VocoderProvider`,
 		`Step 5: Wrap all visible UI strings in ${filesFound.length} source files with <T> or t()`,
-		"Step 6: Run vocoder_sync to extract strings and submit for translation",
+		"Step 6: Add a locale switcher — use <LocaleSelector /> for a zero-config floating button, or build custom with useVocoder() if you need it embedded in your nav/header",
+		"Step 7: Run vocoder_sync to extract strings and submit for translation",
 	];
 
 	return {
@@ -345,6 +351,24 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 			],
 			tFunctionUsage:
 				"Use t() (not <T>) for: non-JSX contexts, strings passed as function arguments (toast, alert, console), aria-label/title/placeholder attributes, window.document.title. Example: document.title = t('Settings | MyApp')",
+		},
+		phase5_localeSelector: {
+			recommendation:
+				"Add a locale switcher so users can change language. Use <LocaleSelector /> for a zero-config floating button (good for prototypes, internal tools, or any UI where a floating widget fits). Build custom with useVocoder() when you need it embedded in a nav/header, want to match an existing design system, or want to avoid the Radix UI bundle (~40KB gzip) that LocaleSelector includes.",
+			builtIn: {
+				importStatement: "import { LocaleSelector } from '@vocoder/react/locale-selector'",
+				usage: "<LocaleSelector />  {/* floating button, bottom-right by default */}",
+			},
+			custom: {
+				importStatement: "import { useVocoder } from '@vocoder/react'",
+				usage:
+					"const { locale, setLocale, availableLocales, locales } = useVocoder()\n" +
+					"<select value={locale} onChange={e => setLocale(e.target.value)}>\n" +
+					"  {availableLocales.map(loc => (\n" +
+					"    <option key={loc} value={loc}>{locales?.[loc]?.nativeName ?? loc}</option>\n" +
+					"  ))}\n" +
+					"</select>",
+			},
 		},
 		sdkReferenceUri: "vocoder://docs/sdk-reference",
 		steps,

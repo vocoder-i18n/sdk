@@ -259,7 +259,7 @@ Must be called inside a component tree wrapped by `VocoderProvider`. Throws if c
 | `locales` | `LocalesMap \| undefined` | Locale metadata: `nativeName`, `dir`, `currencyCode`, `ordinalForms` per locale code |
 | `t` | `(text, values?, options?) => string` | Reactive translate — re-runs on locale change. Use inside components. |
 | `ordinal` | `(value: number, gender?: string) => string` | Reactive ordinal — re-runs on locale change. |
-| `hasTranslation` | `(text: string) => boolean` | Check if a translation exists for the current locale |
+| `hasTranslation` | `(key: string) => boolean` | Check if a translation exists by hash key. Use `generateMessageHash(text)` to get a key from source text. |
 | `getDisplayName` | `(targetLocale: string, viewingLocale?: string) => string` | Human-readable locale name via `Intl.DisplayNames`. Defaults viewing locale to active locale. |
 
 ### Common usage patterns
@@ -438,6 +438,21 @@ import { LocaleSelector } from '@vocoder/react/locale-selector'
 | `locales` | `LocalesMap` | from context | Locale metadata. Auto-read from context if omitted. |
 | `sortBy` | `string` | `"native"` | Sort order: `"native"`, `"source"`, `"translated"` |
 
+### Built-in vs custom — when to use each
+
+**Use `LocaleSelector` when:**
+- You want zero-config setup — drop it anywhere inside `VocoderProvider` and it works
+- The floating fixed-position widget fits your UI (sidebars, admin panels, internal tools, prototypes)
+- You don't have an existing design system the switcher needs to match
+
+**Build a custom switcher when:**
+- You need it embedded in a nav bar, header, footer, or settings page rather than floating
+- Your design system has its own dropdown/select component you want to use
+- You want to avoid the Radix UI dependency (~40KB gzip) that `LocaleSelector` bundles
+- You need behavior not exposed by `LocaleSelector` props (animated transitions, search, grouped locales)
+
+The custom path is three lines with `useVocoder()` — not significantly more work than dropping in `<LocaleSelector />`.
+
 ### Custom locale switcher
 
 Build your own using `useVocoder()`:
@@ -531,6 +546,6 @@ export default defineConfig({
   exclude: ['**/*.test.*'],       // files to skip
   targetBranches: ['main'],       // branches that trigger translation
   formality: 'auto',              // default formality for DeepL
-  appIndustry: 'saas',            // context hint for translation quality
+  industry: 'saas',               // context hint for translation quality (saas, ecommerce, travel, legal, government, nonprofit, other)
 })
 ```

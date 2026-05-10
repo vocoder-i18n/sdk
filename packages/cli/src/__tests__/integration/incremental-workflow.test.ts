@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { ProjectConfig } from "../../types.js";
+import type { AppConfig } from "../../types.js";
 import { VocoderAPI } from "../../utils/api.js";
 
 /**
@@ -17,7 +17,7 @@ describe.skipIf(process.env.RUN_INTEGRATION !== "true")(
 	"Incremental Workflow Integration",
 	() => {
 		let api: VocoderAPI;
-		let config: ProjectConfig;
+		let config: AppConfig;
 		const testBranch = `test-incremental-${Date.now()}`;
 
 		beforeAll(() => {

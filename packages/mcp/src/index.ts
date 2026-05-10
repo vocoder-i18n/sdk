@@ -196,7 +196,7 @@ server.tool(
 // string-wrapping patterns, and the full SDK reference. Use when ready to code.
 server.tool(
 	"vocoder_implement_i18n",
-	"Generate a complete, step-by-step i18n implementation plan for the current project. Returns exact file paths to modify, install commands, provider setup code, a list of source files to scan for hardcoded strings, wrapping patterns with before/after examples, and the full @vocoder/react SDK reference. Call this when you are ready to implement i18n — it gives you everything needed to make code changes autonomously.",
+	"Generate a complete, step-by-step i18n implementation plan for the current app. Returns exact file paths to modify, install commands, provider setup code, a list of source files to scan for hardcoded strings, wrapping patterns with before/after examples, and the full @vocoder/react SDK reference. Call this when you are ready to implement i18n — it gives you everything needed to make code changes autonomously.",
 	{
 		sourceLocale: z
 			.string()
@@ -238,10 +238,10 @@ server.tool(
 	},
 );
 
-// vocoder_status — show project config and health.
+// vocoder_status — show app config and health.
 server.tool(
 	"vocoder_status",
-	"Get the current Vocoder project status: project name, source locale, target locales, target branches, and sync policy.",
+	"Get the current Vocoder app status: app name, source locale, target locales, target branches, and sync policy.",
 	{},
 	async () => {
 		const client = createClient();
@@ -266,7 +266,7 @@ server.tool(
 // vocoder_sync — extract strings and submit for translation.
 server.tool(
 	"vocoder_sync",
-	"Extract all translatable strings from the current project and submit them to Vocoder for translation. Polls until translations are ready (up to 60 seconds).",
+	"Extract all translatable strings from the current app and submit them to Vocoder for translation. Polls until translations are ready (up to 60 seconds).",
 	{
 		branch: z
 			.string()
@@ -369,10 +369,10 @@ server.tool(
 	},
 );
 
-// vocoder_add_locale — add a new target language to the project.
+// vocoder_add_locale — add a new target language to the app.
 server.tool(
 	"vocoder_add_locale",
-	'Add a new target locale to the Vocoder project. The locale must be a valid BCP 47 code (e.g. "fr", "de", "pt-BR", "zh-TW"). Use vocoder_list_locales to find the correct code for a language.',
+	'Add a new target locale to the Vocoder app. The locale must be a valid BCP 47 code (e.g. "fr", "de", "pt-BR", "zh-TW"). Use vocoder_list_locales to find the correct code for a language.',
 	{
 		locale: z
 			.string()
@@ -398,10 +398,10 @@ server.tool(
 	},
 );
 
-// vocoder_remove_locale — remove a target language from the project.
+// vocoder_remove_locale — remove a target language from the app.
 server.tool(
 	"vocoder_remove_locale",
-	'Remove a target locale from the Vocoder project. Pass the BCP 47 code of a currently-configured target locale (e.g. "fr", "de"). Use vocoder_status to see the current target locales before calling.',
+	'Remove a target locale from the Vocoder app. Pass the BCP 47 code of a currently-configured target locale (e.g. "fr", "de"). Use vocoder_status to see the current target locales before calling.',
 	{
 		locale: z
 			.string()

@@ -11,7 +11,7 @@ import type {
 	ExtractedString,
 	LimitErrorResponse,
 	LocalesMap,
-	ProjectConfig,
+	AppConfig,
 	RequestedSyncMode,
 	SyncPolicyConfig,
 	TranslateOptions,
@@ -287,18 +287,18 @@ function getSyncPolicyErrorGuidance(
 	error: NonNullable<VocoderAPIError["syncPolicyError"]>,
 ): string[] {
 	if (error.errorCode === "BRANCH_NOT_ALLOWED") {
-		const lines = ["This branch is not allowed for this project."];
+		const lines = ["This branch is not allowed for this app."];
 		if (error.branch) {
 			lines.push(`Current branch: ${error.branch}`);
 		}
-		// targetBranches removed — configure branches in project settings
+		// targetBranches removed — configure branches in app settings
 		lines.push(
-			"Update your project target branches in the dashboard if needed.",
+			"Update your app target branches in the dashboard if needed.",
 		);
 		return lines;
 	}
 
-	const lines = ["This project is bound to a different repository."];
+	const lines = ["This app is bound to a different repository."];
 	if (error.boundRepoLabel) {
 		lines.push(`Bound repository: ${error.boundRepoLabel}`);
 	}
@@ -306,7 +306,7 @@ function getSyncPolicyErrorGuidance(
 		lines.push(`Bound scope: ${error.boundScopePath}`);
 	}
 	lines.push(
-		"Run `vocoder init` from the correct repository or create a separate project.",
+		"Run `vocoder init` from the correct repository or create a separate app.",
 	);
 	return lines;
 }
@@ -405,7 +405,7 @@ export async function sync(options: TranslateOptions = {}): Promise<number> {
 		p.log.info(
 			"  Or add your key to .env: VOCODER_API_KEY=vca_...",
 		);
-		p.outro("Run `npx @vocoder/cli init` to set up your project.");
+		p.outro("Run `npx @vocoder/cli init` to set up your app.");
 		return 1;
 	}
 
@@ -414,7 +414,7 @@ export async function sync(options: TranslateOptions = {}): Promise<number> {
 	try {
 		const branch = detectBranch(options.branch);
 
-		spinner.start("Loading project configuration");
+		spinner.start("Loading app configuration");
 
 		const localConfig = {
 			apiKey: mergedConfig.apiKey,
@@ -433,7 +433,7 @@ export async function sync(options: TranslateOptions = {}): Promise<number> {
 		});
 
 		const fileConfig = loadVocoderConfig(process.cwd());
-		const config: ProjectConfig = {
+		const config: AppConfig = {
 			...localConfig,
 			...apiConfig,
 			includePattern: mergedConfig.includePattern,
@@ -770,10 +770,10 @@ export async function sync(options: TranslateOptions = {}): Promise<number> {
 
 			if (isInvalidKey) {
 				p.log.warn(
-					"API key rejected — the project may have been deleted or the key revoked.",
+					"API key rejected — the app may have been deleted or the key revoked.",
 				);
 				p.log.info(
-					"  Run `npx @vocoder/cli init` to create a new project and key.",
+					"  Run `npx @vocoder/cli init` to create a new app and key.",
 				);
 			} else if (error.message.includes("git branch")) {
 				p.log.warn("Run from a git repository, or use:");

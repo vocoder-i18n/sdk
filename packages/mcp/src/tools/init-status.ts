@@ -55,7 +55,7 @@ export async function runInitStatus(
 			sourceLocale: config.sourceLocale,
 			targetLocales: config.targetLocales,
 			initCommand: INIT_COMMAND,
-			instructions: `Project "${config.projectName}" is configured and ready. Source locale: ${config.sourceLocale}. Target locales: ${config.targetLocales.join(", ")}.`,
+			instructions: `App "${config.projectName}" is configured and ready. Source locale: ${config.sourceLocale}. Target locales: ${config.targetLocales.join(", ")}.`,
 			whatHappens: WHAT_HAPPENS,
 		};
 	} catch (error) {

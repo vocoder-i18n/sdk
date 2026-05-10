@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProjectConfig } from "../types.js";
+import type { AppConfig } from "../types.js";
 import { VocoderAPI } from "../utils/api.js";
 
 /**
@@ -13,7 +13,7 @@ import { VocoderAPI } from "../utils/api.js";
  */
 describe("Incremental Translation Workflow", () => {
 	let api: VocoderAPI;
-	let config: ProjectConfig;
+	let config: AppConfig;
 
 	beforeEach(() => {
 		config = {

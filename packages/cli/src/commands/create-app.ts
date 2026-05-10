@@ -18,7 +18,7 @@ export interface CreateAppOptions {
 	targetLocales?: string;
 	/** Comma-separated branch names to enable sync on. Defaults to "main". */
 	targetBranches?: string;
-	/** Organization ID to create the project in (required). */
+	/** Organization ID to create the app in (required). */
 	organization: string;
 	/**
 	 * Explicit git repository canonical, e.g. "github:owner/repo".
@@ -34,7 +34,7 @@ export interface CreateAppOptions {
 }
 
 /**
- * Creates a new Vocoder project without the interactive init flow.
+ * Creates a new Vocoder app without the interactive init flow.
  *
  * Requires a valid user token in the local auth store (run `vocoder init` first).
  * Prints the generated VOCODER_API_KEY to stdout on success.
@@ -46,7 +46,7 @@ export interface CreateAppOptions {
  *
  * Endpoint: POST /api/cli/apps
  *
- * @param options.name           Project display name (required).
+ * @param options.name           App display name (required).
  * @param options.sourceLocale   Source language BCP 47 code (required).
  * @param options.targetLocales  Comma-separated target locale codes.
  * @param options.targetBranches Comma-separated branch names (default: "main").
@@ -55,7 +55,7 @@ export interface CreateAppOptions {
  * @param options.appDir         App directory for monorepos (default: ".").
  *
  * @throws If user token is missing, organization is invalid, or the plan's
- *         maxProjects limit is exceeded.
+ *         maxApps limit is exceeded.
  */
 export async function createApp(options: CreateAppOptions): Promise<number> {
 	const authData = readAuthData();
@@ -85,7 +85,7 @@ export async function createApp(options: CreateAppOptions): Promise<number> {
 			}
 		} else {
 			p.log.warn(
-				"Could not detect a git remote. The project will be created without repo binding — " +
+				"Could not detect a git remote. The app will be created without repo binding — " +
 					"sync-on-push will not function until a repository is connected via the Vocoder dashboard.",
 			);
 		}
@@ -116,7 +116,7 @@ export async function createApp(options: CreateAppOptions): Promise<number> {
 		spinner.stop(`Created app ${chalk.bold(result.projectName)}`);
 
 		const lines = [
-			`Project ID:     ${result.projectId}`,
+			`App ID:         ${result.projectId}`,
 			`Source locale:  ${highlight(result.sourceLocale)}`,
 			`Target locales: ${result.targetLocales.length > 0 ? result.targetLocales.map((l) => highlight(l)).join(", ") : chalk.dim("(none)")}`,
 			`Branches:       ${result.targetBranches.map((b) => highlight(b)).join(", ")}`,
@@ -128,7 +128,7 @@ export async function createApp(options: CreateAppOptions): Promise<number> {
 			`  ${chalk.bold("VOCODER_API_KEY")}=${highlight(result.apiKey)}`,
 		];
 
-		p.note(lines.join("\n"), "Project created");
+		p.note(lines.join("\n"), "App created");
 
 		if (!result.repositoryBound && repoCanonical) {
 			p.log.warn(
@@ -139,7 +139,7 @@ export async function createApp(options: CreateAppOptions): Promise<number> {
 
 		return 0;
 	} catch (error) {
-		spinner.stop("Failed to create project.");
+		spinner.stop("Failed to create app.");
 
 		if (error instanceof VocoderAPIError && error.limitError) {
 			const { limitError } = error;

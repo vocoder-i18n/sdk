@@ -6,7 +6,7 @@ export async function runStatus(client: VocoderClient): Promise<string> {
 	const config = await client.getConfig(identity?.repoCanonical);
 
 	const lines = [
-		`Project: ${config.projectName} (org: ${config.organizationName})`,
+		`App: ${config.projectName} (org: ${config.organizationName})`,
 		`Source locale: ${config.sourceLocale}`,
 		`Target locales: ${config.targetLocales.join(", ") || "(none configured)"}`,
 		`Target branches: ${config.targetBranches.join(", ") || "(none configured)"}`,

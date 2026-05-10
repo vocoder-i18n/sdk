@@ -1,8 +1,10 @@
 import * as p from "@clack/prompts";
-import chalk from "chalk";
+
 import { active, highlight } from "../utils/theme.js";
-import { config as loadEnv } from "dotenv";
+
 import { VocoderAPI } from "../utils/api.js";
+import chalk from "chalk";
+import { config as loadEnv } from "dotenv";
 
 loadEnv();
 
@@ -13,7 +15,7 @@ export interface AppConfigOptions {
 /**
  * Displays the current Vocoder app configuration.
  *
- * Shows: project name, organization, source locale, target locales,
+ * Shows: app name, organization, source locale, target locales,
  * target branches, primary branch, and sync policy settings.
  *
  * Reads the app API key from VOCODER_API_KEY.
@@ -25,7 +27,7 @@ export async function appConfig(options: AppConfigOptions = {}): Promise<number>
 	const apiKey = process.env.VOCODER_API_KEY;
 	if (!apiKey) {
 		p.log.error(
-			"VOCODER_API_KEY is not set. Run `npx @vocoder/cli init` to set up your project.",
+			"VOCODER_API_KEY is not set. Run `npx @vocoder/cli init` to set up your app.",
 		);
 		return 1;
 	}
@@ -38,7 +40,7 @@ export async function appConfig(options: AppConfigOptions = {}): Promise<number>
 
 		const lines = [
 			`App:             ${chalk.bold(config.projectName)}`,
-			`Organization:    ${config.organizationName}`,
+			`Workspace:    	  ${chalk.bold(config.organizationName)}`,
 			`Source locale:   ${highlight(config.sourceLocale)}`,
 			`Target locales:  ${
 				config.targetLocales.length > 0
@@ -60,7 +62,7 @@ export async function appConfig(options: AppConfigOptions = {}): Promise<number>
 		return 0;
 	} catch (error) {
 		p.log.error(
-			error instanceof Error ? error.message : "Failed to fetch project config.",
+			error instanceof Error ? error.message : "Failed to fetch app config.",
 		);
 		return 1;
 	}

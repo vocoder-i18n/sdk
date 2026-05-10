@@ -2,7 +2,7 @@ import { detectRepoIdentity } from "@vocoder/plugin";
 import type { VocoderClient } from "../client.js";
 
 /**
- * Add a target locale to the Vocoder project.
+ * Add a target locale to the Vocoder app.
  * Idempotent: returns success even if the locale is already configured.
  *
  * @param locale  BCP 47 locale code, e.g. "fr" or "pt-BR".
@@ -18,7 +18,7 @@ export async function runAddLocale(
 }
 
 /**
- * Remove a target locale from the Vocoder project.
+ * Remove a target locale from the Vocoder app.
  * Idempotent: returns success even if the locale is not currently configured.
  *
  * @param locale  BCP 47 locale code, e.g. "fr" or "pt-BR".

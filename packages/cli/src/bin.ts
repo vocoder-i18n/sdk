@@ -36,12 +36,12 @@ const program = new Command();
 
 program
 	.name("vocoder")
-	.description("Vocoder CLI - Project setup and string extraction")
+	.description("Vocoder CLI - App setup and string extraction")
 	.version("0.1.5");
 
 program
 	.command("init")
-	.description("Authenticate and provision Vocoder for this project")
+	.description("Authenticate and provision Vocoder for this app")
 	.option("--api-url <url>", "Override Vocoder API URL")
 	.option("--yes", "Allow overwriting existing local config values")
 	.option(
@@ -87,11 +87,11 @@ program
 	.option("--api-url <url>", "Override Vocoder API URL")
 	.action((options) => runCommand(whoami, options));
 
-// ── Project management ────────────────────────────────────────────────────────
+// ── App management ────────────────────────────────────────────────────────────
 
 const localesCmd = program
 	.command("locales")
-	.description("Manage project target locales")
+	.description("Manage app target locales")
 	.option("--api-url <url>", "Override Vocoder API URL")
 	.action((options) => runCommand(listProjectLocales, options));
 

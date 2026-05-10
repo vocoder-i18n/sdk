@@ -287,19 +287,23 @@ export default function App() {
 }
 ```
 
-For Remix with SSR locale detection, read the cookie from the request in a loader and pass it to the provider:
+For Remix with SSR locale detection, read the cookies from the request in a loader and pass `initialLocale` and `preview` to the provider:
 
 ```tsx
 export async function loader({ request }: LoaderFunctionArgs) {
-  return json({ cookies: request.headers.get('Cookie') ?? '' })
+  const cookie = request.headers.get('Cookie') ?? ''
+  return json({
+    initialLocale: cookie.match(/vocoder_locale=([^;]+)/)?.[1],
+    preview: /vocoder_preview=true/.test(cookie),
+  })
 }
 
 export default function App() {
-  const { cookies } = useLoaderData<typeof loader>()
+  const { initialLocale, preview } = useLoaderData<typeof loader>()
   return (
     <html>
       <body>
-        <VocoderProvider cookies={cookies}>
+        <VocoderProvider initialLocale={initialLocale} preview={preview}>
           <Outlet />
         </VocoderProvider>
       </body>
