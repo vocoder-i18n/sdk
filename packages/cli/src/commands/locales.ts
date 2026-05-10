@@ -5,7 +5,7 @@ import { loadEnvFiles } from "../utils/load-env.js";
 import { readFileSync } from "node:fs";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
 import { findExistingConfig } from "../utils/write-config.js";
-import { getLimitErrorGuidance } from "./sync.js";
+import { getLimitErrorGuidance } from "./translate.js";
 
 loadEnvFiles();
 

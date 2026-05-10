@@ -5,7 +5,7 @@ import { loadEnvFiles } from "../utils/load-env.js";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
 import { readAuthData } from "../utils/auth-store.js";
 import { resolveGitRepositoryIdentity } from "../utils/git-identity.js";
-import { getLimitErrorGuidance } from "./sync.js";
+import { getLimitErrorGuidance } from "./translate.js";
 
 loadEnvFiles();
 

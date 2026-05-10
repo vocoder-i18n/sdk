@@ -5,20 +5,40 @@ export interface LocaleInfo {
 
 export type LocalesMap = Record<string, LocaleInfo>;
 
-export interface TranslateOptions {
+export interface TranslateCommandOptions {
 	branch?: string;
-	force?: boolean;
+	commitSha?: string;
 	dryRun?: boolean;
 	verbose?: boolean;
-	include?: string[];
-	exclude?: string[];
-	mode?: RequestedSyncMode;
-	maxWaitMs?: number;
-	noFallback?: boolean;
+	apiUrl?: string;
+}
+
+export interface TranslateRequestBody {
+	branch: string;
+	commitSha?: string;
+	stringEntries: Array<{
+		key: string;
+		text: string;
+		context?: string;
+		formality?: string;
+		uiRole?: string;
+	}>;
+	targetLocales: string[];
+	stringsHash: string;
+	repoCanonical?: string;
+	repoAppDir?: string;
+	clientRunId?: string;
+}
+
+export interface TranslateStatusResponse {
+	status: "pending" | "running" | "complete" | "failed";
+	progress: { completed: number; total: number };
+	locales: Record<string, "pending" | "running" | "complete" | "failed">;
+	fingerprint?: string;
+	error?: string;
 }
 
 export type EffectiveSyncMode = "required" | "best-effort";
-export type RequestedSyncMode = "auto" | EffectiveSyncMode;
 
 export interface SyncPolicyConfig {
 	blockingBranches: string[];
@@ -37,12 +57,6 @@ export interface InitOptions {
 	verbose?: boolean;
 }
 
-export interface RepoIdentityPayload {
-	repoCanonical?: string;
-	repoAppDir?: string;
-	commitSha?: string;
-}
-
 // Local configuration (from env vars)
 export interface LocalConfig {
 	apiKey: string;
@@ -57,15 +71,6 @@ export interface APIAppConfig {
 	targetBranches: string[];
 	primaryBranch?: string;
 	syncPolicy: SyncPolicyConfig;
-}
-
-// Combined configuration used by CLI
-export interface AppConfig extends LocalConfig, APIAppConfig {
-	includePattern: string | string[];
-	excludePattern?: string | string[];
-	timeout: number;
-	/** From vocoder.config.ts — synced to App on every push */
-	industry?: string;
 }
 
 export type { ExtractedString } from "@vocoder/extractor";
