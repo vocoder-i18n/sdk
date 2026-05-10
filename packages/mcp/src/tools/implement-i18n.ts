@@ -48,6 +48,14 @@ export interface ImplementI18nResult {
 		builtIn: { importStatement: string; usage: string };
 		custom: { importStatement: string; usage: string };
 	};
+	quickReference: {
+		componentVsFunction: string;
+		variables: { rule: string; correct: string; wrong: string };
+		plurals: { rule: string; correct: string; wrong: string };
+		richText: { rule: string; correct: string };
+		extractorBailCases: string[];
+		afterWrapping: string;
+	};
 	sdkReferenceUri: string;
 	steps: string[];
 }
@@ -369,6 +377,34 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 					"  ))}\n" +
 					"</select>",
 			},
+		},
+		quickReference: {
+			componentVsFunction:
+				"Use <T> for JSX text content. Use t() for everything else: string attributes (placeholder, aria-label, title, alt), callback arguments (toast, alert), document.title, non-JSX modules. Both are imported from '@vocoder/react'. t() from useVocoder() is reactive (re-runs on locale change); module-level t() is not reactive but safe for use outside components.",
+			variables: {
+				rule: "Never interpolate variables with JSX expressions or string concatenation inside <T>. Always use the message prop + values object.",
+				correct: "<T message=\"Hello {name}, you have {count} messages\" values={{ name, count }} />",
+				wrong: "<T>Hello {name}, you have {count} messages</T>  // extractor cannot extract — dynamic children bail",
+			},
+			plurals: {
+				rule: "Use <T> plural props (one/other/few/many) for count-based strings. Never use ternaries or if-statements to switch between plural forms.",
+				correct: "<T value={count} one=\"# item\" other=\"# items\" />",
+				wrong: "<T>{count === 1 ? '1 item' : `${count} items`}</T>  // not translatable as a unit",
+			},
+			richText: {
+				rule: "For JSX with inline elements (links, bold, etc.), use natural JSX syntax — the plugin transforms it. Do not manually split the string.",
+				correct: "<T>Read <a href=\"/docs\">the docs</a> for help.</T>  // plugin extracts as: 'Read <0>the docs</0> for help.'",
+			},
+			extractorBailCases: [
+				"Dynamic children: <T>{someVariable}</T> — use message prop + values instead",
+				"String concatenation: <T>{'Hello ' + name}</T> — use message prop + values instead",
+				"Spread props on <T> — all props must be static literals",
+				"<T> inside another <T> — flatten to a single <T> with components prop",
+				"Ternary as direct child: <T>{flag ? 'A' : 'B'}</T> — use _case props or separate <T> per branch",
+				"Template literals as children: <T>{`Hello ${name}`}</T> — use message prop + values instead",
+			],
+			afterWrapping:
+				"After wrapping all strings, call vocoder_sync. This extracts all <T> and t() calls, computes fingerprints, and submits strings to Vocoder for translation. Translations are bundled at build time — run vocoder_sync before every production build.",
 		},
 		sdkReferenceUri: "vocoder://docs/sdk-reference",
 		steps,

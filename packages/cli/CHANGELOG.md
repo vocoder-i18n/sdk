@@ -1,5 +1,7 @@
 # @vocoder/cli
 
+## 0.16.6
+
 ## 0.16.5
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @vocoder/mcp
 
+## 0.16.6
+
+### Patch Changes
+
+- Add inline quick reference and locale selector guidance to `vocoder_implement_i18n` output. Agents that don't fetch MCP resources now get critical patterns (variable interpolation, plurals, rich text, extractor bail cases) directly in the tool response. Add `phase5_localeSelector` with built-in vs custom decision guidance.
+  - @vocoder/cli@0.16.6
+  - @vocoder/extractor@0.16.6
+  - @vocoder/plugin@0.16.6
+
 ## 0.16.5
 
 ### Patch Changes
