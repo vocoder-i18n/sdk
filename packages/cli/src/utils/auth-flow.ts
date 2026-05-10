@@ -15,11 +15,12 @@
  */
 
 import * as p from "@clack/prompts";
-import chalk from "chalk";
-import type { VocoderAPI } from "./api.js";
-import { tryOpenBrowser } from "./browser.js";
-import { startCallbackServer } from "./local-server.js";
+
 import type { InitOptions } from "../types.js";
+import type { VocoderAPI } from "./api.js";
+import chalk from "chalk";
+import { startCallbackServer } from "./local-server.js";
+import { tryOpenBrowser } from "./browser.js";
 
 export async function sleep(ms: number): Promise<void> {
 	await new Promise((resolve) => setTimeout(resolve, ms));
@@ -65,7 +66,6 @@ export async function runAuthFlow(
 		? session.verificationUrl
 		: (session.installUrl ?? session.verificationUrl);
 	const expiresAt = new Date(session.expiresAt).getTime();
-	p.log.info(browserUrl);
 
 	if (options.ci) {
 		// Machine-readable output parsed by e2e/helpers/cli.ts

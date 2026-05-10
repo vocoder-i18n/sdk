@@ -1,25 +1,24 @@
 import * as p from "@clack/prompts";
 
-import { VocoderAPI } from "../utils/api.js";
+import { checkPlanLimits, isPlanLimitFailure, printPlanLimitMessage } from "../utils/plan-check.js";
+import { runAppCreate, runProjectCreate } from "../utils/project-create.js";
+import { runScaffold, writeAppConfigs } from "../utils/scaffold.js";
 import {
 	verifyStoredAuth,
 	writeAuthData,
 } from "../utils/auth-store.js";
-import { runAuthFlow } from "../utils/auth-flow.js";
-import { detectLocalEcosystem } from "../utils/detect-local.js";
-import { printApiKey } from "../utils/output.js";
-import { runScaffold, writeAppConfigs } from "../utils/scaffold.js";
-import { runMcpSetup } from "../utils/mcp-setup.js";
-import { checkPlanLimits, isPlanLimitFailure, printPlanLimitMessage } from "../utils/plan-check.js";
-import { selectOrganizationForInit } from "../utils/organization-select.js";
-import { runAppCreate, runProjectCreate } from "../utils/project-create.js";
 
 import type { InitOptions } from "../types.js";
+import { VocoderAPI } from "../utils/api.js";
 import chalk from "chalk";
-
-import { config as loadEnv } from "dotenv";
-import { resolveGitContext } from "../utils/git-identity.js";
+import { detectLocalEcosystem } from "../utils/detect-local.js";
 import { highlight } from "../utils/theme.js";
+import { config as loadEnv } from "dotenv";
+import { printApiKey } from "../utils/output.js";
+import { resolveGitContext } from "../utils/git-identity.js";
+import { runAuthFlow } from "../utils/auth-flow.js";
+import { runMcpSetup } from "../utils/mcp-setup.js";
+import { selectOrganizationForInit } from "../utils/organization-select.js";
 
 loadEnv();
 
@@ -272,7 +271,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 
 		// ── 9. MCP setup ─────────────────────────────────────────────────────────
 		const wantsMcp = await p.confirm({
-			message: "Set up the Vocoder MCP server for your AI editor?",
+			message: "Set up the Vocoder MCP server?",
 		});
 		if (!p.isCancel(wantsMcp) && wantsMcp) {
 			await runMcpSetup(projectResult.apiKey);

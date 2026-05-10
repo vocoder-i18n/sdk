@@ -42,6 +42,13 @@ export function mcpServerJson(apiKey: string): string {
 export async function runMcpSetup(apiKey: string): Promise<void> {
 	type Tool = "claude" | "cursor" | "windsurf" | "vscode" | "other";
 
+	p.log.message(
+		chalk.dim(
+			"  The Vocoder MCP server lets your AI editor add/remove locales,\n" +
+				"  check translation status, and scaffold i18n directly in your project.",
+		),
+	);
+
 	const tool = await p.select<Tool>({
 		message: "Which AI editor?",
 		options: [
@@ -63,7 +70,7 @@ export async function runMcpSetup(apiKey: string): Promise<void> {
 			);
 			p.log.success("Vocoder MCP server registered in Claude Code.");
 		} catch {
-			p.log.message("Run this to register the MCP server:");
+			p.log.message(chalk.dim("(automatic registration failed — run this command manually:)"));
 			printCommand(
 				`claude mcp add --scope user --transport stdio -e VOCODER_API_KEY=${apiKey} vocoder -- npx -y @vocoder/mcp`,
 			);

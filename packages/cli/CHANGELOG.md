@@ -1,5 +1,11 @@
 # @vocoder/cli
 
+## 0.16.3
+
+### Patch Changes
+
+- MCP setup: add helper text explaining what the MCP server enables; improve auto-registration failure message
+
 ## 0.16.2
 
 ### Patch Changes
