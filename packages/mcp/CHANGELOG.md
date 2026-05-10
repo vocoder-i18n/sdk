@@ -1,5 +1,17 @@
 # @vocoder/mcp
 
+## 0.17.0
+
+### Minor Changes
+
+- Register init tools: `vocoder_init_status`, `vocoder_init_start`, `vocoder_init_complete`, `vocoder_project_create`. Adds anonymous repo pre-lookup to init_start so existing apps are surfaced before auth. Adds `instructions` to ProjectCreateResult telling the agent exactly what to write to disk after getting the API key.
+
+### Patch Changes
+
+- @vocoder/cli@0.17.0
+- @vocoder/extractor@0.17.0
+- @vocoder/plugin@0.17.0
+
 ## 0.16.6
 
 ### Patch Changes

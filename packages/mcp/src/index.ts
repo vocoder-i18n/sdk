@@ -8,8 +8,8 @@ import { z } from "zod";
 import { createClient, NO_API_KEY_MESSAGE } from "./client.js";
 
 import { runImplementI18n } from "./tools/implement-i18n.js";
-// import { runInitStatus } from "./tools/init-status.js";
-// import { runInitComplete, runInitStart, runProjectCreate } from "./tools/project-init.js";
+import { runInitStatus } from "./tools/init-status.js";
+import { runInitComplete, runInitStart, runProjectCreate } from "./tools/project-init.js";
 import { runAddLocale, runRemoveLocale } from "./tools/locale.js";
 import { runSetup } from "./tools/setup.js";
 import { runStatus } from "./tools/status.js";
@@ -188,8 +188,123 @@ server.tool(
 	},
 );
 
-// ── Setup tools (commented out — coming back to these) ────────────────────────
-// vocoder_init_start, vocoder_init_complete, vocoder_project_create, vocoder_init_status
+// vocoder_init_status — check whether Vocoder is configured and the API key is valid.
+// Call this first when the user asks about Vocoder setup status or if the key is missing.
+server.tool(
+	"vocoder_init_status",
+	"Check whether Vocoder is configured for this project. Returns ready=true with app name and locale config if VOCODER_API_KEY is valid, or ready=false with instructions to run vocoder_init_start if not. Call this before any other tool when you are unsure whether the project is set up.",
+	{},
+	async () => {
+		try {
+			const client = createClient();
+			const result = await runInitStatus(client);
+			return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+		} catch (error) {
+			return {
+				content: [
+					{
+						type: "text",
+						text: `Status check failed: ${error instanceof Error ? error.message : String(error)}`,
+					},
+				],
+			};
+		}
+	},
+);
+
+// vocoder_init_start — begin the Vocoder project setup flow.
+// Checks for stored auth and performs an anonymous repo lookup first.
+// Returns an authUrl for the user to open in their browser, or null if already authenticated.
+server.tool(
+	"vocoder_init_start",
+	"Start the Vocoder project setup flow. Checks for an existing auth token, performs an anonymous lookup to detect if this repo already has a Vocoder app, then returns a browser URL for the user to authenticate. If already authenticated, returns authUrl=null and mode='existing'. Call vocoder_init_complete after the user confirms they've completed the browser flow.",
+	{
+		mode: z
+			.enum(["install", "link"])
+			.optional()
+			.describe(
+				'"install" (default): installs Vocoder GitHub App + authenticates in one step. "link": GitHub OAuth only — use when the GitHub App is already installed.',
+			),
+	},
+	async ({ mode }) => {
+		try {
+			const result = await runInitStart({ mode });
+			return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+		} catch (error) {
+			return {
+				content: [
+					{
+						type: "text",
+						text: `Init start failed: ${error instanceof Error ? error.message : String(error)}`,
+					},
+				],
+			};
+		}
+	},
+);
+
+// vocoder_init_complete — poll for auth token after user completes the browser flow.
+server.tool(
+	"vocoder_init_complete",
+	"Poll for the authentication token after the user completes the browser flow from vocoder_init_start. Pass the sessionId returned by vocoder_init_start. Once authenticated, ask the user for sourceLocale, targetLocales, and targetBranches, then call vocoder_project_create.",
+	{
+		sessionId: z.string().describe("sessionId returned by vocoder_init_start"),
+	},
+	async ({ sessionId }) => {
+		try {
+			const result = await runInitComplete({ sessionId });
+			return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+		} catch (error) {
+			return {
+				content: [
+					{
+						type: "text",
+						text: `Init complete failed: ${error instanceof Error ? error.message : String(error)}`,
+					},
+				],
+			};
+		}
+	},
+);
+
+// vocoder_project_create — create the Vocoder project and get the API key.
+server.tool(
+	"vocoder_project_create",
+	"Create a Vocoder project for this repo and return the API key. Requires a completed auth session from vocoder_init_complete. Returns apiKey, project config, and step-by-step instructions for what to write to disk. After calling this, write VOCODER_API_KEY to .env, then call vocoder_implement_i18n to scaffold the SDK.",
+	{
+		sessionId: z.string().describe("sessionId from vocoder_init_start"),
+		sourceLocale: z.string().describe('Source language code, e.g. "en"'),
+		targetLocales: z.array(z.string()).describe('Target language codes, e.g. ["es", "fr"]'),
+		targetBranches: z
+			.array(z.string())
+			.describe('Git branches that trigger translation, e.g. ["main"]'),
+		projectName: z
+			.string()
+			.optional()
+			.describe("Project name (defaults to repo name)"),
+	},
+	async ({ sessionId, sourceLocale, targetLocales, targetBranches, projectName }) => {
+		try {
+			const result = await runProjectCreate({
+				sessionId,
+				sourceLocale,
+				targetLocales,
+				targetBranches,
+				projectName,
+			});
+			return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+		} catch (error) {
+			return {
+				content: [
+					{
+						type: "text",
+						text: `Project creation failed: ${error instanceof Error ? error.message : String(error)}`,
+					},
+				],
+			};
+		}
+	},
+);
 
 // vocoder_implement_i18n — generate a complete implementation plan.
 // Returns exact file paths, install commands, provider setup, files to scan,

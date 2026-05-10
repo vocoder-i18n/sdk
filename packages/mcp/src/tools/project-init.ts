@@ -11,11 +11,19 @@ export interface InitStartInput {
 	mode?: "install" | "link";
 }
 
+export interface ExistingApp {
+	appDir: string;
+	appId: string;
+	projectId: string;
+	projectName: string;
+}
+
 export interface InitStartResult {
 	authUrl: string | null;
 	sessionId: string;
 	expiresAt: string;
 	mode: "install" | "link" | "existing";
+	existingApps: ExistingApp[];
 	instructions: string;
 }
 
@@ -45,6 +53,7 @@ export interface ProjectCreateResult {
 	targetBranches: string[];
 	repositoryBound: boolean;
 	configureUrl?: string;
+	instructions: string;
 }
 
 interface PendingSession {
@@ -76,6 +85,21 @@ export async function runInitStart(
 
 	const api = new VocoderAPI({ apiUrl, apiKey: "" });
 
+	// Anonymous repo lookup — mirrors CLI step 2. Runs before auth so we can
+	// surface existing apps to the agent without requiring a browser flow.
+	let existingApps: ExistingApp[] = [];
+	if (identity) {
+		try {
+			const lookup = await api.lookupAppByRepo({
+				repoCanonical: identity.repoCanonical,
+				appDir: identity.appDir ?? "",
+			});
+			existingApps = lookup.existingApps ?? [];
+		} catch {
+			// Non-fatal — proceed without lookup data
+		}
+	}
+
 	// Check stored auth using the same logic as the CLI (shared via @vocoder/cli/lib).
 	// verifyStoredAuth distinguishes three cases:
 	// - "valid":   token still good — skip browser flow entirely
@@ -84,6 +108,11 @@ export async function runInitStart(
 	// - "gone":    404, user deleted — treat as first-time, use installUrl
 	// - "none":    no stored token — first-time, use installUrl
 	const storedAuth = await verifyStoredAuth(api);
+
+	const existingNote =
+		existingApps.length > 0
+			? ` This repo already has ${existingApps.length} configured app(s): ${existingApps.map((a) => a.projectName).join(", ")}. Proceeding will add a new app or re-authenticate.`
+			: "";
 
 	if (storedAuth.status === "valid") {
 		const sessionId = randomUUID();
@@ -100,7 +129,8 @@ export async function runInitStart(
 			sessionId,
 			expiresAt,
 			mode: "existing",
-			instructions: `Already authenticated as ${storedAuth.email} — no browser flow needed. Call vocoder_init_complete with the sessionId to confirm, then collect project config.`,
+			existingApps,
+			instructions: `Already authenticated as ${storedAuth.email} — no browser flow needed.${existingNote} Call vocoder_init_complete with the sessionId to confirm, then collect project config.`,
 		};
 	}
 
@@ -148,7 +178,8 @@ export async function runInitStart(
 		sessionId: session.sessionId,
 		expiresAt: session.expiresAt,
 		mode,
-		instructions: `Ask the user to open this link to authenticate: [Authenticate with Vocoder](${authUrl})\n\n${modeNote}\n\nTell the user to reply when they've finished the browser flow. Wait for their confirmation — do nothing else until they confirm.`,
+		existingApps,
+		instructions: `Ask the user to open this link to authenticate: [Authenticate with Vocoder](${authUrl})\n\n${modeNote}${existingNote}\n\nTell the user to reply when they've finished the browser flow. Wait for their confirmation — do nothing else until they confirm.`,
 	};
 }
 
@@ -278,7 +309,30 @@ export async function runProjectCreate(
 	}
 
 	pendingSessions.delete(input.sessionId);
-	return projectResult;
+
+	const repoWarning = !projectResult.repositoryBound
+		? "\n\nWARNING: Repository not bound — translations won't run automatically until you grant the Vocoder GitHub App access to this repository in your GitHub installation settings."
+		: "";
+
+	return {
+		...projectResult,
+		instructions: [
+			`Project "${projectResult.projectName}" created. Next steps:`,
+			``,
+			`1. Write to .env at the project root:`,
+			`   VOCODER_API_KEY=${projectResult.apiKey}`,
+			``,
+			`2. Call vocoder_implement_i18n to generate the full SDK implementation plan.`,
+			`   It will create vocoder.config.ts, install packages, set up VocoderProvider,`,
+			`   and give you the file list to wrap strings in.`,
+			``,
+			`3. Tell the user: "Add VOCODER_API_KEY=${projectResult.apiKey} to your MCP server`,
+			`   environment config and restart your editor to reload the MCP server."`,
+			repoWarning,
+		]
+			.join("\n")
+			.trim(),
+	};
 }
 
 // Resolves the organization ID to use for project creation.
