@@ -58,14 +58,14 @@ export async function runMcpSetup(apiKey: string): Promise<void> {
 	if (tool === "claude") {
 		try {
 			execSync(
-				`claude mcp add --scope user --transport stdio --env VOCODER_API_KEY=${apiKey} vocoder -- npx -y @vocoder/mcp`,
+				`claude mcp add --scope user --transport stdio -e VOCODER_API_KEY=${apiKey} vocoder -- npx -y @vocoder/mcp`,
 				{ stdio: "pipe" },
 			);
 			p.log.success("Vocoder MCP server registered in Claude Code.");
 		} catch {
 			p.log.message("Run this to register the MCP server:");
 			printCommand(
-				`claude mcp add --scope user --transport stdio --env VOCODER_API_KEY=${apiKey} vocoder -- npx -y @vocoder/mcp`,
+				`claude mcp add --scope user --transport stdio -e VOCODER_API_KEY=${apiKey} vocoder -- npx -y @vocoder/mcp`,
 			);
 			p.log.message(info(`  Docs: ${MCP_DOCS_URL}`));
 		}

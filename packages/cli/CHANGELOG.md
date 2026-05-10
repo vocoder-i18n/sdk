@@ -1,5 +1,11 @@
 # @vocoder/cli
 
+## 0.16.2
+
+### Patch Changes
+
+- Fix claude mcp add command: use -e flag instead of --env for environment variables
+
 ## 0.16.1
 
 ### Patch Changes
