@@ -48,20 +48,27 @@ export interface VocoderContextValue {
 	ordinal: (value: number, gender?: string) => string;
 }
 
-export interface VocoderProviderServerProps {
-	children: React.ReactNode;
-}
-
 export interface VocoderProviderProps {
 	/** React children */
 	children: React.ReactNode;
 	/**
-	 * Cookie string for server-side rendering (optional).
-	 * Pass cookies from request headers to enable SSR locale detection.
-	 * @example Next.js App Router: cookies().toString()
-	 * @example Next.js Pages: context.req.headers.cookie
+	 * SSR-detected initial locale. Pass the raw cookie value (or preferred locale string)
+	 * from your server — the provider normalizes it against available locales automatically.
+	 * Omit for client-only apps; the provider reads the locale cookie from document.cookie.
+	 * @example Next.js App Router:
+	 *   const stored = (await cookies()).get('vocoder_locale')?.value;
+	 *   <VocoderProvider initialLocale={stored}>
 	 */
-	cookies?: string;
+	initialLocale?: string;
+	/**
+	 * Whether the current user has preview mode enabled. Resolve server-side from the
+	 * `vocoder_preview` cookie and pass the boolean. Falls back to document.cookie on client.
+	 * Only relevant when `preview: true` is set in your vocoder build plugin config.
+	 * @example Next.js App Router:
+	 *   const preview = (await cookies()).get('vocoder_preview')?.value === 'true';
+	 *   <VocoderProvider preview={preview}>
+	 */
+	preview?: boolean;
 	/**
 	 * Automatically apply `dir` and `lang` attributes to `document.documentElement`
 	 * when the locale changes. Enables RTL layout for Arabic, Hebrew, etc. via CSS

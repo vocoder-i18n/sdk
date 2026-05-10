@@ -1,6 +1,3 @@
-export type { VocoderProviderServerProps } from "./types";
-export { VocoderProviderServer } from "./VocoderProviderServer";
-
 /**
  * Returns the text direction for a given locale using the locale metadata
  * from the Vocoder manifest. Pass `config.locales` from the virtual manifest:
@@ -13,9 +10,9 @@ export { VocoderProviderServer } from "./VocoderProviderServer";
  * import { getLocaleDir } from '@vocoder/react/server';
  *
  * export default async function RootLayout({ children }) {
- *   const locale = (await cookies()).get('vocoder_locale')?.value ?? config.sourceLocale;
- *   const dir = getLocaleDir(locale, config.locales);
- *   return <html lang={locale} dir={dir}>{children}</html>;
+ *   const stored = (await cookies()).get('vocoder_locale')?.value ?? config.sourceLocale;
+ *   const dir = getLocaleDir(stored, config.locales);
+ *   return <html lang={stored} dir={dir}>{children}</html>;
  * }
  * ```
  */

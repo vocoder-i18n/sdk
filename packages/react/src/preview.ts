@@ -12,14 +12,20 @@ export const PREVIEW_MODE: boolean = (() => {
 	}
 })();
 
-/** True if user has opted in via the vocoder=true cookie. Pass cookieString for server-side calls. */
+/** True if user has opted in via the vocoder_preview=true cookie. Pass cookieString for server-side calls. */
 export function isPreviewEnabled(cookieString?: string): boolean {
 	return getCookie(COOKIE_KEY, cookieString) === "true";
 }
 
-/** True when the SDK should be active (either not in preview mode, or preview mode with opt-in). */
-export function isVocoderEnabled(cookieString?: string): boolean {
-	return !PREVIEW_MODE || isPreviewEnabled(cookieString);
+/**
+ * True when the SDK should be active (either not in preview mode, or preview mode with opt-in).
+ * Pass the `preview` boolean from `VocoderProvider` props on server.
+ * Falls back to document.cookie check on the client.
+ */
+export function isVocoderEnabled(preview?: boolean): boolean {
+	if (!PREVIEW_MODE) return true;
+	if (preview !== undefined) return preview;
+	return isPreviewEnabled();
 }
 
 /**

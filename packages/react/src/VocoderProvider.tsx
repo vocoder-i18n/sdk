@@ -71,7 +71,7 @@ function readHydrationFromDom(): {
 }
 
 function buildHydrationOnServer(
-	cookieString: string | undefined,
+	initialLocale: string | undefined,
 ): { raw: string; data: HydrationSnapshot } | null {
 	if (typeof window !== "undefined") return null;
 
@@ -80,14 +80,10 @@ function buildHydrationOnServer(
 	const availableLocales = Object.keys(locales);
 	const fallback = config.sourceLocale || availableLocales[0] || "en";
 
-	const storedPreference = getCookie(STORAGE_KEY, cookieString);
-	const bestLocale = storedPreference
-		? availableLocales.length > 0
-			? getBestMatchingLocale(storedPreference, availableLocales, fallback)
-			: storedPreference
-		: availableLocales.length > 0
-			? getBestMatchingLocale(fallback, availableLocales, fallback)
-			: fallback;
+	const preferred = initialLocale ?? fallback;
+	const bestLocale = availableLocales.length > 0
+		? getBestMatchingLocale(preferred, availableLocales, fallback)
+		: preferred;
 
 	const generated = getTranslations();
 	let translations = generated[bestLocale];
@@ -110,10 +106,11 @@ function buildHydrationOnServer(
 /** Provides locale state and translations from generated runtime data. */
 export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	children,
-	cookies: cookieString,
+	initialLocale,
+	preview,
 	applyDir = true,
 }) => {
-	const enabled = isVocoderEnabled(cookieString);
+	const enabled = isVocoderEnabled(preview);
 
 	// ── Hydration (computed once, never changes) ─────────────────────
 	const [hydration] = useState(() => {
@@ -121,7 +118,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 		if (typeof window !== "undefined") {
 			return readHydrationFromDom();
 		}
-		return buildHydrationOnServer(cookieString);
+		return buildHydrationOnServer(initialLocale);
 	});
 	const hydrationData = hydration?.data;
 	const hydrationRaw = hydration?.raw;
@@ -134,7 +131,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 			initial = { [hydrationData.locale]: hydrationData.translations };
 		} else {
 			initial = { ...getTranslations() };
-			const storedPreference = getCookie(STORAGE_KEY, cookieString);
+			const storedPreference = getCookie(STORAGE_KEY);
 			if (storedPreference && !initial[storedPreference]) {
 				const loaded = loadLocaleSync(storedPreference);
 				if (loaded) {
@@ -169,8 +166,8 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 				? Object.keys(locales)
 				: Object.keys(translations);
 
-		const storedPreference = getCookie(STORAGE_KEY, cookieString);
-		const preferred = storedPreference || defaultLocale;
+		const storedPreference = getCookie(STORAGE_KEY);
+		const preferred = initialLocale || storedPreference || defaultLocale;
 		const best =
 			available.length > 0
 				? getBestMatchingLocale(preferred, available, defaultLocale)
@@ -218,7 +215,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 
 			if (available.length > 0) {
 				const fallback = cfg.sourceLocale || available[0] || "en";
-				const storedPreference = getCookie(STORAGE_KEY, cookieString);
+				const storedPreference = getCookie(STORAGE_KEY);
 				const bestLocale = getBestMatchingLocale(
 					storedPreference || fallback,
 					available,
@@ -242,7 +239,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 		return () => {
 			cancelled = true;
 		};
-	}, [enabled, cookieString, hydrationData, isInitialized]);
+	}, [enabled, hydrationData, isInitialized]);
 
 	// ── Sync global state for t() and ordinal() functions ───────────
 	useEffect(() => {

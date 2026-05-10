@@ -28,13 +28,10 @@ describe("isPreviewEnabled", () => {
 
 describe("isVocoderEnabled", () => {
 	// PREVIEW_MODE=false in test env, so isVocoderEnabled always returns true
-	// regardless of preview cookie (since `!PREVIEW_MODE` short-circuits).
-	it("returns true when PREVIEW_MODE is false (normal mode)", () => {
-		expect(isVocoderEnabled("")).toBe(true);
-		expect(isVocoderEnabled("vocoder_preview=false")).toBe(true);
-	});
-
-	it("returns true when preview cookie is true in normal mode", () => {
-		expect(isVocoderEnabled("vocoder_preview=true")).toBe(true);
+	// regardless of the preview prop (since `!PREVIEW_MODE` short-circuits).
+	it("returns true when PREVIEW_MODE is false regardless of preview prop", () => {
+		expect(isVocoderEnabled()).toBe(true);
+		expect(isVocoderEnabled(false)).toBe(true);
+		expect(isVocoderEnabled(true)).toBe(true);
 	});
 });
