@@ -70,7 +70,7 @@ The `dev-sdk.cjs` / `dev-sdk.js` scripts in consumer projects rebuild ALL packag
 
 **Do not** split packages into independent watch-and-push — they must all rebuild together.
 
-Run sync via `pnpm exec vocoder sync` or `pnpm run translate`, never `npx @vocoder/cli sync` (pulls published npm, not local build).
+Run translate via `pnpm exec vocoder translate` or `pnpm run translate`, never `npx @vocoder/cli translate` (pulls published npm, not local build).
 
 ## README Synchronization
 

@@ -106,7 +106,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 ### CDN fallback path
 
-The above applies to **build-time bundled translations** (the normal case — `vocoder sync` ran before the build). If the build couldn't fetch translations (API unreachable, first deploy), `VocoderProvider` falls back to fetching from the Vocoder CDN after mount. This is a real network call, not a bundled chunk.
+The above applies to **build-time bundled translations** (the normal case — the GitHub Action ran `vocoder translate` before the build). If the build couldn't fetch translations (API unreachable, first deploy), `VocoderProvider` falls back to fetching from the Vocoder CDN after mount. This is a real network call, not a bundled chunk.
 
 In that case:
 - `await initializeVocoder()` still resolves quickly — it only awaits the manifest + bundled loaders
@@ -114,7 +114,7 @@ In that case:
 - `isReady` will be `false` until the CDN response arrives
 - Use Approach 2 (`isReady` gate) if you need to handle this gracefully
 
-The CDN fallback is a safety net, not the primary path. Run `vocoder sync` before every production build to ensure translations are embedded.
+The CDN fallback is a safety net, not the primary path. Push to a target branch — the GitHub Action extracts and translates automatically. To test locally, run `npx @vocoder/cli translate`.
 
 ```tsx
 // src/App.tsx

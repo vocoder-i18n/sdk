@@ -65,49 +65,14 @@ export async function extractSourceKeys(cwd: string): Promise<string[]> {
 	return [...new Set(results.map((r) => r.key))];
 }
 
-/**
- * Extract source strings as { key, text } entries (deduped by key).
- * Used by the sync-on-startup flow, which needs stable hash keys to submit
- * to the sync API alongside the source texts.
- * text is null for id-only entries (<T id="key" /> with no message).
- */
-export async function extractStringEntries(
-	cwd: string,
-): Promise<Array<{ key: string; text: string | null }>> {
-	const config = loadVocoderConfig(cwd);
-	const include = config?.include ?? DEFAULT_INCLUDE;
-	const exclude = config?.exclude;
 
-	const extractor = new StringExtractor();
-	const results = await extractor.extractFromProject(include, cwd, exclude);
-
-	// Dedup by key (same key = same hash = same string).
-	const seen = new Set<string>();
-	const entries: Array<{ key: string; text: string | null }> = [];
-	for (const r of results) {
-		if (!seen.has(r.key)) {
-			seen.add(r.key);
-			entries.push({ key: r.key, text: r.text });
-		}
-	}
-	return entries;
-}
-
-const SYNC_POLL_INTERVAL_MS = 2000;
-const SYNC_MAX_WAIT_MS = 60_000;
 const CDN_POLL_INTERVAL_MS = 3000;
 const CDN_POLL_MAX_WAIT_MS = 30_000;
 
 /**
- * Submit a translation sync for the current fingerprint if no TranslationBundle
- * exists for it yet. Blocks until translations are available or the timeout
- * elapses, then returns the freshly fetched VocoderTranslationData.
- *
- * Called once per dev-server startup on target branches when no local/CDN
- * cache exists for the computed fingerprint. Allows developers to see
- * translated UI immediately without having to push first.
- *
- * Returns null if the API key is missing or the sync cannot be initiated.
+ * Called when no translations exist for the current fingerprint at dev-server startup.
+ * In the GitHub Action model, translations are submitted before the build runs —
+ * this path means the translate workflow has not run yet for this fingerprint.
  */
 export async function triggerOnDemandSync(params: {
 	fingerprint: string;
@@ -116,104 +81,8 @@ export async function triggerOnDemandSync(params: {
 	apiKey: string;
 	cdnUrl: string;
 }): Promise<VocoderTranslationData | null> {
-	const { fingerprint, branch, apiUrl, apiKey, cdnUrl } = params;
-
-	if (!apiKey.startsWith("vca_")) return null;
-
-	console.log(`[vocoder] No translations found for fingerprint ${fingerprint} — triggering sync`);
-
-	try {
-		// Extract string entries (key + text) to submit to the sync API.
-		const stringEntries = await extractStringEntries(process.cwd());
-		if (stringEntries.length === 0) return null;
-
-		const response = await fetch(`${apiUrl}/api/cli/sync`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${apiKey}`,
-			},
-			body: JSON.stringify({
-				branch,
-				stringEntries,
-				targetLocales: [], // server resolves from App config
-				requestedMode: "best-effort",
-			}),
-			signal: AbortSignal.timeout(15_000),
-		});
-
-		if (!response.ok) {
-			console.warn(`[vocoder] Sync trigger failed (${response.status}) — continuing without translations`);
-			return null;
-		}
-
-		const syncResult = (await response.json()) as {
-			status: string;
-			batchId?: string;
-			translations?: Record<string, Record<string, string>>;
-		};
-
-		// If already UP_TO_DATE or COMPLETED, fetch translations immediately.
-		if (syncResult.status === "UP_TO_DATE" || syncResult.status === "COMPLETED") {
-			console.log(`[vocoder] Sync complete — fetching translations`);
-			return await fetchTranslations(fingerprint, apiUrl);
-		}
-
-		if (!syncResult.batchId) return null;
-
-		// Batch is PENDING — poll for completion.
-		console.log(`[vocoder] Waiting for translations (batch ${syncResult.batchId})...`);
-
-		const deadline = Date.now() + SYNC_MAX_WAIT_MS;
-		while (Date.now() < deadline) {
-			await new Promise((r) => setTimeout(r, SYNC_POLL_INTERVAL_MS));
-
-			const statusRes = await fetch(
-				`${apiUrl}/api/cli/sync/status/${syncResult.batchId}`,
-				{
-					headers: { Authorization: `Bearer ${apiKey}` },
-					signal: AbortSignal.timeout(10_000),
-				},
-			).catch(() => null);
-
-			if (!statusRes?.ok) continue;
-
-			const statusData = (await statusRes.json()) as { status: string; progress?: number; errorMessage?: string };
-
-			if (statusData.progress !== undefined) {
-				const pct = Math.round(statusData.progress * 100);
-				process.stdout.write(`\r[vocoder] Translating... ${pct}%   `);
-			}
-
-			if (statusData.status === "COMPLETED") {
-				process.stdout.write("\n");
-				const data =
-					(cdnUrl ? await pollCDNForTranslations(fingerprint, cdnUrl) : null) ??
-					(await fetchTranslations(fingerprint, apiUrl));
-				const localeCount = data.config.targetLocales.length;
-				const stringCount = Object.values(data.translations).reduce(
-					(sum: number, t) => sum + Object.keys(t as object).length,
-					0,
-				);
-				console.log(`[vocoder] Loaded ${localeCount} locale(s), ${stringCount} translation(s)`);
-				return data;
-			}
-
-			if (statusData.status === "FAILED") {
-				process.stdout.write("\n");
-				const reason = statusData.errorMessage ? `: ${statusData.errorMessage}` : "";
-				console.warn(`[vocoder] Translation batch failed${reason} — continuing without translations`);
-				return null;
-			}
-		}
-
-		process.stdout.write("\n");
-		console.warn("[vocoder] Translation wait timed out — source text will be shown until next reload");
-		return null;
-	} catch (err) {
-		console.warn("[vocoder] Sync-on-startup failed (non-fatal):", err instanceof Error ? err.message : err);
-		return null;
-	}
+	console.log(`[vocoder] No translations found for fingerprint ${params.fingerprint} — run the Vocoder translate workflow to generate them`);
+	return null;
 }
 
 const SHA_REGEX = /^[0-9a-f]{40}$/i;

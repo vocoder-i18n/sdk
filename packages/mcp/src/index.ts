@@ -43,7 +43,8 @@ Reference resources (read when you need detail):
 - vocoder://docs/plugin-reference — Build plugin: framework setup, JSX transforms, virtual modules, injected constants
 - vocoder://docs/extractor — How extraction works: AST parsing, bail cases, hash computation, vocoder translate
 - vocoder://docs/troubleshooting — Debug common issues: missing translations, extraction failures, hydration mismatch, RTL
-- vocoder://docs/app-config — API key, appId, and project/app structure: one API key per repo, each app directory gets its own appId in vocoder.config.ts`,
+- vocoder://docs/app-config — API key, appId, and project/app structure: one API key per repo, each app directory gets its own appId in vocoder.config.ts
+- vocoder://docs/github-action-setup — workflow file setup, VOCODER_API_KEY secret, failure behavior, multi-app`,
 	},
 );
 
@@ -163,6 +164,19 @@ server.resource(
 	},
 	async () => ({
 		contents: [{ uri: "vocoder://docs/app-config", text: loadDoc("app-config.md"), mimeType: "text/markdown" }],
+	}),
+);
+
+server.resource(
+	"vocoder-github-action-setup",
+	"vocoder://docs/github-action-setup",
+	{
+		description:
+			"GitHub Actions workflow setup: workflow file, VOCODER_API_KEY secret, failure behavior, multi-app repos, version pinning.",
+		mimeType: "text/markdown",
+	},
+	async () => ({
+		contents: [{ uri: "vocoder://docs/github-action-setup", text: loadDoc("github-action-setup.md"), mimeType: "text/markdown" }],
 	}),
 );
 
