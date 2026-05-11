@@ -7,9 +7,7 @@ import {
 	verifyStoredAuth,
 } from "@vocoder/cli/lib";
 
-export interface InitStartInput {
-	mode?: "install" | "link";
-}
+export interface InitStartInput {}
 
 export interface ExistingApp {
 	appDir: string;
@@ -22,7 +20,7 @@ export interface InitStartResult {
 	authUrl: string | null;
 	sessionId: string;
 	expiresAt: string;
-	mode: "install" | "link" | "existing";
+	mode: "existing" | "new";
 	existingApps: ExistingApp[];
 	instructions: string;
 }
@@ -62,12 +60,12 @@ interface PendingSession {
 	apiUrl: string;
 	repoCanonical?: string;
 	repoAppDir?: string;
-	mode: "install" | "link" | "existing";
+	mode: "existing" | "new";
 	// Set when a valid stored auth token was found — skips browser polling entirely
 	storedToken?: string;
 	// Populated after vocoder_init_complete — used by vocoder_project_create
 	resolvedToken?: string;
-	// organizationId returned by the install callback — workspace already created, skip claim
+	// organizationId returned by the auth callback — workspace already known, skip lookup
 	pollOrganizationId?: string;
 }
 
@@ -78,7 +76,7 @@ const POLL_INTERVAL_MS = 2000;
 const AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function runInitStart(
-	input: InitStartInput,
+	_input: InitStartInput,
 ): Promise<InitStartResult> {
 	const apiUrl = process.env.VOCODER_API_URL || "https://vocoder.app";
 	const identity = detectRepoIdentity();
@@ -101,13 +99,6 @@ export async function runInitStart(
 		}
 	}
 
-	// Check stored auth using the same logic as the CLI (shared via @vocoder/cli/lib).
-	// verifyStoredAuth distinguishes three cases:
-	// - "valid":   token still good — skip browser flow entirely
-	// - "expired": token rejected but user record exists — reauth via verificationUrl
-	//              (same as CLI reauth=true: no new org, no new GitHub App install)
-	// - "gone":    404, user deleted — treat as first-time, use installUrl
-	// - "none":    no stored token — first-time, use installUrl
 	const storedAuth = await verifyStoredAuth(api);
 
 	const existingNote =
@@ -136,49 +127,26 @@ export async function runInitStart(
 	}
 
 	const session = await api.startCliAuthSession(undefined, identity?.repoCanonical);
-
-	// Mirror the CLI reauth logic exactly:
-	// - expired token → verificationUrl (user has an account, just sign in again —
-	//   no GitHub App install, no new org created)
-	// - gone/none → installUrl (first-time: GitHub App install + auth in one trip)
 	const isReauth = storedAuth.status === "expired";
-	const mode = input.mode ?? "install";
-
-	let authUrl: string;
-	if (isReauth) {
-		// Reauth: use the verification URL just like the CLI does — avoids creating
-		// a duplicate workspace for a returning user with an expired token.
-		authUrl = session.verificationUrl;
-	} else if (mode === "link") {
-		try {
-			const linkSession = await api.startCliGitHubLinkSession(session.sessionId);
-			authUrl = linkSession.oauthUrl;
-		} catch {
-			authUrl = session.installUrl ?? session.verificationUrl;
-		}
-	} else {
-		authUrl = session.installUrl ?? session.verificationUrl;
-	}
+	const authUrl = session.verificationUrl;
 
 	pendingSessions.set(session.sessionId, {
 		sessionId: session.sessionId,
 		apiUrl,
 		repoCanonical: identity?.repoCanonical,
 		repoAppDir: identity?.appDir,
-		mode: isReauth ? "existing" : mode,
+		mode: "new",
 	});
 
 	const modeNote = isReauth
-		? "This URL just signs you back in — your existing workspace and GitHub connection are preserved."
-		: mode === "link"
-			? "This URL only requires GitHub authorization (no App install needed)."
-			: "This URL installs the Vocoder GitHub App and authenticates in one step.";
+		? "This URL signs you back in to your existing workspace."
+		: "This URL opens the Vocoder sign-in page. After authenticating, the CLI session will complete automatically.";
 
 	return {
 		authUrl,
 		sessionId: session.sessionId,
 		expiresAt: session.expiresAt,
-		mode,
+		mode: "new",
 		existingApps,
 		instructions: `Ask the user to open this link to authenticate: [Authenticate with Vocoder](${authUrl})\n\n${modeNote}${existingNote}\n\nTell the user to reply when they've finished the browser flow. Wait for their confirmation — do nothing else until they confirm.`,
 	};
@@ -212,9 +180,7 @@ export async function runInitComplete(
 
 			if (result.status === "complete") {
 				polledToken = result.token;
-				// Install flow: organizationId comes back when GitHub App install + auth
-				// completed in one browser trip. Pass it through to project_create so
-				// we skip the workspace lookup entirely.
+				// organizationId returned by auth callback — skip workspace lookup if present.
 				if (result.organizationId) pollOrganizationId = result.organizationId;
 				break;
 			}
@@ -328,14 +294,30 @@ export async function runProjectCreate(
 			)
 		: [];
 
-	const configInstructions =
+	const step2 =
 		configLines.length > 0
 			? `\n\n2. Write vocoder.config.ts${apps.length > 1 ? " per app directory" : ""}:\n${configLines.map((c, i) => (apps[i]?.appDir ? `   # ${apps[i]!.appDir}\n${c}` : c)).join("\n\n")}`
-			: `\n\n2. Call vocoder_implement_i18n — it will generate vocoder.config.ts and the full SDK implementation plan.`;
+			: "";
 
-	const repoWarning = !projectResult.repositoryBound
-		? `\n\nWARNING: Repository not bound — translations won't run automatically until you grant the Vocoder GitHub App access to this repository in your GitHub installation settings.`
+	const repoWarning = !projectResult.repositoryBound && session.repoCanonical
+		? `\n\nNote: Repository auto-bind did not complete — the repo will bind automatically on the first translate run.`
 		: "";
+
+	const workflowYaml = [
+		`name: Vocoder Translate`,
+		`on:`,
+		`  push:`,
+		`    branches: [${input.targetBranches.join(", ")}]`,
+		`jobs:`,
+		`  translate:`,
+		`    runs-on: ubuntu-latest`,
+		`    steps:`,
+		`      - uses: actions/checkout@v4`,
+		`      - uses: vocoder-i18n/translate-action@v1`,
+		`        with:`,
+		`          api-key: \${{ secrets.VOCODER_API_KEY }}`,
+		`          repo-canonical: github/\${{ github.repository }}`,
+	].join("\n");
 
 	return {
 		...projectResult,
@@ -345,11 +327,25 @@ export async function runProjectCreate(
 			``,
 			`1. Write to .env at the project root:`,
 			`   VOCODER_API_KEY=${projectResult.apiKey}`,
-			configInstructions,
+			step2,
 			``,
-			`3. Call vocoder_implement_i18n to install packages, set up VocoderProvider, and get the list of files to wrap strings in.`,
+			`3. Write .github/workflows/vocoder.yml — create directories if needed:`,
 			``,
-			`4. Tell the user: add VOCODER_API_KEY=${projectResult.apiKey} to their MCP server environment config and restart their editor.`,
+			workflowYaml,
+			``,
+			`   If the file already exists, do NOT overwrite it — note that the user should review it.`,
+			``,
+			`4. Tell the user to add VOCODER_API_KEY as a GitHub repository secret:`,
+			`   GitHub repo → Settings → Secrets and variables → Actions → New repository secret`,
+			`   Name:  VOCODER_API_KEY`,
+			`   Value: ${projectResult.apiKey}`,
+			``,
+			`5. Tell the user to commit the workflow file:`,
+			`   git add .github/workflows/vocoder.yml && git commit -m "Add Vocoder translate workflow"`,
+			``,
+			`6. Call vocoder_implement_i18n to install packages, set up VocoderProvider, and get the list of files to wrap strings in.`,
+			``,
+			`7. Tell the user: add VOCODER_API_KEY=${projectResult.apiKey} to their MCP server environment config and restart their editor.`,
 			repoWarning,
 		]
 			.join("\n")
@@ -358,19 +354,18 @@ export async function runProjectCreate(
 }
 
 // Resolves the organization ID to use for project creation.
-// Order: poll callback organizationId → existing organization covering repo → claim unclaimed installation.
-// Checking existing organizations first prevents "already claimed" errors on re-runs.
+// Order: poll-callback organizationId → only org covering this repo → sole org →
+// first org overall. Ambiguity (multiple non-covering orgs) is resolved by
+// picking the first one because the MCP has no way to prompt a human.
 async function resolveOrganization(
 	api: VocoderAPI,
 	userToken: string,
 	session: PendingSession,
 ): Promise<string> {
-	// Install flow: organizationId already returned by the auth callback
 	if (session.pollOrganizationId) {
 		return session.pollOrganizationId;
 	}
 
-	// Check for an existing organization before trying to claim anything
 	const organizationData = await api.listOrganizations(userToken, {
 		repo: session.repoCanonical,
 	});
@@ -380,42 +375,22 @@ async function resolveOrganization(
 		: [];
 
 	if (covering.length === 1) return covering[0]!.id;
-	if (covering.length === 0 && organizationData.organizations.length === 1)
+	if (organizationData.organizations.length === 1)
 		return organizationData.organizations[0]!.id;
 	if (organizationData.organizations.length > 1) {
-		// Multiple organizations — use the first one covering the repo if available,
-		// otherwise the first organization overall. Ambiguity here requires human choice
-		// which the MCP can't provide, but failing hard would block all re-runs.
 		return (covering[0] ?? organizationData.organizations[0])!.id;
 	}
 
-	// No organization found — try to claim an unclaimed GitHub App installation
-	if (session.mode === "link") {
-		const discovery = await api.getCliGitHubDiscovery(userToken);
-		const unclaimed = discovery.installations.filter(
-			(i) => !i.isSuspended && !i.conflictLabel,
-		);
-
-		if (unclaimed.length === 0) {
-			const all = discovery.installations.length;
-			throw new Error(
-				all === 0
-					? "No GitHub App installations found. Install the Vocoder GitHub App first, then re-run vocoder_init_start with mode: 'install'."
-					: "GitHub App installations found but all are already claimed. Complete setup at [vocoder.app/dashboard](https://vocoder.app/dashboard).",
-			);
-		}
-
-		// Claim the first unclaimed installation (auto-select when only one)
-		const claimResult = await api.claimCliGitHubInstallation(userToken, {
-			installationId: String(unclaimed[0]!.installationId),
-			organizationId: null,
-		});
-		return claimResult.organizationId;
+	// No workspace exists — auto-create a default one if the plan allows it.
+	if (organizationData.canCreateOrganization) {
+		const userInfo = await api.getCliUserInfo(userToken);
+		const name = userInfo.name ? `${userInfo.name}'s Workspace` : "My Workspace";
+		const created = await api.createOrganization(userToken, { name });
+		return created.organizationId;
 	}
 
 	throw new Error(
-		"No organization found. The GitHub App installation may not have completed. " +
-			"Try again or complete setup at [vocoder.app/dashboard](https://vocoder.app/dashboard).",
+		"You're not a member of any workspace. Visit [vocoder.app](https://vocoder.app) to create one, then re-run vocoder_init_start.",
 	);
 }
 

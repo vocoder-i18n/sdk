@@ -289,7 +289,7 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 		`Step 4: ${providerFileExists ? "Update" : "Create"} ${providerFile} to add VocoderProvider`,
 		`Step 5: Wrap all visible UI strings in ${filesFound.length} source files with <T> or t()`,
 		"Step 6: Add a locale switcher — use <LocaleSelector /> for a zero-config floating button, or build custom with useVocoder() if you need it embedded in your nav/header",
-		"Step 7: Run vocoder_sync to extract strings and submit for translation",
+		"Step 7: Push to a target branch — the GitHub Actions workflow extracts strings and submits them for translation automatically. To test locally before pushing, run `npx @vocoder/cli translate`.",
 	];
 
 	return {
@@ -396,7 +396,7 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 				"Template literals as children: <T>{`Hello ${name}`}</T> — use message prop + values instead",
 			],
 			afterWrapping:
-				"After wrapping all strings, call vocoder_sync. This extracts all <T> and t() calls, computes fingerprints, and submits strings to Vocoder for translation. Translations are bundled at build time — run vocoder_sync before every production build.",
+				"After wrapping all strings, push to a target branch. The GitHub Actions workflow automatically extracts all <T> and t() calls, submits them for translation, and updates the translation bundle before your build runs. To test locally before pushing, run `npx @vocoder/cli translate`.",
 		},
 		sdkReferenceUri: "vocoder://docs/sdk-reference",
 		steps,

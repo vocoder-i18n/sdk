@@ -19,15 +19,17 @@ export interface InitStatusResult {
 
 const INIT_COMMAND = "npx @vocoder/cli init";
 
-const WHAT_HAPPENS =
-	"The init command opens a browser window. You'll install the Vocoder GitHub App on your GitHub account and authenticate. Once done, the terminal displays your VOCODER_API_KEY. Add it to your .env file, then run /mcp reset to reload.";
+export const WHAT_HAPPENS =
+	"The init command opens a browser window to the Vocoder sign-in page. After authenticating, the terminal displays your VOCODER_API_KEY and writes a GitHub Actions workflow file to .github/workflows/vocoder.yml. Add VOCODER_API_KEY to .env and as a GitHub repository secret, then run /mcp reset to reload.";
 
-const INIT_INSTRUCTIONS = [
+export const INIT_INSTRUCTIONS = [
 	"1. Run in your terminal: npx @vocoder/cli init",
-	"2. Browser opens — install the Vocoder GitHub App and authenticate",
+	"2. Browser opens — sign in to your Vocoder account",
 	"3. Copy the VOCODER_API_KEY shown in your terminal",
-	"4. Add to your MCP config: VOCODER_API_KEY=<your-key>",
-	"5. Restart your MCP server / reload the editor session",
+	"4. Add VOCODER_API_KEY as a GitHub repository secret:",
+	"   GitHub repo → Settings → Secrets and variables → Actions → New repository secret",
+	"5. Add to your MCP config: VOCODER_API_KEY=<your-key>",
+	"6. Restart your MCP server / reload the editor session",
 	"",
 	"Then call vocoder_init_status again to verify.",
 ].join("\n");

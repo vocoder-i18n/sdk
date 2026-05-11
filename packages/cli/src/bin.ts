@@ -10,7 +10,7 @@ import {
 } from "./commands/locales.js";
 import { logout } from "./commands/logout.js";
 import { appConfig } from "./commands/app-config.js";
-import { sync } from "./commands/sync.js";
+import { translate } from "./commands/translate.js";
 import { getTranslations } from "./commands/translations.js";
 import { createApp } from "./commands/create-app.js";
 import { regenerateKey } from "./commands/regenerate-key.js";
@@ -59,23 +59,14 @@ program
 	.action((options) => runCommand(init, options));
 
 program
-	.command("sync")
-	.description("Extract strings and sync translations")
+	.command("translate")
+	.description("Extract strings and translate via Vocoder (called by the GitHub Action)")
 	.option("--branch <branch>", "Override detected branch")
-	.option("--mode <mode>", "Sync mode: auto, required, best-effort", "auto")
-	.option("--max-wait <ms>", "Max wait for translations (ms)")
-	.option("--force", "Force re-extraction even if no changes")
-	.option("--dry-run", "Preview without syncing")
-	.option("--no-fallback", "Disable fallback to cached translations")
-	.option("--include <pattern>", "Include glob pattern", collect, [])
-	.option("--exclude <pattern>", "Exclude glob pattern", collect, [])
+	.option("--commit-sha <sha>", "Override detected commit SHA")
+	.option("--dry-run", "Extract strings and compute hash without submitting")
 	.option("--verbose", "Detailed output")
-	.action((options) => {
-		const translated: Record<string, unknown> = { ...options };
-		if (options.maxWait) translated.maxWaitMs = Number(options.maxWait);
-		if (options.fallback === false) translated.noFallback = true;
-		return runCommand(sync, translated);
-	});
+	.option("--api-url <url>", "Override Vocoder API URL")
+	.action((options) => runCommand(translate, options));
 
 program
 	.command("logout")

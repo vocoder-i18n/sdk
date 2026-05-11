@@ -1,14 +1,12 @@
 import type {
 	APIAppConfig,
-	TranslationBatchResponse,
 	TranslationSnapshotResponse,
-	TranslationStatusResponse,
 } from "@vocoder/cli/lib";
 
 export const NO_API_KEY_MESSAGE =
 	"VOCODER_API_KEY is not set. Run `npx @vocoder/cli init` to get an API key, then add it to your MCP server config as VOCODER_API_KEY.";
 
-export interface SyncBody {
+export interface TranslateBody {
 	branch: string;
 	commitSha?: string;
 	stringEntries: Array<{
@@ -21,13 +19,28 @@ export interface SyncBody {
 	targetLocales: string[];
 	repoCanonical?: string;
 	repoAppDir?: string;
-	requestedMode?: "auto" | "required" | "best-effort";
 	// sha256 of sorted string keys — server uses for fast UP_TO_DATE detection
 	stringsHash?: string;
-	force?: boolean;
-	requestedMaxWaitMs?: number;
 	clientRunId?: string;
-	industry?: string;
+}
+
+// 202 response: { jobId } — poll status
+// 200 response: { jobId, status: 'complete', fingerprint } — cached result, no work needed
+export interface TranslateResponse {
+	jobId: string;
+	status?: "complete";
+	fingerprint?: string;
+}
+
+export interface TranslateStatusResponse {
+	status: "pending" | "running" | "complete" | "failed";
+	progress: { completed: number; total: number };
+	providers?: {
+		deepl?: { status: string; durationMs?: number };
+		claude?: { status: string; completed?: number; total?: number; durationMs?: number };
+	};
+	fingerprint?: string;
+	error?: string;
 }
 
 export class VocoderClient {
@@ -87,18 +100,18 @@ export class VocoderClient {
 		return this.request<APIAppConfig>("GET", `/api/cli/config${params}`);
 	}
 
-	async sync(body: SyncBody): Promise<TranslationBatchResponse> {
-		return this.request<TranslationBatchResponse>(
+	async translate(body: TranslateBody): Promise<TranslateResponse> {
+		return this.request<TranslateResponse>(
 			"POST",
-			"/api/cli/sync",
+			"/api/cli/translate",
 			body,
 		);
 	}
 
-	async getSyncStatus(batchId: string): Promise<TranslationStatusResponse> {
-		return this.request<TranslationStatusResponse>(
+	async getTranslateStatus(jobId: string): Promise<TranslateStatusResponse> {
+		return this.request<TranslateStatusResponse>(
 			"GET",
-			`/api/cli/sync/status/${batchId}`,
+			`/api/cli/translate/${jobId}/status`,
 		);
 	}
 

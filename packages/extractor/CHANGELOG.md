@@ -1,5 +1,14 @@
 # @vocoder/extractor
 
+## 0.18.1
+
+### Patch Changes
+
+- Update repository URL: vocoder-sdk → sdk (github.com/vocoder-i18n/sdk).
+- Updated dependencies
+  - @vocoder/config@0.18.1
+  - @vocoder/core@0.3.1
+
 ## 0.18.0
 
 ### Patch Changes

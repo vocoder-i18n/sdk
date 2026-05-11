@@ -5,7 +5,7 @@ import { loadEnvFiles } from "../utils/load-env.js";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
 import { readAuthData } from "../utils/auth-store.js";
 import { resolveGitRepositoryIdentity } from "../utils/git-identity.js";
-import { getLimitErrorGuidance } from "./sync.js";
+import { getLimitErrorGuidance } from "./translate.js";
 
 loadEnvFiles();
 
@@ -39,10 +39,8 @@ export interface CreateAppOptions {
  * Requires a valid user token in the local auth store (run `vocoder init` first).
  * Prints the generated VOCODER_API_KEY to stdout on success.
  *
- * Git identity is auto-detected from the git remote. The detected repository
- * must be accessible via the workspace's GitHub App installation for
- * push-based sync to function. Use --repo to override auto-detection, or
- * omit repo binding entirely if not in a git repository.
+ * Git identity is auto-detected from the git remote. Use --repo to override
+ * auto-detection, or omit repo binding entirely if not in a git repository.
  *
  * Endpoint: POST /api/cli/apps
  *
@@ -131,9 +129,8 @@ export async function createApp(options: CreateAppOptions): Promise<number> {
 		p.note(lines.join("\n"), "App created");
 
 		if (!result.repositoryBound && repoCanonical) {
-			p.log.warn(
-				`Repository "${repoCanonical}" was not automatically connected. ` +
-					"Ensure your GitHub App installation covers this repository.",
+			p.log.info(
+				`Repository "${repoCanonical}" was not connected — it will bind automatically on first translate.`,
 			);
 		}
 

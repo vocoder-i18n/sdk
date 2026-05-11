@@ -1,6 +1,7 @@
 import * as p from "@clack/prompts";
 import chalk from "chalk";
 import type { VocoderAPI } from "./api.js";
+import { promptTextInput } from "./prompt-text.js";
 import { collectAppDirs, promptSingleAppDir } from "./app-dir-select.js";
 import { detectGitBranches, filterableBranchSelect } from "./branch-select.js";
 import type { LocaleOption } from "./locale-search.js";
@@ -74,7 +75,6 @@ export interface ProjectCreateResult {
 	apps: Array<{ appDir: string; appId: string }>;
 }
 
-/** All locales — used for target language selection. */
 function buildLocaleOptions(
 	locales: Array<{ code: string; name: string; nativeName?: string }>,
 ): LocaleOption[] {
@@ -82,31 +82,6 @@ function buildLocaleOptions(
 		bcp47: l.code,
 		label: `${l.name} — ${l.code}`,
 	}));
-}
-
-/**
- * Deduplicated language list — used for source language selection.
- * Groups locales by language family (prefix before first hyphen) and keeps one
- * representative per family, preferring the shortest/base code (e.g. "en" over
- * "en-US"). This prevents showing "English", "English (American)", "English
- * (British)" as three separate choices when the user just means "English".
- */
-function buildLanguageOptions(
-	locales: Array<{ code: string; name: string; nativeName?: string }>,
-): LocaleOption[] {
-	const byFamily = new Map<string, LocaleOption>();
-
-	for (const l of locales) {
-		const family = l.code.split("-")[0]!.toLowerCase();
-		const opt: LocaleOption = { bcp47: l.code, label: `${l.name} — ${l.code}` };
-		const existing = byFamily.get(family);
-		// Prefer base code (shorter, no region suffix) over regional variants
-		if (!existing || l.code.length < existing.bcp47.length) {
-			byFamily.set(family, opt);
-		}
-	}
-
-	return Array.from(byFamily.values());
 }
 
 /**
@@ -122,9 +97,14 @@ export async function runProjectCreate(
 	const { api, userToken, organizationId, repoCanonical, repoRoot } = params;
 
 	// ── Project name ────────────────────────────────────────────────────────────
-	// Use the detected repo name automatically — no prompt needed.
-	const projectName = (params.defaultName ?? "my-project").trim();
-	p.log.success(`App: ${chalk.bold(projectName)}`);
+	const projectName = await promptTextInput({
+		message: "Project name",
+		placeholder: "my-project",
+		initialValue: params.defaultName,
+		confirmLabel: "Project",
+		validate: (value) => (value.trim() ? undefined : "Name is required"),
+	});
+	if (!projectName) return null;
 
 	// ── Fetch source locales ────────────────────────────────────────────────────
 	let sourceLocales: Array<{ code: string; name: string; nativeName?: string }>;
@@ -137,21 +117,18 @@ export async function runProjectCreate(
 		return null;
 	}
 
-	const languageOptions = buildLanguageOptions(sourceLocales);
+	const languageOptions = buildLocaleOptions(sourceLocales);
 
 	// ── App directories (monorepo support) ──────────────────────────────────────
 	const appDirs = await collectAppDirs({ cwd: repoRoot, maxDirs: params.maxAppDirs });
 	if (appDirs === null) return null;
-
-	if (appDirs.length > 0) {
-		p.log.success(`App directories: ${appDirs.map((d) => chalk.bold(d)).join(", ")}`);
-	}
 
 	// ── Source locale ───────────────────────────────────────────────────────────
 	const sourceLocale = await searchSelectLocale(
 		languageOptions,
 		"Source language (the language your code is written in)",
 		params.defaultSourceLocale ?? "en",
+		"Source language",
 	);
 
 	if (sourceLocale === null) return null;
@@ -177,6 +154,8 @@ export async function runProjectCreate(
 	const targetLocales = await searchMultiSelectLocales(
 		targetOptions,
 		"Target languages (languages to translate into)",
+		undefined,
+		"Target languages",
 	);
 
 	if (targetLocales === null) return null;
@@ -199,6 +178,7 @@ export async function runProjectCreate(
 		while (pushBranches.length === 0) {
 			const result = await filterableBranchSelect({
 				message: "Which branches should trigger translations?",
+				confirmLabel: "Trigger branches",
 				branches: detected.branches,
 				defaultBranch: detected.defaultBranch,
 				initialValues: initial,
@@ -230,7 +210,7 @@ export async function runProjectCreate(
 		repoCanonical,
 	});
 
-	p.log.success(`App ${chalk.bold(result.projectName)} created!`);
+	p.log.success(`Project ${chalk.bold(result.projectName)} created!`);
 	return {
 		projectId: result.projectId,
 		projectName: result.projectName,
@@ -273,7 +253,7 @@ export async function runAppCreate(
 		return null;
 	}
 
-	const languageOptions = buildLanguageOptions(sourceLocales);
+	const languageOptions = buildLocaleOptions(sourceLocales);
 
 	// ── Source locale ───────────────────────────────────────────────────────────
 	const sourceLocale = await searchSelectLocale(

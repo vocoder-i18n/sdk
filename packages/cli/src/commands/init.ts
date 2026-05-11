@@ -19,6 +19,7 @@ import { resolveGitContext } from "../utils/git-identity.js";
 import { runAuthFlow } from "../utils/auth-flow.js";
 import { runMcpSetup } from "../utils/mcp-setup.js";
 import { selectOrganizationForInit } from "../utils/organization-select.js";
+import { writeGitHubActionsWorkflow } from "../utils/workflow-write.js";
 
 loadEnvFiles();
 
@@ -82,21 +83,15 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		// ── 3. Auth: check stored token, prompt if missing ──────────────────────
 		const api = new VocoderAPI({ apiUrl, apiKey: "", debug });
 		let userToken: string;
-		let userEmail: string;
 		let userName: string | null;
-		let authOrganizationId: string | undefined;
 
 		const storedAuth = await verifyStoredAuth(api);
 
 		if (storedAuth.status === "valid") {
 			p.log.success(`Authenticated as ${chalk.bold(storedAuth.email)}`);
 			userToken = storedAuth.token;
-			userEmail = storedAuth.email;
 			userName = storedAuth.name;
 		} else {
-			// "gone" = user deleted → full first-time flow (installUrl)
-			// "expired" = token rejected → reauth via verificationUrl (no new org)
-			// "none" = no stored token → full first-time flow (installUrl)
 			const reauth = storedAuth.status === "expired";
 			if (reauth) {
 				p.log.warn("Stored credentials expired — signing in again");
@@ -111,29 +106,25 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			);
 			if (!authResult) return 1;
 			userToken = authResult.token;
-			userEmail = authResult.email;
 			userName = authResult.name;
-			authOrganizationId = authResult.organizationId;
 
 			writeAuthData({
 				token: userToken,
 				userId: authResult.userId,
-				email: userEmail,
+				email: authResult.email,
 				name: userName,
 				createdAt: new Date().toISOString(),
 			});
 		}
 
 		// ── 4. Organization selection ────────────────────────────────────────────
+		// Parse owner from "provider:owner/repo" — used as pre-fill for new workspace name.
+		const repoOwner = identity?.repoCanonical?.split(":")?.[1]?.split("/")?.[0];
 		const organizationResult = await selectOrganizationForInit({
 			api,
 			userToken,
-			userEmail,
-			identity: identity ?? null,
-			lookup,
-			repoProjectId,
-			authOrganizationId,
 			options,
+			suggestedName: repoOwner,
 		});
 
 		if (!organizationResult) return 1;
@@ -200,18 +191,6 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		// null means user cancelled a prompt — individual steps already logged
 		if (!projectResult) return 1;
 
-		if (!projectResult.repositoryBound && identity?.repoCanonical) {
-			p.log.warn(
-				`This repository isn't accessible to your GitHub App installation.\n` +
-					`Translations won't run automatically until you grant access.\n\n` +
-					`  To fix: go to your GitHub App installation settings and add this\n` +
-					`  repository to the allowed list, or switch to "All repositories".\n` +
-					(projectResult.configureUrl
-						? `\n  ${chalk.dim(projectResult.configureUrl)}\n`
-						: ""),
-			);
-		}
-
 		// ── 8. Scaffold + config write ───────────────────────────────────────────
 		const detection = detectLocalEcosystem();
 		runScaffold({ targetBranches: projectResult.targetBranches });
@@ -223,7 +202,37 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		);
 		printApiKey(projectResult.apiKey, identity?.repoRoot);
 
-		// ── 9. MCP setup ─────────────────────────────────────────────────────────
+		// ── 9. GitHub Actions workflow ───────────────────────────────────────────
+		// The translate-action runs on push to one of the target branches the user
+		// selected at project-create time. If a workflow already exists, leave it —
+		// the user may have customized it.
+		if (identity?.repoRoot) {
+			const workflow = writeGitHubActionsWorkflow(
+				identity.repoRoot,
+				projectResult.targetBranches,
+			);
+			if (workflow.written) {
+				p.log.success(`Created ${highlight(workflow.relativePath)}`);
+			} else {
+				p.log.warn(
+					`${workflow.relativePath} already exists — review it to ensure it includes the Vocoder translate step.`,
+				);
+			}
+
+			p.note(
+				`GitHub repo → Settings → Secrets and variables → Actions → New repository secret\n` +
+					`  Name:  ${chalk.bold("VOCODER_API_KEY")}\n` +
+					`  Value: ${chalk.bold(projectResult.apiKey)}`,
+				"Next: add VOCODER_API_KEY as a repository secret",
+			);
+
+			p.note(
+				`git add ${workflow.relativePath} && git commit -m "Add Vocoder translate workflow"`,
+				"Don't forget to commit the workflow file",
+			);
+		}
+
+		// ── 10. MCP setup ────────────────────────────────────────────────────────
 		const wantsMcp = await p.confirm({
 			message: "Set up the Vocoder MCP server?",
 		});

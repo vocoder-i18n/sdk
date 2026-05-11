@@ -1,6 +1,6 @@
 {
   "name": "@vocoder/react",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "description": "React components for internationalization (i18n) with SSR support, ICU MessageFormat, and build-time translation generation",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -39,7 +39,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/vocoder/vocoder-sdk.git",
+    "url": "https://github.com/vocoder-i18n/sdk.git",
     "directory": "packages/react"
   },
   "keywords": [

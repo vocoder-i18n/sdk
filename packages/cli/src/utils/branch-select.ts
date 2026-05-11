@@ -198,6 +198,7 @@ function buildList(
 
 export async function filterableBranchSelect(params: {
 	message: string;
+	confirmLabel?: string;
 	branches: string[];
 	defaultBranch: string;
 	initialValues?: string[];
@@ -207,6 +208,7 @@ export async function filterableBranchSelect(params: {
 	excludedPatterns?: string[];
 }): Promise<string[] | null> {
 	const { message, branches, defaultBranch } = params;
+	const confirmLabel = params.confirmLabel ?? message;
 	const optional = params.optional ?? false;
 	const excludedSet = new Set(params.excludedPatterns ?? []);
 
@@ -276,7 +278,7 @@ export async function filterableBranchSelect(params: {
 							selected.size > 0
 								? bld(Array.from(selected).join(", "))
 								: dim("none");
-						return `${hdr}${dim(S_BAR)}  ${summary}`;
+						return `${dim(S_BAR)}\n${grn(S_SUBMIT)}  ${confirmLabel}: ${summary}`;
 					}
 					case "cancel":
 						return `${hdr}${dim(S_BAR)}`;

@@ -1,14 +1,17 @@
 /**
  * @module auth-flow
  *
- * Browser-based authentication flow for `vocoder init`.
- * Scenarios:
- *   - First-time setup: shows install vs link choice, opens installUrl.
- *   - Re-auth (expired token): skips install choice, uses verificationUrl.
- *   - CI mode: emits machine-readable VOCODER_AUTH_URL / VOCODER_SESSION_ID lines.
- *   - No TTY / CI env: skips browser prompt, falls back to polling only.
+ * Browser-based authentication flow for `vocoder init`. Vocoder account auth
+ * via Better Auth (no GitHub App / GitHub OAuth in this path). The browser
+ * lands on `verificationUrl` (Vocoder-hosted), the user signs in, and the page
+ * issues a CLI-scoped token bound to this session.
  *
- * Three-way race: local callback server (instant) vs session poll (2 s intervals)
+ * Scenarios:
+ *   - First-time / reauth: open the browser to verificationUrl.
+ *   - CI mode: emit machine-readable VOCODER_AUTH_URL / VOCODER_SESSION_ID lines.
+ *   - No TTY: skip browser prompt, fall back to polling.
+ *
+ * Three-way race: local callback server (instant) vs session poll (2s intervals)
  * vs hard deadline (min of session expiry, 10 min). First to resolve wins.
  *
  * Exports: runAuthFlow, sleep
@@ -31,18 +34,14 @@ export interface AuthFlowResult {
 	userId: string;
 	email: string;
 	name: string | null;
-	/** Set when auth + GitHub App install completed in one browser trip. */
-	organizationId?: string;
-	/** True when the browser session completed a GitHub OAuth discovery step. */
-	discoveryReady?: boolean;
 }
 
 /**
  * Runs the full browser authentication flow and returns user credentials.
  * Returns null if the user cancelled or the session expired.
  *
- * @param reauth - When true (expired token), uses verificationUrl instead of
- *   installUrl to avoid creating a duplicate workspace.
+ * `reauth` only affects copy ("sign in again" vs "sign in"). Both paths use
+ * the same Vocoder-hosted verificationUrl — there's no separate install URL.
  */
 export async function runAuthFlow(
 	api: VocoderAPI,
@@ -62,9 +61,7 @@ export async function runAuthFlow(
 	}
 
 	const session = await api.startCliAuthSession(server?.port, repoCanonical);
-	const browserUrl = reauth
-		? session.verificationUrl
-		: (session.installUrl ?? session.verificationUrl);
+	const browserUrl = session.verificationUrl;
 	const expiresAt = new Date(session.expiresAt).getTime();
 
 	if (options.ci) {
@@ -76,89 +73,29 @@ export async function runAuthFlow(
 		process.stdout.isTTY &&
 		process.env.CI !== "true"
 	) {
-		if (reauth) {
-			if (!options.yes) {
-				const shouldOpen = await p.confirm({
-					message: "Open your browser to sign in again?",
-				});
-				if (p.isCancel(shouldOpen)) {
-					server?.close();
-					p.cancel("Setup cancelled.");
-					return null;
-				}
-				if (!shouldOpen) {
-					server?.close();
-					p.cancel("Setup cancelled.");
-					return null;
-				}
-				const opened = await tryOpenBrowser(browserUrl);
-				if (!opened) {
-					p.note(browserUrl, "Sign In");
-					p.log.info("Open the URL above manually to continue.");
-				}
-			} else {
-				await tryOpenBrowser(browserUrl);
+		if (!options.yes) {
+			const shouldOpen = await p.confirm({
+				message: reauth
+					? "Open your browser to sign in again?"
+					: "Open your browser to sign in to Vocoder?",
+			});
+			if (p.isCancel(shouldOpen) || !shouldOpen) {
+				server?.close();
+				p.cancel("Setup cancelled.");
+				return null;
 			}
-		} else {
-			// First-time setup: let user choose install vs link existing
-			let isLinkFlow = false;
-			if (!options.yes) {
-				const connectChoice = await p.select<string>({
-					message:
-						"Vocoder needs to be installed on your GitHub account to get started",
-					options: [
-						{
-							value: "install",
-							label: "Install GitHub App",
-							hint: "new user",
-						},
-						{
-							value: "link",
-							label: "Already installed? Link your account",
-							hint: "returning user",
-						},
-					],
-				});
-
-				if (p.isCancel(connectChoice)) {
-					server?.close();
-					p.cancel("Setup cancelled.");
-					return null;
-				}
-
-				isLinkFlow = connectChoice === "link";
-			}
-
-			let urlToOpen = browserUrl;
-			if (isLinkFlow) {
-				try {
-					const linkSession = await api.startCliGitHubLinkSession(
-						session.sessionId,
-						server?.port,
-					);
-					urlToOpen = linkSession.oauthUrl;
-				} catch {
-					// Fall back to install URL if link-start fails
-					urlToOpen = browserUrl;
-				}
-			}
-
-			const opened = await tryOpenBrowser(urlToOpen);
-			if (!opened) {
-				p.log.warn("Could not open your browser automatically.");
-				p.note(urlToOpen, "GitHub");
-				p.log.info("Open the URL above to continue.");
-			}
+		}
+		const opened = await tryOpenBrowser(browserUrl);
+		if (!opened) {
+			p.note(browserUrl, "Sign In");
+			p.log.info("Open the URL above manually to continue.");
 		}
 	}
 
 	const authSpinner = p.spinner();
-	authSpinner.start("Waiting for GitHub authorization...");
+	authSpinner.start("Waiting for sign-in...");
 
 	let rawToken: string | null = null;
-	let callbackOrganizationId: string | undefined;
-	let callbackDiscoveryReady = false;
-
 	const deadline = Math.min(expiresAt, Date.now() + 10 * 60 * 1000);
 	let stopPolling = false;
 
@@ -189,7 +126,7 @@ export async function runAuthFlow(
 		| {
 				kind: "poll";
 				result:
-					| { status: "complete"; token: string; organizationId?: string }
+					| { status: "complete"; token: string }
 					| { status: "failed"; reason: string };
 		  }
 		| null
@@ -212,7 +149,7 @@ export async function runAuthFlow(
 					resolve({
 						kind: "poll",
 						result: result as
-							| { status: "complete"; token: string; organizationId?: string }
+							| { status: "complete"; token: string }
 							| { status: "failed"; reason: string },
 					});
 				}
@@ -236,20 +173,8 @@ export async function runAuthFlow(
 	if (winner !== null) {
 		if (winner.kind === "server") {
 			rawToken = winner.params.token;
-			if (
-				typeof winner.params.organizationId === "string" &&
-				winner.params.organizationId
-			) {
-				callbackOrganizationId = winner.params.organizationId;
-			}
-			if (winner.params.discovery_ready === "1") {
-				callbackDiscoveryReady = true;
-			}
 		} else if (winner.result.status === "complete") {
 			rawToken = winner.result.token;
-			if (winner.result.organizationId) {
-				callbackOrganizationId = winner.result.organizationId;
-			}
 		} else {
 			authSpinner.stop();
 			p.log.error(winner.result.reason);
@@ -269,7 +194,5 @@ export async function runAuthFlow(
 	return {
 		token: rawToken,
 		...userInfo,
-		organizationId: callbackOrganizationId,
-		discoveryReady: callbackDiscoveryReady,
 	};
 }

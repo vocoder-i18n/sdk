@@ -1,31 +1,28 @@
+import { createHash } from "node:crypto";
 import type {
 	APIAppConfig,
 	InitStartResponse,
 	InitStatusResponse,
 	LimitErrorResponse,
 	LocalConfig,
-	RepoIdentityPayload,
-	RequestedSyncMode,
 	SyncPolicyErrorResponse,
-	TranslationBatchResponse,
+	TranslateRequestBody,
+	TranslateStatusResponse,
 	TranslationSnapshotResponse,
-	TranslationStatusResponse,
-	TranslationStringEntry,
 } from "../types.js";
 
-/**
- * Mirrors StringsHashInput and computeStringsHash in vocoder-app/lib/sync/strings-hash.ts.
- * Both must use the identical type shape and serialization — if you change one, change the other.
- * Uses source keys (not source texts) so that strings with the same text but different
- * formality/context produce different hashes and don't incorrectly short-circuit the pipeline.
- */
 type StringsHashInput = {
 	keys: string[];
 	industry?: string | null;
 };
 
-function computeStringsHash(input: StringsHashInput): string {
-	const { createHash } = require("node:crypto") as typeof import("node:crypto");
+/**
+ * Mirrors computeStringsHash in app/lib/sync/strings-hash.ts.
+ * Both must use the identical type shape and serialization — if you change one, change the other.
+ * Uses source keys (not source texts) so that strings with the same text but different
+ * formality/context produce different hashes and don't incorrectly short-circuit the pipeline.
+ */
+export function computeStringsHash(input: StringsHashInput): string {
 	const sorted = [...input.keys].sort();
 	return createHash("sha256")
 		.update(JSON.stringify({ strings: sorted, industry: input.industry ?? null }))
@@ -277,109 +274,23 @@ export class VocoderAPI {
 		};
 	}
 
-	/**
-	 * Submit strings for translation
-	 * Project is determined from the API key
-	 */
-	private stableTextKey(text: string): string {
-		// FNV-1a 32-bit hash for deterministic fallback IDs
-		let hash = 0x811c9dc5;
-		for (let i = 0; i < text.length; i++) {
-			hash ^= text.charCodeAt(i);
-			hash = Math.imul(hash, 0x01000193);
-		}
-		return `SK_TEXT_${(hash >>> 0).toString(16).toUpperCase().padStart(8, "0")}`;
-	}
-
-	private normalizeStringEntries(
-		entries: string[] | TranslationStringEntry[],
-	): TranslationStringEntry[] {
-		if (entries.length === 0) {
-			return [];
-		}
-
-		const first = entries[0];
-		if (typeof first === "string") {
-			return (entries as string[]).map((text) => ({
-				key: this.stableTextKey(text),
-				text,
-			}));
-		}
-
-		return (entries as TranslationStringEntry[]).map((entry, index) => ({
-			// Fall back to stableTextKey only when text is present — id-only entries always have a key.
-			key: entry.key || (entry.text ? this.stableTextKey(`${entry.text}:${index}`) : `_idonly_${index}`),
-			text: entry.text,
-			...(entry.context ? { context: entry.context } : {}),
-			...(entry.formality ? { formality: entry.formality } : {}),
-			...(entry.uiRole ? { uiRole: entry.uiRole } : {}),
-		}));
-	}
-
-	async submitTranslation(
-		branch: string,
-		entries: string[] | TranslationStringEntry[],
-		targetLocales: string[],
-		options?: {
-			requestedMode?: RequestedSyncMode;
-			requestedMaxWaitMs?: number;
-			clientRunId?: string;
-			force?: boolean;
-			/** From vocoder.config.ts — synced to App on every push */
-			industry?: string;
-		},
-		repoIdentity?: RepoIdentityPayload,
-	): Promise<TranslationBatchResponse> {
-		const allEntries = this.normalizeStringEntries(entries);
-		// id-only entries (text: null) can't be translated without a localesPath source file.
-		// Filter them out for API submission; they still count toward the fingerprint.
-		const stringEntries = allEntries.filter((e): e is TranslationStringEntry & { text: string } => e.text != null);
-
-		const stringsHash = computeStringsHash({ keys: allEntries.map((e) => e.key), industry: options?.industry ?? null });
-
-		return this.request<TranslationBatchResponse>(
-			"/api/cli/sync",
+	async submitTranslate(
+		body: TranslateRequestBody,
+	): Promise<{ jobId: string; status?: "complete"; fingerprint?: string }> {
+		return this.request<{ jobId: string; status?: "complete"; fingerprint?: string }>(
+			"/api/cli/translate",
 			{
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					branch,
-					stringEntries,
-					targetLocales,
-					...(options?.force ? {} : { stringsHash }),
-					...(options?.requestedMode
-						? { requestedMode: options.requestedMode }
-						: {}),
-					...(typeof options?.requestedMaxWaitMs === "number"
-						? { requestedMaxWaitMs: options.requestedMaxWaitMs }
-						: {}),
-					...(options?.clientRunId ? { clientRunId: options.clientRunId } : {}),
-					...(repoIdentity?.repoCanonical
-						? { repoCanonical: repoIdentity.repoCanonical }
-						: {}),
-					...(repoIdentity?.repoAppDir !== undefined
-						? { repoAppDir: repoIdentity.repoAppDir }
-						: {}),
-					...(repoIdentity?.commitSha
-						? { commitSha: repoIdentity.commitSha }
-						: {}),
-					...(options?.industry ? { industry: options.industry } : {}),
-				}),
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body),
 			},
 			"Translation submission failed",
 		);
 	}
 
-	/**
-	 * Check translation status
-	 */
-	async getTranslationStatus(
-		batchId: string,
-	): Promise<TranslationStatusResponse> {
-		return this.request<TranslationStatusResponse>(
-			`/api/cli/sync/status/${batchId}`,
+	async pollTranslateStatus(jobId: string): Promise<TranslateStatusResponse> {
+		return this.request<TranslateStatusResponse>(
+			`/api/cli/translate/${encodeURIComponent(jobId)}/status`,
 			{},
 			"Failed to check translation status",
 		);
@@ -394,57 +305,11 @@ export class VocoderAPI {
 		for (const locale of params.targetLocales) {
 			search.append("targetLocale", locale);
 		}
-
 		return this.request<TranslationSnapshotResponse>(
 			`/api/cli/sync/snapshot?${search.toString()}`,
 			{},
 			"Failed to fetch translation snapshot",
 		);
-	}
-
-	/**
-	 * Wait for translation to complete with polling
-	 */
-	async waitForCompletion(
-		batchId: string,
-		timeout: number = 60000,
-		onProgress?: (progress: number) => void,
-	): Promise<{
-		translations: Record<string, Record<string, string>>;
-		localeMetadata?: Record<string, { nativeName: string; dir?: "rtl" }>;
-	}> {
-		const startTime = Date.now();
-		const pollInterval = 1000; // Poll every second
-
-		while (Date.now() - startTime < timeout) {
-			const status = await this.getTranslationStatus(batchId);
-
-			// Call progress callback
-			if (onProgress) {
-				onProgress(status.progress);
-			}
-
-			if (status.status === "COMPLETED") {
-				if (!status.translations) {
-					throw new Error("Translation completed but no translations returned");
-				}
-				return {
-					translations: status.translations,
-					localeMetadata: status.localeMetadata,
-				};
-			}
-
-			if (status.status === "FAILED") {
-				throw new Error(
-					`Translation failed: ${status.errorMessage || "Unknown error"}`,
-				);
-			}
-
-			// Wait before polling again
-			await new Promise((resolve) => setTimeout(resolve, pollInterval));
-		}
-
-		throw new Error(`Translation timeout after ${timeout}ms`);
 	}
 
 	async startInitSession(input: {
@@ -514,7 +379,6 @@ export class VocoderAPI {
 	): Promise<{
 		sessionId: string;
 		verificationUrl: string;
-		installUrl?: string;
 		expiresAt: string;
 	}> {
 		const url = `${this.apiUrl}/api/cli/auth/start`;
@@ -543,7 +407,6 @@ export class VocoderAPI {
 		return payload as {
 			sessionId: string;
 			verificationUrl: string;
-			installUrl?: string;
 			expiresAt: string;
 		};
 	}
@@ -669,6 +532,22 @@ export class VocoderAPI {
 		}>(userToken, url.toString(), {}, "Failed to list organizations");
 	}
 
+	async createOrganization(
+		userToken: string,
+		params: { name: string },
+	): Promise<{ organizationId: string; name: string }> {
+		return this.userRequest<{ organizationId: string; name: string }>(
+			userToken,
+			`${this.apiUrl}/api/cli/organizations`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: params.name }),
+			},
+			"Failed to create organization",
+		);
+	}
+
 	async listApps(
 		userToken: string,
 		organizationId: string,
@@ -708,109 +587,6 @@ export class VocoderAPI {
 			`${this.apiUrl}/api/cli/project/regenerate-key`,
 			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId }) },
 			"Failed to regenerate API key",
-		);
-	}
-
-	// ── CLI GitHub endpoints ──────────────────────────────────────────────────────
-
-	async startCliGitHubInstall(
-		userToken: string,
-		params: { organizationId?: string; callbackPort?: number },
-	): Promise<{ installUrl: string }> {
-		return this.userRequest<{ installUrl: string }>(
-			userToken,
-			`${this.apiUrl}/api/cli/github/install/start`,
-			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
-			"Failed to start GitHub install",
-		);
-	}
-
-	/**
-	 * Start the "link existing installation" discovery flow.
-	 * Unlike startCliGitHubOAuth, this requires no bearer token — the Vocoder
-	 * account is created from the OAuth code in the callback.
-	 */
-	async startCliGitHubLinkSession(
-		sessionId: string,
-		callbackPort?: number,
-	): Promise<{ oauthUrl: string }> {
-		const url = `${this.apiUrl}/api/cli/github/oauth/link-start`;
-		const response = await this.fetchRaw(url, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				sessionId,
-				...(callbackPort != null ? { callbackPort } : {}),
-			}),
-		});
-
-		const payload = await readPayload(response, { url, status: response.status }, this.debug);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to start GitHub link session (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as { oauthUrl: string };
-	}
-
-	async startCliGitHubOAuth(
-		userToken: string,
-		params: { organizationId?: string; callbackPort?: number },
-	): Promise<{ oauthUrl: string }> {
-		return this.userRequest<{ oauthUrl: string }>(
-			userToken,
-			`${this.apiUrl}/api/cli/github/oauth/start`,
-			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
-			"Failed to start GitHub OAuth",
-		);
-	}
-
-	async getCliGitHubDiscovery(userToken: string): Promise<{
-		installations: Array<{
-			installationId: number;
-			accountLogin: string;
-			accountType: string;
-			isSuspended: boolean;
-			conflictLabel: string | null;
-		}>;
-	}> {
-		return this.userRequest<{
-			installations: Array<{
-				installationId: number;
-				accountLogin: string;
-				accountType: string;
-				isSuspended: boolean;
-				conflictLabel: string | null;
-			}>;
-		}>(userToken, `${this.apiUrl}/api/cli/github/discovery`, {}, "Failed to fetch GitHub discovery");
-	}
-
-	async claimCliGitHubInstallation(
-		userToken: string,
-		params: { installationId: string; organizationId: string | null },
-	): Promise<{
-		organizationId: string;
-		organizationName: string;
-		connectionLabel: string;
-		repoCount: number;
-	}> {
-		return this.userRequest<{
-			organizationId: string;
-			organizationName: string;
-			connectionLabel: string;
-			repoCount: number;
-		}>(
-			userToken,
-			`${this.apiUrl}/api/cli/github/claim`,
-			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
-			"Failed to claim GitHub installation",
 		);
 	}
 

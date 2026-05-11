@@ -1,6 +1,6 @@
 {
   "name": "@vocoder/plugin",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "description": "Build plugin for Vocoder — injects translations as virtual modules at build time",
   "files": [
     "dist"
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/vocoder/vocoder-sdk.git",
+    "url": "https://github.com/vocoder-i18n/sdk.git",
     "directory": "packages/plugin"
   },
   "keywords": [

@@ -64,6 +64,13 @@ export interface VocoderConfig {
 	 * Synced to App at extraction time.
 	 */
 	formality?: Formality;
+	/**
+	 * Controls how `vocoder translate` exits when translation fails.
+	 * 'proceed' (default): exit 0, allow build to continue.
+	 * 'fail': exit 1, halt the workflow before the build step.
+	 * Not written by `vocoder init` — undocumented escape hatch only.
+	 */
+	onTranslationFailure?: "fail" | "proceed";
 }
 
 /** Type helper for vocoder.config.ts — provides autocomplete and type checking. */

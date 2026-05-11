@@ -18,7 +18,7 @@ npx @vocoder/cli <command>
 
 ### `vocoder init`
 
-Connect your repository to Vocoder. Runs an interactive TUI that handles authentication, workspace setup, and project configuration — all in the terminal. Only one browser step is required (GitHub authorization), and only on first run.
+Connect your repository to Vocoder. Runs an interactive TUI that handles authentication, workspace setup, and project configuration — all in the terminal. Only one browser step is required (Vocoder sign-in), and only on first run.
 
 ```bash
 vocoder init
@@ -26,52 +26,9 @@ vocoder init
 
 **First-time setup:**
 
-The CLI opens the Vocoder GitHub App installation page. Authorizing the App creates your account and workspace in one step — no separate sign-up required.
+The CLI opens the Vocoder sign-in page. After authenticating, your workspace is ready and the CLI writes your API key and a GitHub Actions workflow file.
 
-```
-┌  Vocoder Setup
-
-◆  Opening GitHub to connect your account...
-│  Authorize Vocoder and install the GitHub App in one step.
-│
-│  https://github.com/apps/vocoder/installations/new?state=...
-│
-◆  Open in your browser? › Yes
-
-◒  Waiting for GitHub authorization...
-
-◇  Connected as @username — workspace: username
-
-◆  App Directory (Optional)
-│  Leave blank to cover the entire repository (or enter a subdirectory for monorepos)
-
-◆  Source language (type to search)
-│  English — en
-
-◆  Target languages (type to search, space to select)
-│  ◼ Spanish — es
-
-◆  Target branches
-│  ◼ main
-
-◒  Creating project...
-
-◆  Finish setup in your code
-
-◆  vite.config.ts  — register the build plugin so Vocoder can extract your strings
-◆  your root layout or App component  — wrap your app so translations load at runtime
-◆  wrap translatable text  — mark strings for extraction — Vocoder picks these up on push
-
-✓  Push to main to trigger your first translation run.
-
-◆  Your API Key
-│  ┌─────────────────────────────────────────┐
-│  │ VOCODER_API_KEY=vcp_xxxx               │
-│  └─────────────────────────────────────────┘
-✓  Saved to .env
-
-◇  You're all set.
-```
+**Returning user (stored credentials):**
 
 **Returning user (stored credentials):**
 
@@ -85,6 +42,33 @@ No browser opens. The stored token is verified and the flow continues in the ter
 ◆  Select workspace
 │  ● my-workspace  (3 projects)
 │  ○ + Create new workspace
+```
+
+**GitHub Actions workflow:**
+
+After `vocoder init` completes, it writes `.github/workflows/vocoder.yml` automatically. Add `VOCODER_API_KEY` as a GitHub repository secret (Settings → Secrets and variables → Actions → New repository secret, name: `VOCODER_API_KEY`). Then commit the workflow file:
+
+```bash
+git add .github/workflows/vocoder.yml
+git commit -m "Add Vocoder translate workflow"
+git push
+```
+
+Example workflow (branches templated from your `targetBranches` answer during init):
+
+```yaml
+name: Vocoder Translate
+on:
+  push:
+    branches: [main]
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vocoder-i18n/translate-action@v1
+        with:
+          api-key: ${{ secrets.VOCODER_API_KEY }}
 ```
 
 **Monorepo support:**
@@ -107,32 +91,29 @@ After first sign-in, the CLI stores credentials at `~/.vocoder/auth.json` (mode 
 | Command | Source |
 |---|---|
 | `vocoder init` | `VOCODER_AUTH_TOKEN` env var → `~/.vocoder/auth.json` |
-| `vocoder sync` | `VOCODER_API_KEY` env var → `.env` file |
+| `vocoder translate` | `VOCODER_API_KEY` env var → `.env` file |
 | MCP tools | `VOCODER_API_KEY` env var |
 
 ---
 
-### `vocoder sync`
+### `vocoder translate`
 
-Extract translatable strings from your source code and submit them for translation.
+Extract translatable strings from your source code and submit them for translation. This is the command the GitHub Action calls — you can also run it locally to test before pushing.
 
 ```bash
-vocoder sync
+vocoder translate
 ```
 
-Reads `VOCODER_API_KEY` from environment or `.env`. Detects `<T>` and `t()` usages, submits them to Vocoder, and polls until translations are returned. Writes locale JSON files to the configured output path.
+Reads `VOCODER_API_KEY` from environment or `.env`. Detects `<T>` and `t()` usages, submits them to Vocoder, and polls until translations are returned.
 
 **Options:**
 
 | Flag | Description |
 |---|---|
-| `--include <glob>` | Glob pattern for files to scan (repeatable). Default: `**/*.{tsx,jsx,ts,js}` |
-| `--exclude <glob>` | Glob pattern to skip (repeatable). Merged with built-in excludes |
-| `--locale <code>` | Sync only this target locale |
-| `--dry-run` | Show what would be synced without submitting |
-| `--verbose` | Show extraction and sync details |
-
-Patterns can also be set via env vars: `VOCODER_INCLUDE_PATTERN` and `VOCODER_EXCLUDE_PATTERN` (comma-separated).
+| `--branch <name>` | Git branch (auto-detected from git/CI env vars if omitted) |
+| `--commit-sha <sha>` | Commit SHA (auto-detected from CI env vars if omitted) |
+| `--dry-run` | Show what would be submitted without sending |
+| `--verbose` | Show extraction and submission details |
 
 ---
 
@@ -297,9 +278,7 @@ vocoder whoami
 
 ## How `init` interacts with the browser
 
-`vocoder init` opens exactly one browser window, and only on first run. The browser is used to authorize the Vocoder GitHub App — this simultaneously authenticates you and connects your GitHub account, so no separate sign-up is needed.
-
-Once the GitHub authorization is complete, the browser redirects back and the CLI receives your credentials automatically via a local callback server. The rest of setup happens in the terminal.
+`vocoder init` opens exactly one browser window, and only on first run. The browser is used to sign in to your Vocoder account (email/password or OAuth). After sign-in, the CLI receives a CLI-scoped token automatically via a local callback server and stores it at `~/.vocoder/auth.json` (mode `0600`). The rest of setup happens in the terminal.
 
 On subsequent runs, the stored token is used directly and no browser is needed.
 
@@ -319,7 +298,7 @@ The CLI auto-detects repository context from the working directory:
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `VOCODER_API_KEY` | `sync`, `locales`, `project`, `translations`, MCP | Project API key (`vcp_` prefix) |
+| `VOCODER_API_KEY` | `translate`, `locales`, `project`, `translations`, MCP | Project API key (`vca_` prefix) |
 | `VOCODER_AUTH_TOKEN` | `init` | Override stored user token (`vcu_` prefix) |
 | `VOCODER_API_URL` | All commands | Override API base URL (default: `https://vocoder.app`) |
 

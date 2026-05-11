@@ -9,7 +9,7 @@ This file provides guidance to Claude Code when working with the Vocoder SDK mon
 pnpm workspace monorepo:
 
 ```
-vocoder-sdk/
+sdk/
 ├── packages/
 │   ├── core/       # @vocoder/core — shared primitives: hash, ICU formatting, cookies, types
 │   ├── config/     # @vocoder/config — defineConfig + re-exports from core
@@ -70,7 +70,7 @@ The `dev-sdk.cjs` / `dev-sdk.js` scripts in consumer projects rebuild ALL packag
 
 **Do not** split packages into independent watch-and-push — they must all rebuild together.
 
-Run sync via `pnpm exec vocoder sync` or `pnpm run translate`, never `npx @vocoder/cli sync` (pulls published npm, not local build).
+Run translate via `pnpm exec vocoder translate` or `pnpm run translate`, never `npx @vocoder/cli translate` (pulls published npm, not local build).
 
 ## README Synchronization
 

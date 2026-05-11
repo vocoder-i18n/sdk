@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getLimitErrorGuidance } from "../commands/sync.js";
+import { getLimitErrorGuidance } from "../commands/translate.js";
 import type { LimitErrorResponse } from "../types.js";
 
 function createLimitError(
