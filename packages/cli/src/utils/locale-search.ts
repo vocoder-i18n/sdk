@@ -87,12 +87,13 @@ function buildList(
 
 async function runFilterablePrompt(opts: {
 	message: string;
+	confirmLabel: string;
 	options: LocaleOption[];
 	multi: boolean;
 	initialValue?: string;
 	initialValues?: string[];
 }): Promise<string | string[] | null> {
-	const { message, options, multi } = opts;
+	const { message, confirmLabel, options, multi } = opts;
 
 	let filter = "";
 	let cursor = 0;
@@ -149,7 +150,7 @@ async function runFilterablePrompt(opts: {
 									.join(", ")
 							: (options.find((o) => o.bcp47 === (this.value as string))
 									?.label ?? "");
-						return `${hdr}${dim(S_BAR)}  ${bld(val || dim("none"))}`;
+						return `${dim(S_BAR)}\n${grn(S_SUBMIT)}  ${confirmLabel}: ${bld(val || dim("none"))}`;
 					}
 					case "cancel":
 						return `${hdr}${dim(S_BAR)}`;
@@ -244,9 +245,11 @@ export async function searchSelectLocale(
 	options: LocaleOption[],
 	message: string,
 	initialValue?: string,
+	confirmLabel?: string,
 ): Promise<string | null> {
 	const result = await runFilterablePrompt({
 		message,
+		confirmLabel: confirmLabel ?? message,
 		options,
 		multi: false,
 		initialValue,
@@ -258,9 +261,11 @@ export async function searchMultiSelectLocales(
 	options: LocaleOption[],
 	message: string,
 	initialValues?: string[],
+	confirmLabel?: string,
 ): Promise<string[] | null> {
 	const result = await runFilterablePrompt({
 		message,
+		confirmLabel: confirmLabel ?? message,
 		options,
 		multi: true,
 		initialValues,

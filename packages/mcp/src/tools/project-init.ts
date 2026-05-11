@@ -316,6 +316,7 @@ export async function runProjectCreate(
 		`      - uses: vocoder-i18n/translate-action@v1`,
 		`        with:`,
 		`          api-key: \${{ secrets.VOCODER_API_KEY }}`,
+		`          repo-canonical: github/\${{ github.repository }}`,
 	].join("\n");
 
 	return {
@@ -378,6 +379,14 @@ async function resolveOrganization(
 		return organizationData.organizations[0]!.id;
 	if (organizationData.organizations.length > 1) {
 		return (covering[0] ?? organizationData.organizations[0])!.id;
+	}
+
+	// No workspace exists — auto-create a default one if the plan allows it.
+	if (organizationData.canCreateOrganization) {
+		const userInfo = await api.getCliUserInfo(userToken);
+		const name = userInfo.name ? `${userInfo.name}'s Workspace` : "My Workspace";
+		const created = await api.createOrganization(userToken, { name });
+		return created.organizationId;
 	}
 
 	throw new Error(

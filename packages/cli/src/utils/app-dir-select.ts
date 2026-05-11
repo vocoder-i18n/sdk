@@ -1,8 +1,10 @@
-import { existsSync, statSync } from "node:fs";
-import { resolve } from "node:path";
-import { isCancel, Prompt } from "@clack/core";
 import * as p from "@clack/prompts";
+
+import { Prompt, isCancel } from "@clack/core";
 import { active, bld, dim, grn, info, red, ylw } from "./theme.js";
+import { existsSync, statSync } from "node:fs";
+
+import { resolve } from "node:path";
 
 // ── Symbols ───────────────────────────────────────────────────────────────────
 
@@ -100,7 +102,7 @@ export async function collectAppDirs(opts: { cwd?: string; maxDirs?: number } = 
 			},
 			render(this: { state: string; error: string }) {
 				const trimmed = filter.trim();
-				const hdr = `${dim(S_BAR)}\n${symbol(this.state)}  App directories\n`;
+				const hdr = `${dim(S_BAR)}\n${symbol(this.state)}  App directories (optional, for monorepos only)\n`;
 
 				switch (this.state) {
 					case "submit": {
@@ -108,7 +110,7 @@ export async function collectAppDirs(opts: { cwd?: string; maxDirs?: number } = 
 							added.length > 0
 								? bld(added.join(", "))
 								: dim("none (whole-repo app)");
-						return `${hdr}${dim(S_BAR)}  ${summary}`;
+						return `${dim(S_BAR)}\n${grn(S_SUBMIT)}  Apps: ${summary}`;
 					}
 					case "cancel":
 						return `${hdr}${dim(S_BAR)}`;
@@ -150,7 +152,7 @@ export async function collectAppDirs(opts: { cwd?: string; maxDirs?: number } = 
 						if (atLimit) {
 							lines.push(dim(`${S_BAR}  ↑↓ to select, Space to remove  ·  Enter to confirm`));
 						} else if (added.length === 0 && !isNewDir()) {
-							lines.push(dim(`${S_BAR}  Monorepo? Type each app's subdirectory path and press Space.`));
+							lines.push(dim(`${S_BAR}  Type each app's subdirectory path and press Space.`));
 							lines.push(dim(`${S_BAR}  Single app? Press Enter to skip this step.`));
 						} else if (added.length > 0) {
 							lines.push(dim(`${S_BAR}  ${added.length} added  ·  ↑↓ to select, Space to remove  ·  Enter to confirm`));

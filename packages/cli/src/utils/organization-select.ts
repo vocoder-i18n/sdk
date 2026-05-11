@@ -12,11 +12,14 @@
 import * as p from "@clack/prompts";
 import chalk from "chalk";
 import type { VocoderAPI } from "./api.js";
+import { promptTextInput } from "./prompt-text.js";
 
 export interface SelectOrganizationParams {
 	api: VocoderAPI;
 	userToken: string;
 	options: { yes?: boolean };
+	/** Pre-fill for the workspace name prompt when no orgs exist (e.g. git owner slug). */
+	suggestedName?: string;
 }
 
 export interface SelectOrganizationResult {
@@ -31,15 +34,29 @@ export interface SelectOrganizationResult {
 export async function selectOrganizationForInit(
 	params: SelectOrganizationParams,
 ): Promise<SelectOrganizationResult | null> {
-	const { api, userToken } = params;
+	const { api, userToken, suggestedName } = params;
 
-	const { organizations } = await api.listOrganizations(userToken);
+	const { organizations, canCreateOrganization } = await api.listOrganizations(userToken);
 
 	if (organizations.length === 0) {
-		p.log.error(
-			"You're not a member of any workspace. Visit https://vocoder.app to create one, then re-run `vocoder init`.",
-		);
-		return null;
+		if (!canCreateOrganization) {
+			p.log.error(
+				"You're not a member of any workspace. Visit https://vocoder.app to create one, then re-run `vocoder init`.",
+			);
+			return null;
+		}
+
+		const name = await promptTextInput({
+			message: "Workspace name",
+			placeholder: "My Workspace",
+			initialValue: suggestedName,
+			confirmLabel: "Workspace",
+			validate: (value) => (value.trim() ? undefined : "Name is required"),
+		});
+		if (!name) return null;
+
+		const created = await api.createOrganization(userToken, { name });
+		return { organizationId: created.organizationId, organizationName: created.name };
 	}
 
 	if (organizations.length === 1) {

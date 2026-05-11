@@ -532,6 +532,22 @@ export class VocoderAPI {
 		}>(userToken, url.toString(), {}, "Failed to list organizations");
 	}
 
+	async createOrganization(
+		userToken: string,
+		params: { name: string },
+	): Promise<{ organizationId: string; name: string }> {
+		return this.userRequest<{ organizationId: string; name: string }>(
+			userToken,
+			`${this.apiUrl}/api/cli/organizations`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: params.name }),
+			},
+			"Failed to create organization",
+		);
+	}
+
 	async listApps(
 		userToken: string,
 		organizationId: string,

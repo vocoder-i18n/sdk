@@ -1,21 +1,22 @@
 import "dotenv/config";
-import { readFileSync } from "node:fs";
+
+import { NO_API_KEY_MESSAGE, createClient } from "./client.js";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { runAddLocale, runRemoveLocale } from "./tools/locale.js";
+import { runInitComplete, runInitStart, runProjectCreate } from "./tools/project-init.js";
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
-import { createClient, NO_API_KEY_MESSAGE } from "./client.js";
-
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { runGetTranslations } from "./tools/translations.js";
 import { runImplementI18n } from "./tools/implement-i18n.js";
 import { runInitStatus } from "./tools/init-status.js";
-import { runInitComplete, runInitStart, runProjectCreate } from "./tools/project-init.js";
-import { runAddLocale, runRemoveLocale } from "./tools/locale.js";
 import { runRegenerateKey } from "./tools/regenerate-key.js";
 import { runSetup } from "./tools/setup.js";
 import { runStatus } from "./tools/status.js";
 import { runSync } from "./tools/sync.js";
-import { runGetTranslations } from "./tools/translations.js";
+import { z } from "zod";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const loadDoc = (name: string) => readFileSync(join(__dirname, "../docs", name), "utf8");
@@ -51,7 +52,7 @@ Reference resources (read when you need detail):
 // ── Resources ─────────────────────────────────────────────────────────────────
 
 server.resource(
-	"vocoder-sdk-reference",
+	"sdk-reference",
 	"vocoder://docs/sdk-reference",
 	{
 		description:
@@ -155,7 +156,7 @@ server.resource(
 );
 
 server.resource(
-	"vocoder-app-config",
+	"app-config",
 	"vocoder://docs/app-config",
 	{
 		description:

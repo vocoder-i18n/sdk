@@ -118,10 +118,13 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		}
 
 		// ── 4. Organization selection ────────────────────────────────────────────
+		// Parse owner from "provider:owner/repo" — used as pre-fill for new workspace name.
+		const repoOwner = identity?.repoCanonical?.split(":")?.[1]?.split("/")?.[0];
 		const organizationResult = await selectOrganizationForInit({
 			api,
 			userToken,
 			options,
+			suggestedName: repoOwner,
 		});
 
 		if (!organizationResult) return 1;
