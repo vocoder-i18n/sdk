@@ -1,6 +1,6 @@
 {
   "name": "@vocoder/extractor",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "description": "Shared string extractor for Vocoder — Babel AST extraction of <T> components and t() calls",
   "files": [
     "dist"
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/vocoder/vocoder-sdk.git",
+    "url": "https://github.com/vocoder-i18n/sdk.git",
     "directory": "packages/extractor"
   },
   "keywords": [

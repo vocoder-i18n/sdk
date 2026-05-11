@@ -1,5 +1,11 @@
 # @vocoder/cli
 
+## 0.18.1
+
+### Patch Changes
+
+- Update repository URL: vocoder-sdk → sdk (github.com/vocoder-i18n/sdk).
+
 ## 0.18.0
 
 ### Minor Changes

@@ -17,7 +17,7 @@ type StringsHashInput = {
 };
 
 /**
- * Mirrors computeStringsHash in vocoder-app/lib/sync/strings-hash.ts.
+ * Mirrors computeStringsHash in app/lib/sync/strings-hash.ts.
  * Both must use the identical type shape and serialization — if you change one, change the other.
  * Uses source keys (not source texts) so that strings with the same text but different
  * formality/context produce different hashes and don't incorrectly short-circuit the pipeline.

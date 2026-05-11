@@ -1,5 +1,13 @@
 # @vocoder/react
 
+## 0.16.1
+
+### Patch Changes
+
+- Update repository URL: vocoder-sdk → sdk (github.com/vocoder-i18n/sdk).
+- Updated dependencies
+  - @vocoder/core@0.3.1
+
 ## 0.16.0
 
 ### Minor Changes

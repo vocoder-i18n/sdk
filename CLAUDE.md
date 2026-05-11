@@ -9,7 +9,7 @@ This file provides guidance to Claude Code when working with the Vocoder SDK mon
 pnpm workspace monorepo:
 
 ```
-vocoder-sdk/
+sdk/
 ├── packages/
 │   ├── core/       # @vocoder/core — shared primitives: hash, ICU formatting, cookies, types
 │   ├── config/     # @vocoder/config — defineConfig + re-exports from core

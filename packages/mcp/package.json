@@ -1,6 +1,6 @@
 {
   "name": "@vocoder/mcp",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "description": "MCP server for Vocoder — AI-native i18n tooling",
   "files": [
     "dist",
@@ -21,7 +21,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/vocoder/vocoder-sdk.git",
+    "url": "https://github.com/vocoder-i18n/sdk.git",
     "directory": "packages/mcp"
   },
   "keywords": [

@@ -1,5 +1,15 @@
 # @vocoder/mcp
 
+## 0.18.1
+
+### Patch Changes
+
+- Update repository URL: vocoder-sdk → sdk (github.com/vocoder-i18n/sdk).
+- Updated dependencies
+  - @vocoder/cli@0.18.1
+  - @vocoder/extractor@0.18.1
+  - @vocoder/plugin@0.18.1
+
 ## 0.18.0
 
 ### Minor Changes
