@@ -20,7 +20,6 @@ const MAX_WAIT_MS = 60000;
 export interface SyncInput {
 	branch?: string;
 	force?: boolean;
-	mode?: "auto" | "required" | "best-effort";
 }
 
 export async function runSync(
@@ -59,7 +58,7 @@ export async function runSync(
 			.digest("hex");
 	}
 
-	const response = await client.sync({
+	const response = await client.translate({
 		branch,
 		commitSha,
 		stringEntries: submittable.map((s) => ({
@@ -72,69 +71,39 @@ export async function runSync(
 		targetLocales: config.targetLocales,
 		repoCanonical: identity?.repoCanonical,
 		repoAppDir: identity?.appDir || undefined,
-		requestedMode: input.mode ?? "auto",
 		...(stringsHash ? { stringsHash } : {}),
 		clientRunId: randomUUID(),
 	});
 
-	if (response.status === "UP_TO_DATE") {
-		return `Up to date — ${response.totalStrings} string(s), no changes detected.`;
+	// Server found a matching completed batch — no translation work needed.
+	if (response.status === "complete") {
+		return `Up to date — strings unchanged since last translation.`;
 	}
 
-	if (response.status === "COMPLETED") {
-		return formatCompleted(
-			response.newStrings,
-			response.deletedStrings,
-			response.totalStrings,
-		);
-	}
-
-	// PENDING — poll if mode is not best-effort
-	if (input.mode === "best-effort") {
-		return `Sync queued. Batch ID: ${response.batchId}. ${response.newStrings} new string(s) submitted for translation.`;
-	}
-
-	return await pollSync(
-		client,
-		response.batchId,
-		response.newStrings,
-		response.totalStrings,
-	);
+	return await pollTranslate(client, response.jobId, submittable.length);
 }
 
-async function pollSync(
+async function pollTranslate(
 	client: VocoderClient,
-	batchId: string,
-	newStrings: number,
+	jobId: string,
 	totalStrings: number,
 ): Promise<string> {
 	const deadline = Date.now() + MAX_WAIT_MS;
 
 	while (Date.now() < deadline) {
 		await sleep(POLL_INTERVAL_MS);
-		const status = await client.getSyncStatus(batchId);
+		const status = await client.getTranslateStatus(jobId);
 
-		if (status.status === "COMPLETED") {
-			return formatCompleted(newStrings, undefined, totalStrings);
+		if (status.status === "complete") {
+			return `Translation complete. ${totalStrings} string(s) submitted.`;
 		}
 
-		if (status.status === "FAILED") {
-			return `Translation failed: ${status.errorMessage ?? "Unknown error"}. Batch ID: ${batchId}`;
+		if (status.status === "failed") {
+			return `Translation failed: ${status.error ?? "Unknown error"}. Job ID: ${jobId}`;
 		}
 	}
 
-	return `Translations are in progress (batch: ${batchId}). Check back shortly — ${newStrings} string(s) queued for ${totalStrings} total.`;
-}
-
-function formatCompleted(
-	newStrings: number,
-	deletedStrings: number | undefined,
-	totalStrings: number,
-): string {
-	const parts = [`Sync complete.`, `${newStrings} new string(s) translated.`];
-	if (deletedStrings) parts.push(`${deletedStrings} string(s) removed.`);
-	parts.push(`${totalStrings} total string(s) in app.`);
-	return parts.join(" ");
+	return `Translations in progress (job: ${jobId}). ${totalStrings} string(s) queued. Check back shortly.`;
 }
 
 function sleep(ms: number): Promise<void> {

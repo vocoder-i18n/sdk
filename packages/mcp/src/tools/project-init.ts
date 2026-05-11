@@ -7,12 +7,7 @@ import {
 	verifyStoredAuth,
 } from "@vocoder/cli/lib";
 
-// `mode` was the GitHub-App install/link branching toggle. Removed in the
-// GitHub Action migration — Vocoder-account auth is the only path now. The
-// field is accepted as a no-op for backwards-compatible tool inputs.
-export interface InitStartInput {
-	mode?: "install" | "link";
-}
+export interface InitStartInput {}
 
 export interface ExistingApp {
 	appDir: string;
@@ -185,9 +180,7 @@ export async function runInitComplete(
 
 			if (result.status === "complete") {
 				polledToken = result.token;
-				// Install flow: organizationId comes back when GitHub App install + auth
-				// completed in one browser trip. Pass it through to project_create so
-				// we skip the workspace lookup entirely.
+				// organizationId returned by auth callback — skip workspace lookup if present.
 				if (result.organizationId) pollOrganizationId = result.organizationId;
 				break;
 			}
@@ -301,14 +294,29 @@ export async function runProjectCreate(
 			)
 		: [];
 
-	const configInstructions =
+	const step2 =
 		configLines.length > 0
 			? `\n\n2. Write vocoder.config.ts${apps.length > 1 ? " per app directory" : ""}:\n${configLines.map((c, i) => (apps[i]?.appDir ? `   # ${apps[i]!.appDir}\n${c}` : c)).join("\n\n")}`
-			: `\n\n2. Call vocoder_implement_i18n — it will generate vocoder.config.ts and the full SDK implementation plan.`;
+			: "";
 
-	const repoWarning = !projectResult.repositoryBound
-		? `\n\nWARNING: Repository not bound — translations won't run automatically until you grant the Vocoder GitHub App access to this repository in your GitHub installation settings.`
+	const repoWarning = !projectResult.repositoryBound && session.repoCanonical
+		? `\n\nNote: Repository auto-bind did not complete — the repo will bind automatically on the first translate run.`
 		: "";
+
+	const workflowYaml = [
+		`name: Vocoder Translate`,
+		`on:`,
+		`  push:`,
+		`    branches: [${input.targetBranches.join(", ")}]`,
+		`jobs:`,
+		`  translate:`,
+		`    runs-on: ubuntu-latest`,
+		`    steps:`,
+		`      - uses: actions/checkout@v4`,
+		`      - uses: vocoder-i18n/translate-action@v1`,
+		`        with:`,
+		`          api-key: \${{ secrets.VOCODER_API_KEY }}`,
+	].join("\n");
 
 	return {
 		...projectResult,
@@ -318,11 +326,25 @@ export async function runProjectCreate(
 			``,
 			`1. Write to .env at the project root:`,
 			`   VOCODER_API_KEY=${projectResult.apiKey}`,
-			configInstructions,
+			step2,
 			``,
-			`3. Call vocoder_implement_i18n to install packages, set up VocoderProvider, and get the list of files to wrap strings in.`,
+			`3. Write .github/workflows/vocoder.yml — create directories if needed:`,
 			``,
-			`4. Tell the user: add VOCODER_API_KEY=${projectResult.apiKey} to their MCP server environment config and restart their editor.`,
+			workflowYaml,
+			``,
+			`   If the file already exists, do NOT overwrite it — note that the user should review it.`,
+			``,
+			`4. Tell the user to add VOCODER_API_KEY as a GitHub repository secret:`,
+			`   GitHub repo → Settings → Secrets and variables → Actions → New repository secret`,
+			`   Name:  VOCODER_API_KEY`,
+			`   Value: ${projectResult.apiKey}`,
+			``,
+			`5. Tell the user to commit the workflow file:`,
+			`   git add .github/workflows/vocoder.yml && git commit -m "Add Vocoder translate workflow"`,
+			``,
+			`6. Call vocoder_implement_i18n to install packages, set up VocoderProvider, and get the list of files to wrap strings in.`,
+			``,
+			`7. Tell the user: add VOCODER_API_KEY=${projectResult.apiKey} to their MCP server environment config and restart their editor.`,
 			repoWarning,
 		]
 			.join("\n")

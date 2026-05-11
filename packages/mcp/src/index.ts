@@ -41,7 +41,7 @@ Reference resources (read when you need detail):
 - vocoder://docs/framework-setup — Setup for Next.js App Router, Pages Router, Vite SPA, Remix — cookie detection, hydration, isReady
 - vocoder://docs/rtl — RTL layout: applyDir, dir from context, getLocaleDir for SSR, Tailwind rtl: variants
 - vocoder://docs/plugin-reference — Build plugin: framework setup, JSX transforms, virtual modules, injected constants
-- vocoder://docs/extractor — How extraction works: AST parsing, bail cases, hash computation, vocoder sync
+- vocoder://docs/extractor — How extraction works: AST parsing, bail cases, hash computation, vocoder translate
 - vocoder://docs/troubleshooting — Debug common issues: missing translations, extraction failures, hydration mismatch, RTL
 - vocoder://docs/app-config — API key, appId, and project/app structure: one API key per repo, each app directory gets its own appId in vocoder.config.ts`,
 	},
@@ -132,7 +132,7 @@ server.resource(
 	"vocoder://docs/extractor",
 	{
 		description:
-			"How the string extractor works: Babel AST parsing, what gets extracted, natural JSX transformation, bail cases, hash computation, fingerprint, vocoder sync CLI.",
+			"How the string extractor works: Babel AST parsing, what gets extracted, natural JSX transformation, bail cases, hash computation, fingerprint, vocoder translate CLI.",
 		mimeType: "text/markdown",
 	},
 	async () => ({
@@ -232,18 +232,11 @@ server.tool(
 // Returns an authUrl for the user to open in their browser, or null if already authenticated.
 server.tool(
 	"vocoder_init_start",
-	"Start the Vocoder app setup flow. Checks for an existing auth token, performs an anonymous lookup to detect if this repo already has a Vocoder app, then returns a browser URL for the user to authenticate. If already authenticated, returns authUrl=null and mode='existing'. Call vocoder_init_complete after the user confirms they've completed the browser flow.",
-	{
-		mode: z
-			.enum(["install", "link"])
-			.optional()
-			.describe(
-				'"install" (default): installs Vocoder GitHub App + authenticates in one step. "link": GitHub OAuth only — use when the GitHub App is already installed.',
-			),
-	},
-	async ({ mode }) => {
+	"Start the Vocoder app setup flow. Checks for an existing auth token, performs an anonymous lookup to detect if this repo already has a Vocoder app, then returns a browser URL for the user to sign in to Vocoder. If already authenticated, returns authUrl=null and mode='existing'. Call vocoder_init_complete after the user confirms they've completed the browser flow.",
+	{},
+	async () => {
 		try {
-			const result = await runInitStart({ mode });
+			const result = await runInitStart({});
 			return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
 		} catch (error) {
 			return {
@@ -285,7 +278,7 @@ server.tool(
 // vocoder_app_create — create the Vocoder app and get the API key.
 server.tool(
 	"vocoder_app_create",
-	"Create a Vocoder app for this repo and return the API key. Requires a completed auth session from vocoder_init_complete. Returns apiKey, app config including appId(s), and step-by-step instructions for what to write to disk. After calling this, write VOCODER_API_KEY to .env and vocoder.config.ts with the appId, then call vocoder_implement_i18n to scaffold the SDK.",
+	"Create a Vocoder app for this repo and return the API key. Requires a completed auth session from vocoder_init_complete. Returns apiKey, app config including appId(s), and step-by-step instructions. After calling this: write VOCODER_API_KEY to .env, write vocoder.config.ts with the appId, write .github/workflows/vocoder.yml (template branches from targetBranches), add VOCODER_API_KEY as a GitHub repository secret (Settings → Secrets and variables → Actions), commit the workflow file, then call vocoder_implement_i18n to scaffold the SDK.",
 	{
 		sessionId: z.string().describe("sessionId from vocoder_init_start"),
 		sourceLocale: z.string().describe('Source language code, e.g. "en"'),
@@ -424,24 +417,18 @@ server.tool(
 		branch: z
 			.string()
 			.optional()
-			.describe("Git branch to sync (auto-detected from git if not provided)"),
+			.describe("Git branch to translate (auto-detected from git if not provided)"),
 		force: z
 			.boolean()
 			.optional()
-			.describe("Force re-sync even if strings are unchanged"),
-		mode: z
-			.enum(["auto", "required", "best-effort"])
-			.optional()
-			.describe(
-				'Sync mode: "auto" (default), "required" (block until done), "best-effort" (queue and return immediately)',
-			),
+			.describe("Force re-translation even if strings are unchanged"),
 	},
-	async ({ branch, force, mode }) => {
+	async ({ branch, force }) => {
 		const client = createClient();
 		if (!client)
 			return { content: [{ type: "text", text: NO_API_KEY_MESSAGE }] };
 		try {
-			const text = await runSync({ branch, force, mode }, client);
+			const text = await runSync({ branch, force }, client);
 			return { content: [{ type: "text", text }] };
 		} catch (error) {
 			return {

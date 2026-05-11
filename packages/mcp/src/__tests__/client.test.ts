@@ -79,34 +79,56 @@ describe("VocoderClient", () => {
 		});
 	});
 
-	describe("sync", () => {
-		it("makes POST request to /api/cli/sync", async () => {
-			const syncResponse = { status: "PENDING", batchId: "batch-123" };
-			mockFetch(200, syncResponse);
+	describe("translate", () => {
+		it("makes POST request to /api/cli/translate", async () => {
+			const translateResponse = { jobId: "job-123" };
+			mockFetch(202, translateResponse);
 
-			const result = await client.sync({
+			const result = await client.translate({
 				branch: "main",
 				stringEntries: [{ key: "abc123", text: "Hello" }],
 				targetLocales: ["fr"],
 			});
 
-			expect(result).toEqual(syncResponse);
+			expect(result).toEqual(translateResponse);
 			expect(global.fetch).toHaveBeenCalledWith(
-				`${TEST_API_URL}/api/cli/sync`,
+				`${TEST_API_URL}/api/cli/translate`,
 				expect.objectContaining({ method: "POST" }),
 			);
 		});
+
+		it("returns status=complete and fingerprint on cache hit", async () => {
+			const cachedResponse = { jobId: "job-456", status: "complete", fingerprint: "fp_abc" };
+			mockFetch(200, cachedResponse);
+
+			const result = await client.translate({
+				branch: "main",
+				stringEntries: [],
+				targetLocales: ["fr"],
+				stringsHash: "abc123",
+			});
+
+			expect(result.status).toBe("complete");
+			expect(result.fingerprint).toBe("fp_abc");
+		});
 	});
 
-	describe("getSyncStatus", () => {
-		it("makes GET request for batch status", async () => {
-			mockFetch(200, { status: "COMPLETED", progress: 1.0 });
-			const result = await client.getSyncStatus("batch-abc");
-			expect(result.status).toBe("COMPLETED");
+	describe("getTranslateStatus", () => {
+		it("makes GET request for job status", async () => {
+			mockFetch(200, { status: "complete", progress: { completed: 5, total: 5 } });
+			const result = await client.getTranslateStatus("job-abc");
+			expect(result.status).toBe("complete");
 			expect(global.fetch).toHaveBeenCalledWith(
-				`${TEST_API_URL}/api/cli/sync/status/batch-abc`,
+				`${TEST_API_URL}/api/cli/translate/job-abc/status`,
 				expect.objectContaining({ method: "GET" }),
 			);
+		});
+
+		it("surfaces failure status and error message", async () => {
+			mockFetch(200, { status: "failed", progress: { completed: 0, total: 5 }, error: "DeepL quota exceeded" });
+			const result = await client.getTranslateStatus("job-xyz");
+			expect(result.status).toBe("failed");
+			expect(result.error).toBe("DeepL quota exceeded");
 		});
 	});
 

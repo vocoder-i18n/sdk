@@ -134,7 +134,7 @@ export function runSetup(input: SetupInput, hasApiKey: boolean): SetupResult {
 			? null
 			: [
 					"1. Run in your terminal: npx @vocoder/cli init",
-					"2. Browser opens — install the Vocoder GitHub App and authenticate",
+					"2. Browser opens — sign in to your Vocoder account",
 					"3. Copy the VOCODER_API_KEY shown in your terminal",
 					"4. Add to your MCP config: VOCODER_API_KEY=<your-key>",
 					"5. Restart your MCP server / reload the editor session",
