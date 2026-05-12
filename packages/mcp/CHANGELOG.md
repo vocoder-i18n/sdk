@@ -1,5 +1,15 @@
 # @vocoder/mcp
 
+## 0.19.0
+
+### Patch Changes
+
+- 438ef8c: Simplify `vocoder init`: write only two files (GitHub Actions workflow + API key to `.env.local`), remove `vocoder.config.ts` generation, rename workflow to `vocoder-translate.yml`, add `on-failure: proceed` input. Remove scaffold, write-config, and mcp-setup modules. MCP setup moved to next-steps output. TUI improvements: consistent spacing across all custom prompts, pre-selected value floated to top in locale selector, brand hex colors replaced with semantic chalk colors.
+- Updated dependencies [438ef8c]
+  - @vocoder/cli@0.19.0
+  - @vocoder/extractor@0.19.0
+  - @vocoder/plugin@0.19.0
+
 ## 0.18.1
 
 ### Patch Changes
