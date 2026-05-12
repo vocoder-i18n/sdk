@@ -1,8 +1,6 @@
 import * as p from "@clack/prompts";
 
 import { checkPlanLimits, isPlanLimitFailure, printPlanLimitMessage } from "../utils/plan-check.js";
-import { runAppCreate, runProjectCreate } from "../utils/project-create.js";
-import { runScaffold, writeAppConfigs } from "../utils/scaffold.js";
 import {
 	verifyStoredAuth,
 	writeAuthData,
@@ -11,14 +9,13 @@ import {
 import type { InitOptions } from "../types.js";
 import { VocoderAPI } from "../utils/api.js";
 import chalk from "chalk";
-import { detectLocalEcosystem } from "../utils/detect-local.js";
 import { highlight } from "../utils/theme.js";
 import { loadEnvFiles } from "../utils/load-env.js";
-import { printApiKey } from "../utils/output.js";
 import { resolveGitContext } from "../utils/git-identity.js";
 import { runAuthFlow } from "../utils/auth-flow.js";
-import { runMcpSetup } from "../utils/mcp-setup.js";
+import { runProjectCreate } from "../utils/project-create.js";
 import { selectOrganizationForInit } from "../utils/organization-select.js";
+import { writeApiKeyToEnv } from "../utils/output.js";
 import { writeGitHubActionsWorkflow } from "../utils/workflow-write.js";
 
 loadEnvFiles();
@@ -45,22 +42,13 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			p.log.warn(warning);
 		}
 
+		const repoRoot = identity?.repoRoot;
+
 		// ── 2. Fast lookup: does an app already exist for this repo? ─────────
 		// No spinner — fast DB read, and we don't want a stray ◇ on a miss.
-		let existingAppsForRepo: Array<{
-			appDir: string;
-			appId: string;
-			projectId: string;
-			projectName: string;
-			organizationName: string;
-		}> = [];
-		let repoProjectId: string | null = null;
-		let repoProjectName: string | null = null;
-		let lookup: Awaited<ReturnType<VocoderAPI["lookupAppByRepo"]>> | null = null;
-
 		if (identity) {
 			const anonApi = new VocoderAPI({ apiUrl, apiKey: "", debug });
-			lookup = await anonApi.lookupAppByRepo({
+			const lookup = await anonApi.lookupAppByRepo({
 				repoCanonical: identity.repoCanonical,
 				appDir: "",
 			});
@@ -69,10 +57,12 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				const allApps = lookup.existingApps;
 				const firstApp = allApps[0]!;
 
-				p.log.success(`App: ${chalk.bold(firstApp.projectName)}`);
-				p.log.info(
-					`Configured apps: ${allApps.map((a) => highlight(a.appDir || "(entire repo)")).join(", ")}`,
-				);
+				p.log.success(`Project: ${chalk.bold(firstApp.projectName)}`);
+				if (allApps.length > 1) {
+					p.log.info(
+						`Configured apps: ${allApps.map((a) => highlight(a.appDir)).join(", ")}`,
+					);
+				}
 				p.log.info(`Need a new API key? Run ${highlight("vocoder regenerate-key")}`);
 
 				p.outro("Already set up.");
@@ -88,7 +78,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		const storedAuth = await verifyStoredAuth(api);
 
 		if (storedAuth.status === "valid") {
-			p.log.success(`Authenticated as ${chalk.bold(storedAuth.email)}`);
+			p.log.success(`Authenticated as: ${chalk.bold(storedAuth.email)}`);
 			userToken = storedAuth.token;
 			userName = storedAuth.name;
 		} else {
@@ -129,42 +119,9 @@ export async function init(options: InitOptions = {}): Promise<number> {
 
 		if (!organizationResult) return 1;
 
-		const { organizationId: selectedOrganizationId, organizationName: selectedOrganizationName } =
-			organizationResult;
+		const { organizationId: selectedOrganizationId } = organizationResult;
 
-		// ── 5. Add-app path: repo already has scoped apps ─────────────────────────
-		// Skips plan limit check — only a new App is added, not a new Project.
-		if (repoProjectId && repoProjectName && existingAppsForRepo.length > 0) {
-			const appResult = await runAppCreate({
-				api,
-				userToken,
-				projectId: repoProjectId,
-				projectName: repoProjectName,
-				organizationName: selectedOrganizationName,
-				repoCanonical: identity?.repoCanonical,
-				existingApps: existingAppsForRepo,
-			});
-
-			if (!appResult) {
-				p.log.error("App setup failed. Run `vocoder init` again.");
-				return 1;
-			}
-
-			const detection = detectLocalEcosystem();
-			runScaffold({ targetBranches: appResult.targetBranches });
-			writeAppConfigs(
-				[{ appDir: appResult.appDir, appId: appResult.appId }],
-				appResult.targetBranches,
-				detection.isTypeScript,
-				identity?.repoRoot,
-			);
-			p.log.info(chalk.dim("Use the VOCODER_API_KEY already in your .env or .env.local"));
-			p.outro("You're all set.");
-			return 0;
-		}
-
-		// ── 6. Plan limit pre-flight ─────────────────────────────────────────────
-		// Compute remaining app slots to cap the app-directory TUI.
+		// ── 5. Plan limit pre-flight ─────────────────────────────────────────────
 		const planCheck = await checkPlanLimits(
 			api,
 			userToken,
@@ -173,7 +130,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		);
 		if (planCheck.atLimit) return 1;
 
-		// ── 7. Project configuration ─────────────────────────────────────────────
+		// ── 6. Project configuration ─────────────────────────────────────────────
 		const projectResult = await runProjectCreate({
 			api,
 			userToken,
@@ -191,54 +148,46 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		// null means user cancelled a prompt — individual steps already logged
 		if (!projectResult) return 1;
 
-		// ── 8. Scaffold + config write ───────────────────────────────────────────
-		const detection = detectLocalEcosystem();
-		runScaffold({ targetBranches: projectResult.targetBranches });
-		writeAppConfigs(
-			projectResult.apps,
-			projectResult.targetBranches,
-			detection.isTypeScript,
-			identity?.repoRoot,
-		);
-		printApiKey(projectResult.apiKey, identity?.repoRoot);
+		// ── 7. Write API key to .env.local ───────────────────────────────────────
+		const envFile = repoRoot
+			? writeApiKeyToEnv(projectResult.apiKey, repoRoot)
+			: writeApiKeyToEnv(projectResult.apiKey);
 
-		// ── 9. GitHub Actions workflow ───────────────────────────────────────────
-		// The translate-action runs on push to one of the target branches the user
-		// selected at project-create time. If a workflow already exists, leave it —
-		// the user may have customized it.
-		if (identity?.repoRoot) {
+		// ── 8. GitHub Actions workflow ───────────────────────────────────────────
+		let workflowWritten = false;
+		let workflowRelativePath = ".github/workflows/vocoder-translate.yml";
+		if (repoRoot) {
 			const workflow = writeGitHubActionsWorkflow(
-				identity.repoRoot,
+				repoRoot,
 				projectResult.targetBranches,
 			);
-			if (workflow.written) {
-				p.log.success(`Created ${highlight(workflow.relativePath)}`);
-			} else {
+			workflowWritten = workflow.written;
+			workflowRelativePath = workflow.relativePath;
+
+			if (!workflow.written) {
 				p.log.warn(
 					`${workflow.relativePath} already exists — review it to ensure it includes the Vocoder translate step.`,
 				);
 			}
-
-			p.note(
-				`GitHub repo → Settings → Secrets and variables → Actions → New repository secret\n` +
-					`  Name:  ${chalk.bold("VOCODER_API_KEY")}\n` +
-					`  Value: ${chalk.bold(projectResult.apiKey)}`,
-				"Next: add VOCODER_API_KEY as a repository secret",
-			);
-
-			p.note(
-				`git add ${workflow.relativePath} && git commit -m "Add Vocoder translate workflow"`,
-				"Don't forget to commit the workflow file",
-			);
 		}
 
-		// ── 10. MCP setup ────────────────────────────────────────────────────────
-		const wantsMcp = await p.confirm({
-			message: "Set up the Vocoder MCP server?",
-		});
-		if (!p.isCancel(wantsMcp) && wantsMcp) {
-			await runMcpSetup(projectResult.apiKey);
+		// ── 9. Post-setup summary ────────────────────────────────────────────────
+		const triggerBranch = projectResult.targetBranches[0] ?? "main";
+		const url = (s: string) => chalk.cyan(chalk.underline(s));
+
+		if (repoRoot && workflowWritten) {
+			p.log.success(`Created ${highlight(workflowRelativePath)}`);
 		}
+		if (envFile) {
+			p.log.success(`API key saved to ${highlight(envFile)}`);
+		}
+
+		p.log.message(chalk.bold("Next steps:"));
+		p.log.message(`  1. Add ${highlight("VOCODER_API_KEY")} as a repository secret: ${url("https://vocoder.app/docs/secrets")}`);
+		p.log.message(`  2. Add the Vocoder unplugin to your framework config: ${url("https://vocoder.app/docs/setup")}`);
+		p.log.message(`  3. Wrap translatable strings with <T>: ${url("https://vocoder.app/docs/sdk")}`);
+		p.log.message(`  4. Push to ${highlight(triggerBranch)} (or any of your trigger branches) — translations will run automatically.`);
+		p.log.message(`  5. ${chalk.dim("(Optional)")} MCP server for AI-assisted setup: ${url("https://vocoder.app/docs/mcp")}`);
 
 		p.outro("You're all set.");
 		return 0;
@@ -252,3 +201,4 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		return 1;
 	}
 }
+

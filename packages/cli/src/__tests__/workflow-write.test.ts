@@ -28,6 +28,11 @@ describe("renderWorkflowYaml", () => {
 		expect(yaml).toContain("api-key: ${{ secrets.VOCODER_API_KEY }}");
 	});
 
+	it("sets on-failure to proceed so translation errors do not block the build", () => {
+		const yaml = renderWorkflowYaml(["main"]);
+		expect(yaml).toContain("on-failure: proceed");
+	});
+
 	it("checks out the repo before running the action", () => {
 		const yaml = renderWorkflowYaml(["main"]);
 		const checkoutIdx = yaml.indexOf("actions/checkout@v4");
@@ -48,11 +53,11 @@ describe("writeGitHubActionsWorkflow", () => {
 		rmSync(repoRoot, { recursive: true, force: true });
 	});
 
-	it("creates .github/workflows/vocoder.yml when absent", () => {
+	it("creates .github/workflows/vocoder-translate.yml when absent", () => {
 		const result = writeGitHubActionsWorkflow(repoRoot, ["main"]);
 
 		expect(result.written).toBe(true);
-		expect(result.relativePath).toBe(".github/workflows/vocoder.yml");
+		expect(result.relativePath).toBe(".github/workflows/vocoder-translate.yml");
 		expect(existsSync(result.path)).toBe(true);
 
 		const contents = readFileSync(result.path, "utf-8");
@@ -71,7 +76,7 @@ describe("writeGitHubActionsWorkflow", () => {
 	it("does not overwrite an existing workflow file", () => {
 		const workflowDir = join(repoRoot, ".github", "workflows");
 		mkdirSync(workflowDir, { recursive: true });
-		const workflowPath = join(workflowDir, "vocoder.yml");
+		const workflowPath = join(workflowDir, "vocoder-translate.yml");
 		writeFileSync(workflowPath, "# user-customized workflow", "utf-8");
 
 		const result = writeGitHubActionsWorkflow(repoRoot, ["main"]);

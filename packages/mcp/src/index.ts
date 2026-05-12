@@ -293,7 +293,7 @@ server.tool(
 // vocoder_app_create — create the Vocoder app and get the API key.
 server.tool(
 	"vocoder_app_create",
-	"Create a Vocoder app for this repo and return the API key. Requires a completed auth session from vocoder_init_complete. Returns apiKey, app config including appId(s), and step-by-step instructions. After calling this: write VOCODER_API_KEY to .env, write vocoder.config.ts with the appId, write .github/workflows/vocoder.yml (template branches from targetBranches), add VOCODER_API_KEY as a GitHub repository secret (Settings → Secrets and variables → Actions), commit the workflow file, then call vocoder_implement_i18n to scaffold the SDK.",
+	"Create a Vocoder app for this repo and return the API key. Requires a completed auth session from vocoder_init_complete. Returns apiKey, app config including appId(s), and step-by-step instructions. After calling this: append VOCODER_API_KEY to .env.local at the repo root, write .github/workflows/vocoder-translate.yml (template branches from targetBranches), add VOCODER_API_KEY as a GitHub repository secret (Settings → Secrets and variables → Actions), commit the workflow file, then call vocoder_implement_i18n to scaffold the SDK.",
 	{
 		sessionId: z.string().describe("sessionId from vocoder_init_start"),
 		sourceLocale: z.string().describe('Source language code, e.g. "en"'),

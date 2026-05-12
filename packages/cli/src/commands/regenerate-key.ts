@@ -1,13 +1,12 @@
 import * as p from "@clack/prompts";
-import chalk from "chalk";
-import { loadEnvFiles } from "../utils/load-env.js";
-import { detectRepoIdentity } from "@vocoder/plugin";
+
 import { VocoderAPI } from "../utils/api.js";
-import { verifyStoredAuth } from "../utils/auth-store.js";
-import { runAuthFlow } from "../utils/auth-flow.js";
+import chalk from "chalk";
+import { detectRepoIdentity } from "@vocoder/plugin";
+import { loadEnvFiles } from "../utils/load-env.js";
 import { printApiKey } from "../utils/output.js";
-import { writeAppConfigs } from "../utils/scaffold.js";
-import { detectLocalEcosystem } from "../utils/detect-local.js";
+import { runAuthFlow } from "../utils/auth-flow.js";
+import { verifyStoredAuth } from "../utils/auth-store.js";
 
 loadEnvFiles();
 
@@ -53,7 +52,7 @@ export async function regenerateKey(options: RegenerateKeyOptions = {}): Promise
 
 	let userToken: string;
 	if (storedAuth.status === "valid") {
-		p.log.success(`Authenticated as ${chalk.bold(storedAuth.email)}`);
+		p.log.success(`Authenticated as: ${chalk.bold(storedAuth.email)}`);
 		userToken = storedAuth.token;
 	} else {
 		const authResult = await runAuthFlow(api, options, storedAuth.status === "expired");
@@ -76,16 +75,6 @@ export async function regenerateKey(options: RegenerateKeyOptions = {}): Promise
 	}
 
 	printApiKey(apiKey, identity.repoRoot);
-
-	// Rewrite vocoder.config.ts files so appId is always current
-	const detection = detectLocalEcosystem(identity.repoRoot);
-	const targetBranches = lookup.exactMatch?.targetBranches ?? ["main"];
-	writeAppConfigs(
-		lookup.existingApps.map((a) => ({ appDir: a.appDir, appId: a.appId })),
-		targetBranches,
-		detection.isTypeScript,
-		identity.repoRoot,
-	);
 
 	p.outro("Done.");
 	return 0;

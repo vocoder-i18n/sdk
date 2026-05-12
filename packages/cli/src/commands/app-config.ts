@@ -1,6 +1,6 @@
 import * as p from "@clack/prompts";
 
-import { active, highlight } from "../utils/theme.js";
+import { highlight } from "../utils/theme.js";
 
 import { VocoderAPI } from "../utils/api.js";
 import chalk from "chalk";

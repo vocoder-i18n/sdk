@@ -189,7 +189,7 @@ export async function runAuthFlow(
 	}
 
 	const userInfo = await api.getCliUserInfo(rawToken);
-	authSpinner.stop(`Authenticated as ${chalk.bold(userInfo.email)}`);
+	authSpinner.stop(`Authenticated as: ${chalk.bold(userInfo.email)}`);
 
 	return {
 		token: rawToken,

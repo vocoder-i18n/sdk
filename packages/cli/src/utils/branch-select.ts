@@ -146,7 +146,7 @@ function buildList(
 	addCursor: boolean,
 	excludedPatterns: Set<string> = new Set(),
 ): string {
-	const lines: string[] = [info(S_BAR)];
+	const lines: string[] = [];
 	const end = Math.min(filtered.length, scrollOffset + MAX_VISIBLE);
 
 	for (let i = scrollOffset; i < end; i++) {

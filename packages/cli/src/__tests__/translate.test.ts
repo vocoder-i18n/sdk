@@ -1,13 +1,9 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	computeExitCode,
 	formatLocaleResults,
 	formatProgress,
 } from "../commands/translate.js";
-import { writeVocoderConfig } from "../utils/write-config.js";
 import type { TranslateStatusResponse } from "../types.js";
 
 // ── formatProgress ─────────────────────────────────────────────────────────────
@@ -98,26 +94,6 @@ describe("polling backoff", () => {
 		expect(intervals[3]).toBe(3375);
 		// rounds to float — just check it's growing
 		expect(intervals[4]!).toBeGreaterThan(3375);
-	});
-});
-
-// ── generated config does not include onTranslationFailure ────────────────────
-
-describe("writeVocoderConfig", () => {
-	let tmpDir: string;
-
-	beforeEach(() => {
-		tmpDir = mkdtempSync(join(tmpdir(), "vocoder-translate-test-"));
-	});
-
-	afterEach(() => {
-		rmSync(tmpDir, { recursive: true, force: true });
-	});
-
-	it("does not include onTranslationFailure in generated config", () => {
-		writeVocoderConfig({ cwd: tmpDir });
-		const content = readFileSync(join(tmpDir, "vocoder.config.ts"), "utf-8");
-		expect(content).not.toContain("onTranslationFailure");
 	});
 });
 

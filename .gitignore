@@ -97,9 +97,10 @@ temp/
 # pnpm
 .npmrc
 
-# Markdown files except README.md and changelogs
+# Markdown files except README.md, changelogs, and changeset entries
 *.md
 !README.md
 !CHANGELOG.md
+!.changeset/*.md
 
 scripts/

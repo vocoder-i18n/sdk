@@ -29,11 +29,14 @@ jobs:
       - uses: vocoder-i18n/translate-action@v1
         with:
           api-key: \${{ secrets.VOCODER_API_KEY }}
+          # proceed: build continues even if translations fail (default)
+          # fail: block the build if translations fail
+          on-failure: proceed
 `;
 }
 
 /**
- * Write `.github/workflows/vocoder.yml` under `repoRoot`. Skips silently if
+ * Write `.github/workflows/vocoder-translate.yml` under `repoRoot`. Skips silently if
  * the file already exists — the user may have a custom workflow they don't
  * want overwritten.
  */
@@ -41,7 +44,7 @@ export function writeGitHubActionsWorkflow(
 	repoRoot: string,
 	targetBranches: string[],
 ): WorkflowWriteResult {
-	const relativePath = ".github/workflows/vocoder.yml";
+	const relativePath = ".github/workflows/vocoder-translate.yml";
 	const absolutePath = join(repoRoot, relativePath);
 
 	if (existsSync(absolutePath)) {

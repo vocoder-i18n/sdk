@@ -30,8 +30,6 @@ The CLI opens the Vocoder sign-in page. After authenticating, your workspace is 
 
 **Returning user (stored credentials):**
 
-**Returning user (stored credentials):**
-
 No browser opens. The stored token is verified and the flow continues in the terminal.
 
 ```
@@ -44,17 +42,26 @@ No browser opens. The stored token is verified and the flow continues in the ter
 │  ○ + Create new workspace
 ```
 
+**What `vocoder init` writes:**
+
+Two files are written at the repository root, regardless of where you run the command:
+
+1. `.github/workflows/vocoder-translate.yml` — GitHub Actions workflow that runs translations on push
+2. `.env.local` — your project API key (`VOCODER_API_KEY`) appended to this file
+
+No framework config file (`vocoder.config.ts`) is written. Framework integration is handled separately — see [vocoder.app/docs/setup](https://vocoder.app/docs/setup).
+
 **GitHub Actions workflow:**
 
-After `vocoder init` completes, it writes `.github/workflows/vocoder.yml` automatically. Add `VOCODER_API_KEY` as a GitHub repository secret (Settings → Secrets and variables → Actions → New repository secret, name: `VOCODER_API_KEY`). Then commit the workflow file:
+After `vocoder init` completes, add `VOCODER_API_KEY` as a GitHub repository secret (Settings → Secrets and variables → Actions → New repository secret, name: `VOCODER_API_KEY`). Then commit the workflow file:
 
 ```bash
-git add .github/workflows/vocoder.yml
+git add .github/workflows/vocoder-translate.yml
 git commit -m "Add Vocoder translate workflow"
 git push
 ```
 
-Example workflow (branches templated from your `targetBranches` answer during init):
+Example workflow (branches templated from your answers during init):
 
 ```yaml
 name: Vocoder Translate
@@ -69,11 +76,14 @@ jobs:
       - uses: vocoder-i18n/translate-action@v1
         with:
           api-key: ${{ secrets.VOCODER_API_KEY }}
+          # proceed: build continues even if translations fail (default)
+          # fail: block the build if translations fail
+          on-failure: proceed
 ```
 
 **Monorepo support:**
 
-When running `vocoder init` from a subdirectory of a git repository, the CLI automatically suggests that subdirectory as the app directory. Each app in a monorepo should be set up as a separate Vocoder project.
+When running `vocoder init` from a subdirectory (e.g. `apps/web`), the CLI pre-fills the app directory prompt with that path. Both output files are always written at the repository root, never the current directory.
 
 **Options:**
 

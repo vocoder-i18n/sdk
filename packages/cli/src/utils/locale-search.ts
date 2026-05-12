@@ -54,7 +54,7 @@ function buildList(
 ): string {
 	const isMulti = selected !== null;
 	const end = Math.min(filtered.length, scrollOffset + MAX_VISIBLE);
-	const visibleLines: string[] = [info(S_BAR)];
+	const visibleLines: string[] = [];
 
 	for (let i = scrollOffset; i < end; i++) {
 		const opt = filtered[i]!;
@@ -102,7 +102,10 @@ async function runFilterablePrompt(opts: {
 
 	if (!multi && opts.initialValue) {
 		const idx = options.findIndex((o) => o.bcp47 === opts.initialValue);
-		if (idx >= 0) cursor = idx;
+		if (idx >= 0) {
+			cursor = idx;
+			scrollOffset = idx;
+		}
 	}
 
 	const getFiltered = () => filterLocales(options, filter);

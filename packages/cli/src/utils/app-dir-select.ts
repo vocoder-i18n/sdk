@@ -119,13 +119,12 @@ export async function collectAppDirs(opts: { cwd?: string; maxDirs?: number } = 
 							filter.length > 0
 								? filter
 								: added.length === 0
-									? dim("e.g. apps/web")
-									: dim("e.g. apps/api");
+									? dim("e.g. apps/web  ·  Space to add  ·  Enter to skip")
+									: dim("e.g. apps/api  ·  Space to add  ·  Enter to confirm");
 
 						const lines: string[] = [
 							hdr.trimEnd(),
 							`${info(S_BAR)}  ${dim("/")} ${inputHint}`,
-							info(S_BAR),
 						];
 
 						for (let i = 0; i < added.length; i++) {
@@ -147,13 +146,8 @@ export async function collectAppDirs(opts: { cwd?: string; maxDirs?: number } = 
 							lines.push(`${info(S_BAR)}  ${icon}  ${label}`);
 						}
 
-						lines.push(info(S_BAR));
-
 						if (atLimit) {
 							lines.push(dim(`${S_BAR}  ↑↓ to select, Space to remove  ·  Enter to confirm`));
-						} else if (added.length === 0 && !isNewDir()) {
-							lines.push(dim(`${S_BAR}  Type each app's subdirectory path and press Space.`));
-							lines.push(dim(`${S_BAR}  Single app? Press Enter to skip this step.`));
 						} else if (added.length > 0) {
 							lines.push(dim(`${S_BAR}  ${added.length} added  ·  ↑↓ to select, Space to remove  ·  Enter to confirm`));
 						}
@@ -240,27 +234,33 @@ export async function collectAppDirs(opts: { cwd?: string; maxDirs?: number } = 
 // ── promptSingleAppDir ────────────────────────────────────────────────────────
 
 /**
- * Prompt the user for a single app directory to add to an existing project.
+ * Prompt the user for a single app directory.
  *
  * Validates path safety, filesystem existence, and the monorepo/whole-repo
  * mutual exclusion invariant against the provided existing directories.
  *
- * Returns the entered directory string, or null if the user cancels.
+ * Returns the entered directory string (empty string = whole-repo), or null if cancelled.
  */
 export async function promptSingleAppDir(params: {
 	existingDirs: string[];
 	cwd?: string;
+	/** Custom prompt message. Defaults to "App directory to add". */
+	message?: string;
+	/** Pre-filled value (e.g. cwd relative to repo root for subdirectory detection). */
+	initialValue?: string;
+	/** When true, an empty value is valid (leaves whole-repo scope). Default: false. */
+	allowEmpty?: boolean;
 }): Promise<string | null> {
-	const { existingDirs, cwd } = params;
+	const { existingDirs, cwd, message = "App directory to add", initialValue, allowEmpty = false } = params;
 
 	const input = await p.text({
-		message: "App directory to add",
+		message,
 		placeholder: "apps/web",
+		initialValue,
 		validate(val) {
-			// Mutual exclusion checked before required — empty string is a valid whole-repo intent
 			const err = validateAppDirPath(val ?? "", existingDirs, { cwd });
 			if (err) return err;
-			if (!val) return "Directory is required";
+			if (!allowEmpty && !val) return "Directory is required";
 			return undefined;
 		},
 	});
