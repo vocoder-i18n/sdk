@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { detectBranch, detectCommitSha, detectRepoIdentity } from "../core";
+import { detectAppDir, detectBranch, detectCommitSha, detectRepoIdentity } from "../core";
 
 function withEnv(vars: Record<string, string | undefined>, fn: () => void): void {
 	const original: Record<string, string | undefined> = {};
@@ -212,5 +212,22 @@ describe("detectRepoIdentity", () => {
 			const identity = detectRepoIdentity();
 			expect(identity?.repoCanonical).toBe("github:myorg/my-repo");
 		});
+	});
+});
+
+describe("detectAppDir", () => {
+	it("returns a string (empty or relative path)", () => {
+		const result = detectAppDir(process.cwd());
+		expect(typeof result).toBe("string");
+	});
+
+	it("returns empty string for a path with no git directory", () => {
+		const result = detectAppDir("/tmp");
+		expect(result).toBe("");
+	});
+
+	it("never returns a path starting with ..", () => {
+		const result = detectAppDir(process.cwd());
+		expect(result.startsWith("..")).toBe(false);
 	});
 });

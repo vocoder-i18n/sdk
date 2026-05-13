@@ -27,14 +27,9 @@ export type AppIndustry = Industry;
  * Can be set project-wide in vocoder.config.ts or overridden per-string
  * via <T formality="formal"> (requires allowAiTranslations plan).
  */
-export type Formality = "formal" | "informal" | "neutral";
+export type Formality = "formal" | "informal" | "auto";
 
 export interface VocoderConfig {
-	/**
-	 * Unique identifier for this app. Written by `vocoder init` — do not edit manually.
-	 * Used by the CLI to identify which app to update when syncing locales.
-	 */
-	appId?: string;
 	/** Glob patterns for files to extract strings from. */
 	include?: string[];
 	/** Glob patterns to exclude. */
@@ -46,7 +41,7 @@ export interface VocoderConfig {
 	targetBranches?: string[];
 	/**
 	 * Directory to write translated locale files after sync (optional).
-	 * If set, `vocoder sync` writes {locale}.json files to this path.
+	 * If set, `vocoder translate` writes {locale}.json files to this path.
 	 */
 	localesPath?: string;
 	/**

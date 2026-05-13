@@ -1,13 +1,11 @@
 import { createHash } from "node:crypto";
 import type {
 	APIAppConfig,
-	InitStartResponse,
-	InitStatusResponse,
+	BatchTranslateRequestBody,
+	BatchTranslateStatusResponse,
 	LimitErrorResponse,
 	LocalConfig,
 	SyncPolicyErrorResponse,
-	TranslateRequestBody,
-	TranslateStatusResponse,
 	TranslationSnapshotResponse,
 } from "../types.js";
 
@@ -253,7 +251,7 @@ export class VocoderAPI {
 				nonBlockingMode?: "required" | "best-effort";
 				defaultMaxWaitMs?: number;
 			};
-		}>("/api/cli/config", {}, "Failed to fetch project config");
+		}>("/api/project/config", {}, "Failed to fetch project config");
 
 		return {
 			projectName: data.projectName,
@@ -274,11 +272,17 @@ export class VocoderAPI {
 		};
 	}
 
-	async submitTranslate(
-		body: TranslateRequestBody,
-	): Promise<{ jobId: string; status?: "complete"; fingerprint?: string }> {
-		return this.request<{ jobId: string; status?: "complete"; fingerprint?: string }>(
-			"/api/cli/translate",
+	async submitTranslate(body: BatchTranslateRequestBody): Promise<{
+		jobId: string;
+		status?: "complete";
+		apps: Array<{ appDir: string; appId: string; fingerprint?: string }>;
+	}> {
+		return this.request<{
+			jobId: string;
+			status?: "complete";
+			apps: Array<{ appDir: string; appId: string; fingerprint?: string }>;
+		}>(
+			"/api/translate",
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -288,9 +292,9 @@ export class VocoderAPI {
 		);
 	}
 
-	async pollTranslateStatus(jobId: string): Promise<TranslateStatusResponse> {
-		return this.request<TranslateStatusResponse>(
-			`/api/cli/translate/${encodeURIComponent(jobId)}/status`,
+	async pollTranslateStatus(jobId: string): Promise<BatchTranslateStatusResponse> {
+		return this.request<BatchTranslateStatusResponse>(
+			`/api/translate/${encodeURIComponent(jobId)}/status`,
 			{},
 			"Failed to check translation status",
 		);
@@ -306,65 +310,10 @@ export class VocoderAPI {
 			search.append("targetLocale", locale);
 		}
 		return this.request<TranslationSnapshotResponse>(
-			`/api/cli/sync/snapshot?${search.toString()}`,
+			`/api/project/translations?${search.toString()}`,
 			{},
 			"Failed to fetch translation snapshot",
 		);
-	}
-
-	async startInitSession(input: {
-		projectName?: string;
-		sourceLocale?: string;
-		targetLocales?: string[];
-		repoCanonical?: string;
-		repoAppDir?: string;
-	}): Promise<InitStartResponse> {
-		const url = `${this.apiUrl}/api/cli/init/start`;
-		const response = await this.fetchRaw(url, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(input),
-		});
-
-		const payload = await readPayload(response, { url, status: response.status }, this.debug);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to start init session (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as InitStartResponse;
-	}
-
-	async getInitSessionStatus(params: {
-		sessionId: string;
-		pollToken: string;
-	}): Promise<InitStatusResponse> {
-		const url = `${this.apiUrl}/api/cli/init/status/${params.sessionId}`;
-		const response = await this.fetchRaw(url, {
-			headers: { Authorization: `Bearer ${params.pollToken}` },
-		});
-
-		const payload = await readPayload(response, { url, status: response.status }, this.debug);
-
-		if (!response.ok) {
-			throw new VocoderAPIError({
-				message: extractErrorMessage(
-					payload,
-					`Failed to get init status (${response.status})`,
-				),
-				status: response.status,
-				payload,
-			});
-		}
-
-		return payload as InitStatusResponse;
 	}
 
 	// ── CLI Auth endpoints (no project API key needed) ──────────────────────────
@@ -514,7 +463,7 @@ export class VocoderAPI {
 		}>;
 		canCreateOrganization: boolean;
 	}> {
-		const url = new URL(`${this.apiUrl}/api/cli/organizations`);
+		const url = new URL(`${this.apiUrl}/api/organizations`);
 		if (params?.repo) url.searchParams.set("repo", params.repo);
 		return this.userRequest<{
 			organizations: Array<{
@@ -538,7 +487,7 @@ export class VocoderAPI {
 	): Promise<{ organizationId: string; name: string }> {
 		return this.userRequest<{ organizationId: string; name: string }>(
 			userToken,
-			`${this.apiUrl}/api/cli/organizations`,
+			`${this.apiUrl}/api/organizations`,
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -548,35 +497,6 @@ export class VocoderAPI {
 		);
 	}
 
-	async listApps(
-		userToken: string,
-		organizationId: string,
-	): Promise<
-		Array<{
-			appId: string;
-			projectId: string;
-			name: string;
-			appDir: string;
-			sourceLocale: string;
-			targetLocales: string[];
-			targetBranches: string[];
-		}>
-	> {
-		const url = new URL(`${this.apiUrl}/api/cli/apps`);
-		url.searchParams.set("organizationId", organizationId);
-		const result = await this.userRequest<{
-			apps: Array<{
-				appId: string;
-				projectId: string;
-				name: string;
-				appDir: string;
-				sourceLocale: string;
-				targetLocales: string[];
-				targetBranches: string[];
-			}>;
-		}>(userToken, url.toString(), {}, "Failed to list apps");
-		return result.apps;
-	}
 
 	async regenerateProjectApiKey(
 		userToken: string,
@@ -584,7 +504,7 @@ export class VocoderAPI {
 	): Promise<{ apiKey: string }> {
 		return this.userRequest<{ apiKey: string }>(
 			userToken,
-			`${this.apiUrl}/api/cli/project/regenerate-key`,
+			`${this.apiUrl}/api/project/regenerate-key`,
 			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId }) },
 			"Failed to regenerate API key",
 		);
@@ -603,17 +523,15 @@ export class VocoderAPI {
 	async addLocale(
 		locale: string,
 		repoCanonical?: string,
-		appId?: string,
 	): Promise<{ targetLocales: string[] }> {
 		return this.request<{ targetLocales: string[] }>(
-			"/api/cli/app/locales",
+			"/api/project/locales",
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					locale,
 					...(repoCanonical ? { repoCanonical } : {}),
-					...(appId ? { appId } : {}),
 				}),
 			},
 			"Failed to add locale",
@@ -630,17 +548,15 @@ export class VocoderAPI {
 	async removeLocale(
 		locale: string,
 		repoCanonical?: string,
-		appId?: string,
 	): Promise<{ targetLocales: string[] }> {
 		return this.request<{ targetLocales: string[] }>(
-			"/api/cli/app/locales",
+			"/api/project/locales",
 			{
 				method: "DELETE",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					locale,
 					...(repoCanonical ? { repoCanonical } : {}),
-					...(appId ? { appId } : {}),
 				}),
 			},
 			"Failed to remove locale",
@@ -654,14 +570,14 @@ export class VocoderAPI {
 		return this.userRequest<{
 			sourceLocales: Array<{ code: string; name: string; nativeName?: string }>;
 			targetLocales: Array<{ code: string; name: string; nativeName?: string }>;
-		}>(userToken, `${this.apiUrl}/api/cli/locales`, {}, "Failed to list locales");
+		}>(userToken, `${this.apiUrl}/api/locales`, {}, "Failed to list locales");
 	}
 
 	async listCompatibleLocales(
 		userToken: string,
 		sourceLocale: string,
 	): Promise<Array<{ code: string; name: string; nativeName?: string }>> {
-		const url = `${this.apiUrl}/api/cli/locales/compatible?source=${encodeURIComponent(sourceLocale)}`;
+		const url = `${this.apiUrl}/api/locales/compatible?source=${encodeURIComponent(sourceLocale)}`;
 		const result = await this.userRequest<{
 			locales: Array<{ code: string; name: string; nativeName?: string }>;
 		}>(userToken, url, {}, "Failed to list compatible locales");
@@ -678,11 +594,12 @@ export class VocoderAPI {
 			sourceLocale: string;
 			targetLocales: string[];
 			targetBranches: string[];
-			appDirs: string[];
 			repoCanonical?: string;
 		},
 	): Promise<{
 		projectId: string;
+		projectExternalId: string;
+		projectShortId: string;
 		projectName: string;
 		apiKey: string;
 		sourceLocale: string;
@@ -690,10 +607,11 @@ export class VocoderAPI {
 		targetBranches: string[];
 		repositoryBound: boolean;
 		configureUrl?: string;
-		apps: Array<{ appDir: string; appId: string }>;
 	}> {
 		return this.userRequest<{
 			projectId: string;
+			projectExternalId: string;
+			projectShortId: string;
 			projectName: string;
 			apiKey: string;
 			sourceLocale: string;
@@ -701,10 +619,9 @@ export class VocoderAPI {
 			targetBranches: string[];
 			repositoryBound: boolean;
 			configureUrl?: string;
-			apps: Array<{ appDir: string; appId: string }>;
 		}>(
 			userToken,
-			`${this.apiUrl}/api/cli/apps`,
+			`${this.apiUrl}/api/projects`,
 			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
 			"Failed to create project",
 		);
@@ -742,7 +659,7 @@ export class VocoderAPI {
 		organizationContext: { organizationId: string; organizationName: string } | null;
 	}> {
 		try {
-			const url = `${this.apiUrl}/api/cli/init/lookup`;
+			const url = `${this.apiUrl}/api/projects/lookup`;
 			const response = await this.fetchRaw(url, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -786,36 +703,4 @@ export class VocoderAPI {
 		}
 	}
 
-	/**
-	 * Add a new App to an existing project (monorepo: new app directory).
-	 * Does not check plan limits — no new project is created.
-	 */
-	async createApp(
-		userToken: string,
-		params: {
-			projectId: string;
-			appDir: string;
-			sourceLocale: string;
-			targetLocales: string[];
-			targetBranches: string[];
-			repoCanonical: string;
-		},
-	): Promise<{
-		appId: string;
-		projectId: string;
-		projectName: string;
-		appDir: string;
-	}> {
-		return this.userRequest<{
-			appId: string;
-			projectId: string;
-			projectName: string;
-			appDir: string;
-		}>(
-			userToken,
-			`${this.apiUrl}/api/cli/apps`,
-			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
-			"Failed to create app",
-		);
-	}
 }

@@ -33,6 +33,27 @@ describe("renderWorkflowYaml", () => {
 		expect(yaml).toContain("on-failure: proceed");
 	});
 
+	it("omits app-dirs line when no appDirs provided", () => {
+		const yaml = renderWorkflowYaml(["main"]);
+		expect(yaml).not.toContain("app-dirs:");
+	});
+
+	it("omits app-dirs line when appDirs is empty array", () => {
+		const yaml = renderWorkflowYaml(["main"], []);
+		expect(yaml).not.toContain("app-dirs:");
+	});
+
+	it("includes app-dirs line when appDirs are provided", () => {
+		const yaml = renderWorkflowYaml(["main"], ["apps/web", "apps/admin"]);
+		expect(yaml).toContain("app-dirs: apps/web,apps/admin");
+	});
+
+	it("skips empty string entries in appDirs", () => {
+		const yaml = renderWorkflowYaml(["main"], ["apps/web", ""]);
+		expect(yaml).toContain("app-dirs: apps/web");
+		expect(yaml).not.toContain(",");
+	});
+
 	it("checks out the repo before running the action", () => {
 		const yaml = renderWorkflowYaml(["main"]);
 		const checkoutIdx = yaml.indexOf("actions/checkout@v4");

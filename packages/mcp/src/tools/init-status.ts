@@ -4,7 +4,6 @@ import {
 	readAuthData,
 	clearAuthData,
 } from "@vocoder/cli/lib";
-import type { VocoderClient } from "../client.js";
 
 export interface InitStatusResult {
 	ready: boolean;
@@ -35,9 +34,9 @@ export const INIT_INSTRUCTIONS = [
 ].join("\n");
 
 export async function runInitStatus(
-	client: VocoderClient | null,
+	api: VocoderAPI | null,
 ): Promise<InitStatusResult> {
-	if (!client) {
+	if (!api) {
 		return {
 			ready: false,
 			projectName: null,
@@ -50,7 +49,7 @@ export async function runInitStatus(
 	}
 
 	try {
-		const config = await client.getConfig();
+		const config = await api.getAppConfig();
 		return {
 			ready: true,
 			projectName: config.projectName,
@@ -69,17 +68,17 @@ export async function runInitStatus(
 			const stored = readAuthData();
 			if (stored) {
 				const apiUrl = process.env.VOCODER_API_URL ?? "https://vocoder.app";
-				const api = new VocoderAPI({ apiUrl, apiKey: "" });
+				const anonApi = new VocoderAPI({ apiUrl, apiKey: "" });
 				try {
-					await api.getCliUserInfo(stored.token); // validate token still good
+					await anonApi.getCliUserInfo(stored.token);
 					const identity = detectRepoIdentity();
 					if (identity) {
-						const lookup = await api.lookupAppByRepo({
+						const lookup = await anonApi.lookupAppByRepo({
 							repoCanonical: identity.repoCanonical,
 							appDir: identity.appDir,
 						});
 						if (lookup.exactMatch) {
-							const { apiKey } = await api.regenerateProjectApiKey(
+							const { apiKey } = await anonApi.regenerateProjectApiKey(
 								stored.token,
 								lookup.exactMatch.projectId,
 							);
@@ -96,7 +95,6 @@ export async function runInitStatus(
 						}
 					}
 				} catch {
-					// Stored token is also expired — clear it
 					clearAuthData();
 				}
 			}

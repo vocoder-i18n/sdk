@@ -1,26 +1,30 @@
 /**
- * Runtime loading for translation manifest and locale modules.
+ * Runtime translation loading.
  *
- * Translations are injected as virtual modules by @vocoder/plugin at build
- * time.  The plugin creates `virtual:vocoder/manifest` (config + per-locale
- * dynamic-import loaders) and `virtual:vocoder/translations/<locale>` modules
- * which the bundler code-splits automatically.
+ * @vocoder/plugin injects __VOCODER_BUNDLE__ at build time — a complete
+ * VocoderTranslationData JSON object containing config and all locale
+ * translations. The bundle is read synchronously at module init so translations
+ * are available before any React component renders.
  *
- * If the unplugin is not installed the SDK starts with empty translations and
- * falls back to rendering source text.
+ * SSR fallback: when __VOCODER_BUNDLE__ is not defined (e.g. Next.js server
+ * components before hydration), the runtime reads the disk cache written by the
+ * plugin to node_modules/.vocoder/cache/{fingerprint}.json.
+ *
+ * If the plugin is not installed, all translations are empty and source text
+ * is rendered.
  */
 
 import type { LocalesMap, TranslationsMap } from "./types";
+import type { VocoderTranslationData } from "@vocoder/core";
+
+// Injected by @vocoder/plugin at build time via DefinePlugin / Vite define
+declare const __VOCODER_BUNDLE__: VocoderTranslationData | null | undefined;
+declare const __VOCODER_FINGERPRINT__: string | undefined;
 
 interface VocoderConfig {
 	sourceLocale: string;
 	targetLocales: string[];
 	locales: LocalesMap;
-}
-
-interface VocoderManifest {
-	config: VocoderConfig;
-	loaders: Record<string, () => any>;
 }
 
 const emptyConfig: VocoderConfig = {
@@ -31,56 +35,51 @@ const emptyConfig: VocoderConfig = {
 
 let _config: VocoderConfig = emptyConfig;
 const _loadedTranslations: TranslationsMap = {};
-let _loaders: Record<string, () => any> = {};
-let _manifestLoaded = false;
 
-function applyManifest(mod: any): void {
-	const manifest = (mod?.default ?? mod) as VocoderManifest;
-	if (manifest?.config) _config = manifest.config;
-	if (manifest?.loaders) _loaders = manifest.loaders;
-	_manifestLoaded = true;
-}
-
-// Server: load manifest synchronously at module init via CJS require.
-try {
-	if (typeof window === "undefined" && typeof require !== "undefined") {
-		applyManifest(require("virtual:vocoder/manifest"));
+function loadFromDiskCache(): VocoderTranslationData | null {
+	if (typeof window !== "undefined") return null;
+	try {
+		const fp =
+			typeof __VOCODER_FINGERPRINT__ !== "undefined" ? __VOCODER_FINGERPRINT__ : "";
+		if (!fp) return null;
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		const { readFileSync } = require("node:fs") as typeof import("node:fs");
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		const { resolve } = require("node:path") as typeof import("node:path");
+		const cachePath = resolve(
+			process.cwd(),
+			"node_modules/.vocoder/cache",
+			`${fp}.json`,
+		);
+		return JSON.parse(readFileSync(cachePath, "utf-8")) as VocoderTranslationData;
+	} catch {
+		return null;
 	}
-} catch {
-	// Unplugin not installed — translations will be empty until loaded.
 }
 
-// Client: load manifest asynchronously via ESM import.
-let _manifestLoadPromise: Promise<void> | null = null;
-
-async function loadManifest(): Promise<void> {
-	if (_manifestLoaded) return;
-	if (_manifestLoadPromise) return _manifestLoadPromise;
-
-	_manifestLoadPromise = import("virtual:vocoder/manifest")
-		.then(applyManifest)
-		.catch(() => {})
-		.finally(() => {
-			_manifestLoadPromise = null;
-		});
-
-	return _manifestLoadPromise;
+function applyBundle(bundle: VocoderTranslationData): void {
+	_config = bundle.config as VocoderConfig;
+	for (const [locale, translations] of Object.entries(bundle.translations)) {
+		_loadedTranslations[locale] = translations;
+	}
 }
 
-// Server: eagerly load the initial locale at module init.
-if (typeof window === "undefined" && _manifestLoaded) {
-	const initialLocale = getInitialLocale();
-	if (initialLocale && _loaders[initialLocale]) {
-		try {
-			const mod = _loaders[initialLocale]!();
-			const translations = (mod as any)?.default ?? mod;
-			if (translations && typeof translations === "object") {
-				_loadedTranslations[initialLocale] = translations;
-			}
-		} catch {
-			// Keep empty translations for this locale.
+// Apply bundle synchronously at module init — translations available before first render
+try {
+	const bundle: VocoderTranslationData | null | undefined =
+		typeof __VOCODER_BUNDLE__ !== "undefined" ? __VOCODER_BUNDLE__ : null;
+
+	if (bundle?.config?.sourceLocale) {
+		applyBundle(bundle);
+	} else if (typeof window === "undefined") {
+		// SSR: plugin bundle not available — try disk cache written by the plugin
+		const cached = loadFromDiskCache();
+		if (cached?.config?.sourceLocale) {
+			applyBundle(cached);
 		}
 	}
+} catch {
+	// Plugin not installed or bundle unavailable — empty translations
 }
 
 function getInitialLocale(): string {
@@ -108,15 +107,9 @@ function getInitialLocale(): string {
 	return _config.sourceLocale;
 }
 
-/** Initialize manifest and initial locale on the client. */
+// Re-export so VocoderProvider can call it; resolves immediately (no async work needed)
 export async function initializeVocoder(): Promise<void> {
-	await loadManifest();
-	if (!_config.sourceLocale) return;
-
-	const initialLocale = getInitialLocale();
-	if (initialLocale && !_loadedTranslations[initialLocale]) {
-		await loadLocale(initialLocale);
-	}
+	// Bundle loaded synchronously at module init — nothing to do
 }
 
 export function getConfig(): VocoderConfig {
@@ -131,57 +124,12 @@ export function getLocales(): LocalesMap {
 	return _config.locales;
 }
 
-/** Load locale translations via manifest loader. */
-export async function loadLocale(
-	locale: string,
-): Promise<Record<string, string>> {
-	if (_loadedTranslations[locale]) {
-		return _loadedTranslations[locale]!;
-	}
-
-	if (!_manifestLoaded) {
-		await loadManifest();
-	}
-
-	const loader = _loaders[locale];
-	if (loader) {
-		try {
-			const mod = await Promise.resolve(loader());
-			const translations = mod?.default ?? mod;
-			_loadedTranslations[locale] = translations || {};
-			return _loadedTranslations[locale]!;
-		} catch (error) {
-			console.error(`[vocoder] Failed to load translations for locale: ${locale}`, error);
-		}
-	} else if (process.env.NODE_ENV === "development" && _manifestLoaded) {
-		console.warn(
-			`[vocoder] No loader for locale "${locale}" — not in build manifest. Check your target locales config and rebuild.`,
-		);
-	}
-
-	return {};
+/** Return translations for a locale. All locales are loaded inline from the bundle. */
+export async function loadLocale(locale: string): Promise<Record<string, string>> {
+	return _loadedTranslations[locale] ?? {};
 }
 
-/** Load a locale synchronously on the server via CJS loader. */
+/** Synchronous locale lookup for SSR. */
 export function loadLocaleSync(locale: string): Record<string, string> | null {
-	if (typeof window !== "undefined") return null;
-	if (_loadedTranslations[locale]) return _loadedTranslations[locale]!;
-	if (!_manifestLoaded) return null;
-
-	const loader = _loaders[locale];
-	if (!loader) return null;
-
-	try {
-		const mod = loader();
-		if ((mod as any)?.then) return null; // Async loader, can't use sync
-		const translations = (mod as any)?.default ?? mod;
-		if (translations && typeof translations === "object") {
-			_loadedTranslations[locale] = translations;
-			return _loadedTranslations[locale]!;
-		}
-	} catch {
-		return null;
-	}
-
-	return null;
+	return _loadedTranslations[locale] ?? null;
 }

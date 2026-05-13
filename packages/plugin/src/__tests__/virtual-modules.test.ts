@@ -1,40 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { VocoderTranslationData } from "../types";
 
-// Import the internal function directly from source (not the bundled dist)
-// by accessing it as an internal module. Since generateManifestModule is not
-// exported, we reproduce its logic in tests and test through the observable
-// shape it produces — or test the exported computeFingerprint + shape contracts.
-
-// We test the manifest and per-locale module shapes that consumers depend on,
-// not the unplugin integration (which requires a real bundler).
-
-function generateManifestModule(data: VocoderTranslationData): string {
-	const { config, translations } = data;
-
-	const loaderEntries = Object.keys(translations)
-		.map(
-			(locale: string) =>
-				`  ${JSON.stringify(locale)}: () => import("virtual:vocoder/translations/${locale}")`,
-		)
-		.join(",\n");
-
-	return [
-		`export const config = ${JSON.stringify(config)};`,
-		"",
-		`export const loaders = {`,
-		loaderEntries,
-		`};`,
-	].join("\n");
-}
-
-function generateLocaleModule(
-	data: VocoderTranslationData,
-	locale: string,
-): string {
-	const translations = data.translations[locale] ?? {};
-	return `export default ${JSON.stringify(translations)};`;
-}
+// The plugin no longer uses virtual modules (resolveId/load hooks).
+// All translation data is inlined as __VOCODER_BUNDLE__ via DefinePlugin.
+// These tests verify the expected bundle shape and that no virtual:vocoder
+// module references exist in the plugin output.
 
 const SAMPLE_DATA: VocoderTranslationData = {
 	config: {
@@ -53,60 +23,63 @@ const SAMPLE_DATA: VocoderTranslationData = {
 	updatedAt: "2024-01-01T00:00:00.000Z",
 };
 
-describe("manifest module shape", () => {
-	it("exports config object", () => {
-		const module = generateManifestModule(SAMPLE_DATA);
-		expect(module).toContain("export const config =");
-		expect(module).toContain('"sourceLocale":"en"');
-		expect(module).toContain('"targetLocales":["fr","de"]');
+describe("__VOCODER_BUNDLE__ define shape", () => {
+	it("serializes to valid JSON", () => {
+		const define = JSON.stringify(SAMPLE_DATA ?? null);
+		expect(() => JSON.parse(define)).not.toThrow();
 	});
 
-	it("exports loaders object with dynamic imports per locale", () => {
-		const module = generateManifestModule(SAMPLE_DATA);
-		expect(module).toContain("export const loaders = {");
-		expect(module).toContain('"fr": () => import("virtual:vocoder/translations/fr")');
-		expect(module).toContain('"de": () => import("virtual:vocoder/translations/de")');
+	it("preserves config fields", () => {
+		const define = JSON.stringify(SAMPLE_DATA);
+		const parsed = JSON.parse(define) as VocoderTranslationData;
+		expect(parsed.config.sourceLocale).toBe("en");
+		expect(parsed.config.targetLocales).toEqual(["fr", "de"]);
+	});
+
+	it("preserves all locale translations inline", () => {
+		const define = JSON.stringify(SAMPLE_DATA);
+		const parsed = JSON.parse(define) as VocoderTranslationData;
+		expect(parsed.translations.fr?.abc1234).toBe("Bonjour");
+		expect(parsed.translations.de?.abc1234).toBe("Hallo");
+	});
+
+	it("serializes null bundle to null string", () => {
+		const define = JSON.stringify(null);
+		expect(define).toBe("null");
+		expect(JSON.parse(define)).toBeNull();
 	});
 
 	it("handles empty translations object", () => {
-		const emptyData: VocoderTranslationData = {
+		const empty: VocoderTranslationData = {
 			config: { sourceLocale: "en", targetLocales: [], locales: {} },
 			translations: {},
 			updatedAt: null,
 		};
-		const module = generateManifestModule(emptyData);
-		expect(module).toContain("export const loaders = {");
-		expect(module).toContain("export const config =");
-		expect(module).not.toContain("import(");
-	});
-
-	it("includes locale info in config", () => {
-		const module = generateManifestModule(SAMPLE_DATA);
-		expect(module).toContain('"Français"');
-		expect(module).toContain('"ltr"');
+		const define = JSON.stringify(empty);
+		const parsed = JSON.parse(define) as VocoderTranslationData;
+		expect(parsed.translations).toEqual({});
 	});
 });
 
-describe("per-locale translation module shape", () => {
-	it("exports translations as default object", () => {
-		const module = generateLocaleModule(SAMPLE_DATA, "fr");
-		expect(module).toBe(
-			'export default {"abc1234":"Bonjour","def5678":"Au revoir"};',
+describe("no virtual module references", () => {
+	it("plugin index.ts does not import virtual:vocoder", async () => {
+		// Read the plugin source to verify no virtual module strings remain
+		const { readFileSync } = await import("node:fs");
+		const { resolve } = await import("node:path");
+		const src = readFileSync(
+			resolve(__dirname, "../index.ts"),
+			"utf-8",
 		);
+		expect(src).not.toContain("virtual:vocoder");
+		expect(src).not.toContain("VIRTUAL_PREFIX");
+		expect(src).not.toContain("resolveId");
+		expect(src).not.toContain("generateManifestModule");
 	});
 
-	it("returns empty object default for unknown locale", () => {
-		const module = generateLocaleModule(SAMPLE_DATA, "es");
-		expect(module).toBe("export default {};");
-	});
-
-	it("handles locale with single translation", () => {
-		const data: VocoderTranslationData = {
-			config: { sourceLocale: "en", targetLocales: ["ja"], locales: {} },
-			translations: { ja: { abc1234: "こんにちは" } },
-			updatedAt: null,
-		};
-		const module = generateLocaleModule(data, "ja");
-		expect(module).toContain("こんにちは");
+	it("plugin index.ts defines __VOCODER_BUNDLE__", async () => {
+		const { readFileSync } = await import("node:fs");
+		const { resolve } = await import("node:path");
+		const src = readFileSync(resolve(__dirname, "../index.ts"), "utf-8");
+		expect(src).toContain("__VOCODER_BUNDLE__");
 	});
 });

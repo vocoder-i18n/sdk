@@ -122,7 +122,7 @@ describe("Key formula", () => {
 			expect(results[0]!.key).toBe("save_btn\x05informal");
 		});
 
-		it("custom id + neutral → key = id (neutral does not vary)", async () => {
+		it("custom id + unrecognized formality → key = id (falls through, no suffix)", async () => {
 			const file = createTestFile(
 				"test.tsx",
 				`

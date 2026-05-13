@@ -58,6 +58,7 @@
   },
   "devDependencies": {
     "@vocoder/config": "workspace:*",
+    "@vocoder/core": "workspace:*",
     "@vocoder/extractor": "workspace:*",
     "@types/node": "^20.19.9",
     "tsup": "^8.0.0",

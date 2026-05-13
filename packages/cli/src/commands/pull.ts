@@ -1,7 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as p from "@clack/prompts";
-import chalk from "chalk";
 import { highlight } from "../utils/theme.js";
 import { loadEnvFiles } from "../utils/load-env.js";
 import { VocoderAPI } from "../utils/api.js";
@@ -9,39 +8,15 @@ import { detectBranch } from "../utils/branch.js";
 
 loadEnvFiles();
 
-export interface TranslationsOptions {
-	/** Git branch. Auto-detected from git/CI env if omitted. */
+export interface PullOptions {
 	branch?: string;
-	/** Specific target locale to fetch. All configured locales if omitted. */
 	locale?: string;
-	/**
-	 * Output directory for locale JSON files.
-	 * When set, writes one <locale>.json per locale to this directory.
-	 * When omitted, prints the full snapshot as JSON to stdout.
-	 */
+	/** Write one <locale>.json per locale to this directory. Prints to stdout if omitted. */
 	output?: string;
 	apiUrl?: string;
 }
 
-/**
- * Downloads the current translation snapshot for the app.
- *
- * With --output <dir>: writes one <locale>.json file per locale to the
- * specified directory. Each file shape: { "source text": "translated text" }.
- *
- * Without --output: prints the full snapshot JSON to stdout, suitable
- * for piping or programmatic use.
- *
- * Reads the app API key from VOCODER_API_KEY.
- * Endpoint: GET /api/cli/sync/snapshot
- *
- * @param options.branch  Git branch (auto-detected from git/CI if omitted).
- * @param options.locale  Specific target locale; all configured locales if omitted.
- * @param options.output  Output directory. Omit to print to stdout.
- *
- * @throws If VOCODER_API_KEY is missing or invalid.
- */
-export async function getTranslations(options: TranslationsOptions = {}): Promise<number> {
+export async function pull(options: PullOptions = {}): Promise<number> {
 	const apiKey = process.env.VOCODER_API_KEY;
 	if (!apiKey) {
 		p.log.error(
@@ -67,7 +42,6 @@ export async function getTranslations(options: TranslationsOptions = {}): Promis
 	spinner.start(`Fetching translations for ${highlight(branch)}…`);
 
 	try {
-		// Fetch the app config to resolve which target locales to request
 		const projectConfig = await api.getAppConfig();
 		const targetLocales = options.locale
 			? [options.locale]
@@ -85,7 +59,7 @@ export async function getTranslations(options: TranslationsOptions = {}): Promis
 		if (snapshot.status === "NOT_FOUND") {
 			p.log.warn(
 				`No translation snapshot found for branch "${branch}". ` +
-					"Run `vocoder sync` to generate one.",
+					"Run `vocoder translate` to generate one.",
 			);
 			return 1;
 		}
@@ -95,7 +69,6 @@ export async function getTranslations(options: TranslationsOptions = {}): Promis
 		if (options.output) {
 			writeLocaleFiles(translations, options.output);
 		} else {
-			// stdout — raw JSON for piping/programmatic use
 			process.stdout.write(JSON.stringify(translations, null, 2));
 			process.stdout.write("\n");
 		}
@@ -110,11 +83,6 @@ export async function getTranslations(options: TranslationsOptions = {}): Promis
 	}
 }
 
-/**
- * Writes one <locale>.json file per locale to the output directory.
- * Creates the directory if it does not exist.
- * Each file shape: { "source text": "translated text" }
- */
 function writeLocaleFiles(
 	translations: Record<string, Record<string, string>>,
 	outputDir: string,

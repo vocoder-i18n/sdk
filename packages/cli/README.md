@@ -1,6 +1,6 @@
 # @vocoder/cli
 
-Command-line tool for Vocoder. Handles project setup, string extraction, and translation sync.
+Command-line tool for Vocoder. Handles project setup, string extraction, and translation.
 
 ## Installation
 
@@ -120,6 +120,7 @@ Reads `VOCODER_API_KEY` from environment or `.env`. Detects `<T>` and `t()` usag
 
 | Flag | Description |
 |---|---|
+| `--app-dirs <dirs>` | Comma-separated app directories for monorepos, e.g. `apps/web,apps/admin`. Omit for single-app repos (submits as root app). |
 | `--branch <name>` | Git branch (auto-detected from git/CI env vars if omitted) |
 | `--commit-sha <sha>` | Commit SHA (auto-detected from CI env vars if omitted) |
 | `--dry-run` | Show what would be submitted without sending |
@@ -259,7 +260,6 @@ Git repository is auto-detected from the current directory's git remote. Use `--
 | `--target-locales <codes>` | Comma-separated target locale codes, e.g. `fr,de,pt-BR` |
 | `--target-branches <names>` | Comma-separated branch names to sync (default: `main`) |
 | `--repo <canonical>` | Git repo canonical, e.g. `github:owner/repo` |
-| `--app-dir <path>` | App directory within the repo for monorepos (default: `.`) |
 
 ---
 
@@ -308,7 +308,8 @@ The CLI auto-detects repository context from the working directory:
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `VOCODER_API_KEY` | `translate`, `locales`, `project`, `translations`, MCP | Project API key (`vca_` prefix) |
+| `VOCODER_API_KEY` | `translate`, `locales`, `project`, `translations`, MCP | Project API key (`vcp_` prefix) |
+| `VOCODER_ON_FAILURE` | `translate` | Override `onTranslationFailure` from config: `fail` or `proceed` |
 | `VOCODER_AUTH_TOKEN` | `init` | Override stored user token (`vcu_` prefix) |
 | `VOCODER_API_URL` | All commands | Override API base URL (default: `https://vocoder.app`) |
 

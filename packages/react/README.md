@@ -458,18 +458,18 @@ Returns the text direction for a locale using the metadata from the Vocoder mani
 ```tsx
 // app/layout.tsx
 import { cookies } from 'next/headers';
-import { config } from 'virtual:vocoder/manifest';
+import { getConfig, getLocales, VocoderProvider } from '@vocoder/react';
 import { getLocaleDir } from '@vocoder/react/server';
-import { VocoderProvider } from '@vocoder/react';
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
-  const locale = cookieStore.get('vocoder_locale')?.value ?? config.sourceLocale;
-  const dir = getLocaleDir(locale, config.locales);
+  const { sourceLocale } = getConfig();
+  const locale = cookieStore.get('vocoder_locale')?.value ?? sourceLocale;
+  const dir = getLocaleDir(locale, getLocales());
   return (
     <html lang={locale} dir={dir}>
       <body>
-        <VocoderProvider cookies={cookieStore.toString()}>
+        <VocoderProvider initialLocale={locale} preview={cookieStore.get('vocoder_preview')?.value === 'true'}>
           {children}
         </VocoderProvider>
       </body>
@@ -594,14 +594,11 @@ Returns a 7-character base-36 string. The algorithm is FNV-1a 32-bit, guaranteed
 
 ## How it works
 
-### Virtual modules
+### Build-time bundle injection
 
-Translations are delivered as virtual modules injected by `@vocoder/plugin`:
+Translations are delivered via `__VOCODER_BUNDLE__` — a compile-time constant injected by `@vocoder/plugin`. The full `VocoderTranslationData` (config + all locale strings) is inlined as a single JSON literal at build time. No virtual modules, no runtime fetches required for client bundles.
 
-- `virtual:vocoder/manifest` — project config and per-locale dynamic import loaders
-- `virtual:vocoder/translations/{locale}` — translation map for each locale
-
-Each locale is a separate code-split chunk. Only the active locale is fetched; others load on demand when the user switches.
+On SSR (Node.js), if `__VOCODER_BUNDLE__` is unavailable, the runtime falls back to reading `node_modules/.vocoder/cache/{fingerprint}.json` from disk.
 
 ### Background refresh
 

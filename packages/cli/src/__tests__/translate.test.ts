@@ -1,36 +1,40 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	computeExitCode,
+	formatAppProgress,
 	formatLocaleResults,
-	formatProgress,
+	getLimitErrorGuidance,
 } from "../commands/translate.js";
-import type { TranslateStatusResponse } from "../types.js";
+import type { AppTranslateStatus, LimitErrorResponse } from "../types.js";
 
-// ── formatProgress ─────────────────────────────────────────────────────────────
+// ── formatAppProgress ──────────────────────────────────────────────────────────
 
-describe("formatProgress", () => {
-	function makeStatus(
-		s: TranslateStatusResponse["status"],
-		completed: number,
-		total: number,
-	): TranslateStatusResponse {
+describe("formatAppProgress", () => {
+	function makeApp(appDir: string, completed: number, total: number): AppTranslateStatus {
 		return {
-			status: s,
+			appDir,
+			appId: "app-1",
+			status: "running",
+			providers: {},
 			progress: { completed, total },
-			locales: {},
 		};
 	}
 
-	it("shows 0/N at start", () => {
-		expect(formatProgress(makeStatus("pending", 0, 47))).toBe("  ⟳ 0/47 complete...");
+	it("shows appDir label with progress", () => {
+		const result = formatAppProgress(makeApp("apps/web", 0, 47));
+		expect(result).toContain("apps/web");
+		expect(result).toContain("0/47");
 	});
 
-	it("shows mid-poll progress", () => {
-		expect(formatProgress(makeStatus("running", 18, 47))).toBe("  ⟳ 18/47 complete...");
+	it("uses (root) label when appDir is empty", () => {
+		const result = formatAppProgress(makeApp("", 18, 47));
+		expect(result).toContain("(root)");
+		expect(result).toContain("18/47");
 	});
 
 	it("shows N/N when complete", () => {
-		expect(formatProgress(makeStatus("complete", 47, 47))).toBe("  ⟳ 47/47 complete...");
+		const result = formatAppProgress(makeApp("apps/web", 47, 47));
+		expect(result).toContain("47/47");
 	});
 });
 
@@ -70,6 +74,69 @@ describe("computeExitCode", () => {
 	});
 });
 
+// ── getLimitErrorGuidance ──────────────────────────────────────────────────────
+
+describe("getLimitErrorGuidance", () => {
+	function makeLimit(overrides: Partial<LimitErrorResponse>): LimitErrorResponse {
+		return {
+			errorCode: "LIMIT_EXCEEDED",
+			limitType: "source_strings",
+			planId: "starter",
+			current: 100,
+			required: 200,
+			upgradeUrl: "https://vocoder.app/upgrade",
+			message: "Limit exceeded",
+			...overrides,
+		};
+	}
+
+	it("providers branch — returns settings URL guidance", () => {
+		const lines = getLimitErrorGuidance(makeLimit({ limitType: "providers" }));
+		expect(lines[0]).toContain("Provider setup required");
+		expect(lines[1]).toContain("DeepL");
+		expect(lines[2]).toContain("https://vocoder.app/upgrade");
+	});
+
+	it("translation_chars branch — includes current and required char counts", () => {
+		const lines = getLimitErrorGuidance(
+			makeLimit({ limitType: "translation_chars", current: 50000, required: 75000 }),
+		);
+		expect(lines[0]).toContain("character limit");
+		expect(lines[1]).toContain("50,000");
+		expect(lines[2]).toContain("75,000");
+		expect(lines[3]).toContain("https://vocoder.app/upgrade");
+	});
+
+	it("source_strings branch — includes current and required string counts", () => {
+		const lines = getLimitErrorGuidance(
+			makeLimit({ limitType: "source_strings", current: 100, required: 200 }),
+		);
+		expect(lines[0]).toContain("source string limit");
+		expect(lines[1]).toContain("100");
+		expect(lines[2]).toContain("200");
+		expect(lines[3]).toContain("https://vocoder.app/upgrade");
+	});
+
+	it("target_locales branch — includes current locale count and planId", () => {
+		const lines = getLimitErrorGuidance(
+			makeLimit({ limitType: "target_locales", current: 3, planId: "starter" }),
+		);
+		expect(lines[0]).toContain("3");
+		expect(lines[1]).toContain("starter");
+		expect(lines[2]).toContain("https://vocoder.app/upgrade");
+	});
+
+	it("fallback branch — includes planId, current, required, and upgrade URL", () => {
+		const lines = getLimitErrorGuidance(
+			makeLimit({ limitType: "credits", planId: "pro", current: 10, required: 50 }),
+		);
+		expect(lines[0]).toContain("pro");
+		expect(lines[1]).toContain("10");
+		expect(lines[2]).toContain("50");
+		expect(lines[3]).toContain("https://vocoder.app/upgrade");
+	});
+});
+
 // ── polling exponential backoff ────────────────────────────────────────────────
 
 describe("polling backoff", () => {
@@ -92,12 +159,11 @@ describe("polling backoff", () => {
 		expect(intervals[1]).toBe(1500);
 		expect(intervals[2]).toBe(2250);
 		expect(intervals[3]).toBe(3375);
-		// rounds to float — just check it's growing
 		expect(intervals[4]!).toBeGreaterThan(3375);
 	});
 });
 
-// ── integration: submit → poll → complete ─────────────────────────────────────
+// ── integration: submit → poll (batch API) ─────────────────────────────────────
 
 describe("translate API integration (mocked)", () => {
 	const originalFetch = globalThis.fetch;
@@ -106,43 +172,66 @@ describe("translate API integration (mocked)", () => {
 		globalThis.fetch = originalFetch;
 	});
 
-	it("polls until complete and reads final status", async () => {
+	it("polls until complete and reads final batch status", async () => {
 		let callCount = 0;
 		globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
 			callCount++;
-			if (String(url).includes("/api/cli/translate") && !String(url).includes("/status")) {
+			if (String(url).includes("/api/translate") && !String(url).includes("/status")) {
 				return {
 					ok: true,
-					text: async () => JSON.stringify({ jobId: "job-abc" }),
+					text: async () =>
+						JSON.stringify({
+							jobId: "job-abc",
+							apps: [{ appDir: "", appId: "app-1" }],
+						}),
 				} as Response;
 			}
-			// First two polls: running; third: complete
-			const status = callCount < 4 ? "running" : "complete";
+			const isDone = callCount >= 4;
+			const appStatus = isDone ? "complete" : "running";
 			return {
 				ok: true,
 				text: async () =>
 					JSON.stringify({
-						status,
-						progress: { completed: status === "complete" ? 10 : 5, total: 10 },
-						locales: { es: status, fr: status },
-						...(status === "complete" ? { fingerprint: "abc123" } : {}),
+						jobId: "job-abc",
+						status: appStatus,
+						apps: [
+							{
+								appDir: "",
+								appId: "app-1",
+								status: appStatus,
+								providers: {
+									deepl: {
+										status: appStatus,
+										completed: isDone ? 10 : 5,
+										total: 10,
+									},
+								},
+								progress: { completed: isDone ? 10 : 5, total: 10 },
+							},
+						],
 					}),
 			} as Response;
 		});
 
 		const { VocoderAPI } = await import("../utils/api.js");
-		const api = new VocoderAPI({ apiKey: "vca_1234567890_1234567890123456789012", apiUrl: "https://vocoder.app" });
+		const api = new VocoderAPI({ apiKey: "vcp_aB3xY9Zk_testrandombytes123456", apiUrl: "https://vocoder.app" });
 
 		const submitResult = await api.submitTranslate({
 			branch: "main",
-			stringEntries: [{ key: "k1", text: "Hello" }],
-			targetLocales: ["es", "fr"],
-			stringsHash: "abc",
+			apps: [
+				{
+					appDir: "",
+					strings: [{ key: "k1", text: "Hello" }],
+					stringsHash: "abc",
+				},
+			],
+			repoUrl: "",
 			clientRunId: "run-1",
 		});
 		expect(submitResult.jobId).toBe("job-abc");
 
 		const status = await api.pollTranslateStatus(submitResult.jobId);
 		expect(["running", "complete"]).toContain(status.status);
+		expect(status.apps).toHaveLength(1);
 	});
 });

@@ -56,15 +56,15 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			if (lookup.existingApps.length > 0) {
 				const allApps = lookup.existingApps;
 				const firstApp = allApps[0]!;
+				const isMonorepo = allApps.every(app => app.appDir !== '');
 
-				p.log.success(`Project: ${chalk.bold(firstApp.projectName)}`);
-				if (allApps.length > 1) {
+				p.log.success(`Project ${chalk.bold(firstApp.projectName)} already exists`);
+				if (isMonorepo) {
 					p.log.info(
 						`Configured apps: ${allApps.map((a) => highlight(a.appDir)).join(", ")}`,
 					);
 				}
 				p.log.info(`Need a new API key? Run ${highlight("vocoder regenerate-key")}`);
-
 				p.outro("Already set up.");
 				return 0;
 			}
@@ -160,6 +160,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			const workflow = writeGitHubActionsWorkflow(
 				repoRoot,
 				projectResult.targetBranches,
+				projectResult.appDirs,
 			);
 			workflowWritten = workflow.written;
 			workflowRelativePath = workflow.relativePath;

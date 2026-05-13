@@ -104,17 +104,13 @@ The plugin runs at build time and performs the following steps:
 
 2. **Detects the commit SHA** from CI environment variables. Variables checked in order: `VOCODER_COMMIT_SHA`, `GITHUB_SHA`, `VERCEL_GIT_COMMIT_SHA`, `CI_COMMIT_SHA`, `BITBUCKET_COMMIT`, `CIRCLE_SHA1`, `RENDER_GIT_COMMIT`. Falls back to reading the SHA from `.git/refs/heads/<branch>` or `.git/packed-refs`.
 
-3. **Computes a fingerprint** — a 12-character hex string derived from `sha256(repoCanonical + ":" + scopePath + ":" + commitSha)`. This is used to fetch the exact translations that correspond to the current commit.
+3. **Computes a content fingerprint** — a 12-character hex string derived from `sha256(projectShortId + ":" + appDir + ":" + sortedKeys)`. This identifies the exact translation bundle for the current string set.
 
-   If no commit SHA is available (e.g. local development), the plugin falls back to the branch name and logs a warning. In CI environments a SHA is always present.
+4. **Fetches the translation bundle** from the Vocoder CDN using the fingerprint, returning all locales in a single response.
 
-4. **Fetches translations** from the Vocoder API using the fingerprint, returning all locales in a single request.
+5. **Inlines the bundle** via `__VOCODER_BUNDLE__` — the full `VocoderTranslationData` JSON is injected as a compile-time constant. No virtual modules, no runtime fetches required for client bundles. SSR falls back to reading `node_modules/.vocoder/cache/{fingerprint}.json` from disk.
 
-5. **Injects virtual modules** that the bundler resolves at import time:
-   - `virtual:vocoder/manifest` — exports project config (source locale, target locales, locale metadata) and per-locale dynamic import loaders
-   - `virtual:vocoder/translations/{locale}` — exports the translation map for a single locale
-
-6. **Enables background refresh** — injects metadata so `@vocoder/react` can check for updated translations at runtime without blocking the initial page load.
+6. **Enables dev-mode auto-sync** — in `NODE_ENV=development`, if no bundle exists for the current strings, the plugin submits them to the Vocoder API and polls until translations are ready. Build proceeds immediately; translations appear on the next hot-reload.
 
 ---
 

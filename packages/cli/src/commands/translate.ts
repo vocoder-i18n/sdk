@@ -2,60 +2,37 @@ import { randomUUID } from "node:crypto";
 import * as p from "@clack/prompts";
 import chalk from "chalk";
 import { computeFingerprint, loadVocoderConfig } from "@vocoder/extractor";
+import { extractProjectShortIdFromApiKey } from "@vocoder/core";
 import type {
+	AppTranslateStatus,
+	BatchTranslateStatusResponse,
 	ExtractedString,
 	TranslateCommandOptions,
-	TranslateStatusResponse,
 	TranslationStringEntry,
 } from "../types.js";
 import { VocoderAPI, VocoderAPIError, computeStringsHash } from "../utils/api.js";
 import { detectBranch, isTargetBranch } from "../utils/branch.js";
-import { extractShortCodeFromApiKey, validateLocalConfig } from "../utils/config.js";
+import { validateLocalConfig } from "../utils/config.js";
 import { StringExtractor } from "../utils/extract.js";
 import { detectCommitSha, resolveGitRepositoryIdentity } from "../utils/git-identity.js";
 import { highlight } from "../utils/theme.js";
+import { buildStringEntries } from "../utils/string-entries.js";
 import type { LimitErrorResponse } from "../types.js";
 
 type LocaleStatus = "pending" | "running" | "complete" | "failed";
 
-function mergeContext(current?: string, incoming?: string): string | undefined {
-	if (!incoming) return current;
-	if (!current) return incoming;
-	if (current === incoming) return current;
-	const parts = new Set(
-		[...current.split(" | "), ...incoming.split(" | ")].map((s) => s.trim()).filter(Boolean),
-	);
-	return Array.from(parts).join(" | ");
+function overallStatus(statuses: LocaleStatus[]): LocaleStatus {
+	if (statuses.every((s) => s === "complete")) return "complete";
+	if (statuses.some((s) => s === "failed")) return "failed";
+	if (statuses.some((s) => s === "running")) return "running";
+	return "pending";
 }
 
-function buildStringEntries(extractedStrings: ExtractedString[]): TranslationStringEntry[] {
-	const byKey = new Map<string, TranslationStringEntry>();
-	for (const str of extractedStrings) {
-		const existing = byKey.get(str.key);
-		if (!existing) {
-			byKey.set(str.key, {
-				key: str.key,
-				text: str.text,
-				...(str.context ? { context: str.context } : {}),
-				...(str.formality ? { formality: str.formality } : {}),
-				...(str.uiRole ? { uiRole: str.uiRole } : {}),
-			});
-			continue;
-		}
-		existing.context = mergeContext(existing.context, str.context);
-		if (!existing.formality && str.formality) {
-			existing.formality = str.formality;
-		} else if (existing.formality && str.formality && existing.formality !== str.formality) {
-			existing.formality = "auto";
-		}
-	}
-	return Array.from(byKey.values());
-}
-
-/** Returns the in-progress poll line. Exported for testing. */
-export function formatProgress(status: TranslateStatusResponse): string {
-	const { completed, total } = status.progress;
-	return `  ⟳ ${completed}/${total} complete...`;
+/** Returns the in-progress poll line for a single app. Exported for testing. */
+export function formatAppProgress(app: AppTranslateStatus): string {
+	const { completed, total } = app.progress;
+	const label = app.appDir || "(root)";
+	return `  ⟳ ${label}: ${completed}/${total}`;
 }
 
 /** Returns the final per-locale status line. Exported for testing. */
@@ -130,8 +107,8 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		p.log.warn("No API key found. Run init to get started:");
 		p.log.info("  npx @vocoder/cli init");
 		p.log.info("");
-		p.log.info("  Or add your key to .env or .env.local: VOCODER_API_KEY=vca_...");
-		p.outro("Run `npx @vocoder/cli init` to set up your app.");
+		p.log.info("  Or add your key to .env or .env.local: VOCODER_API_KEY=vcp_...");
+		p.outro("Run `npx @vocoder/cli init` to set up your project.");
 		return 1;
 	}
 
@@ -145,12 +122,18 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		return 1;
 	}
 
+	const projectShortId = extractProjectShortIdFromApiKey(apiKey);
+	if (!projectShortId) {
+		p.log.error("Invalid API key format. Expected a project key (vcp_...).");
+		return 1;
+	}
+
 	const spinner = p.spinner();
 
 	try {
 		const branch = detectBranch(options.branch);
 
-		spinner.start("Loading app configuration");
+		spinner.start("Loading project configuration");
 		const api = new VocoderAPI(localConfig);
 		const apiConfig = await api.getAppConfig();
 		spinner.stop(`Branch: ${highlight(branch)}`);
@@ -167,53 +150,90 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		}
 
 		const fileConfig = loadVocoderConfig(projectRoot);
-		const onTranslationFailure = fileConfig?.onTranslationFailure ?? "proceed";
+
+		// VOCODER_ON_FAILURE env var overrides vocoder.config.ts setting
+		const onTranslationFailure =
+			(process.env.VOCODER_ON_FAILURE as "fail" | "proceed" | undefined) ??
+			fileConfig?.onTranslationFailure ??
+			"proceed";
+
+		// Parse app directories from --app-dirs flag or default to single-app (root)
+		const appDirs = options.appDirs
+			? options.appDirs
+					.split(",")
+					.map((d) => d.trim().replace(/^\/|\/$/g, ""))
+					.filter(Boolean)
+			: [];
+		// Single-app: appDir = "" (whole repo)
+		const effectiveAppDirs = appDirs.length > 0 ? appDirs : [""];
+
 		const includePattern: string | string[] =
 			fileConfig?.include?.length ? fileConfig.include : ["**/*.{tsx,jsx,ts,js}"];
 		const excludePattern = fileConfig?.exclude?.length ? fileConfig.exclude : undefined;
+		const industry = fileConfig?.industry ?? fileConfig?.appIndustry;
 
-		const patternsDisplay = Array.isArray(includePattern)
-			? includePattern.join(", ")
-			: includePattern;
+		// Extract strings for each app directory
+		type AppExtraction = {
+			appDir: string;
+			stringEntries: TranslationStringEntry[];
+			sourceKeys: string[];
+			stringsHash: string;
+			fingerprint: string;
+		};
+		const appExtractions: AppExtraction[] = [];
 
-		spinner.start(`Extracting strings from ${patternsDisplay}`);
-		const extractor = new StringExtractor();
-		const extractedStrings = await extractor.extractFromProject(
-			includePattern,
-			projectRoot,
-			excludePattern,
-		);
-		spinner.stop(
-			`Extracted ${highlight(extractedStrings.length)} strings from ${highlight(patternsDisplay)}`,
-		);
+		for (const appDir of effectiveAppDirs) {
+			const extractRoot = appDir ? `${projectRoot}/${appDir}` : projectRoot;
+			const patternsDisplay = Array.isArray(includePattern)
+				? includePattern.join(", ")
+				: includePattern;
 
-		if (extractedStrings.length === 0) {
+			spinner.start(
+				appDir
+					? `Extracting strings from ${highlight(appDir)} (${patternsDisplay})`
+					: `Extracting strings from ${patternsDisplay}`,
+			);
+
+			const extractor = new StringExtractor();
+			const extractedStrings = await extractor.extractFromProject(
+				includePattern,
+				extractRoot,
+				excludePattern,
+			);
+
+			spinner.stop(
+				`Extracted ${highlight(extractedStrings.length)} string${extractedStrings.length === 1 ? "" : "s"}${appDir ? ` from ${highlight(appDir)}` : ""}`,
+			);
+
+			const stringEntries = buildStringEntries(extractedStrings);
+			const sourceKeys = stringEntries.map((e) => e.key);
+			const stringsHash = computeStringsHash({ keys: sourceKeys, industry: industry ?? null });
+
+			// Fingerprint: hash(projectShortId:appDir:sortedKeys) — matches server formula
+			const scope = `${projectShortId}:${appDir}`;
+			const fingerprint = computeFingerprint(scope, sourceKeys);
+
+			appExtractions.push({ appDir, stringEntries, sourceKeys, stringsHash, fingerprint });
+		}
+
+		const totalStrings = appExtractions.reduce((sum, a) => sum + a.sourceKeys.length, 0);
+		if (totalStrings === 0) {
 			p.log.warn("No translatable strings found");
 			p.log.info("Make sure you are wrapping translatable strings with Vocoder");
 			p.outro("");
 			return 0;
 		}
 
-		const stringEntries = buildStringEntries(extractedStrings);
-
-		if (options.verbose && stringEntries.length !== extractedStrings.length) {
-			p.log.info(
-				`Deduped ${extractedStrings.length} extracted entries into ${stringEntries.length} unique strings`,
-			);
-		}
-
-		const sourceKeys = stringEntries.map((e) => e.key);
-		const industry = fileConfig?.industry ?? fileConfig?.appIndustry;
-		const stringsHash = computeStringsHash({ keys: sourceKeys, industry: industry ?? null });
-		const fingerprint = computeFingerprint(extractShortCodeFromApiKey(apiKey), sourceKeys);
-
 		if (options.dryRun) {
+			const lines = appExtractions.map(
+				(a) =>
+					`${a.appDir || "(root)"}: ${a.sourceKeys.length} string${a.sourceKeys.length === 1 ? "" : "s"}, fingerprint ${a.fingerprint}`,
+			);
 			p.note(
 				[
-					`Strings: ${stringEntries.length}`,
 					`Branch: ${branch}`,
 					`Target locales: ${apiConfig.targetLocales.map((l) => highlight(l)).join(", ")}`,
-					`Fingerprint: ${fingerprint}`,
+					...lines,
 				].join("\n"),
 				"Dry run — would translate",
 			);
@@ -230,24 +250,38 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			);
 		}
 
-		// id-only entries (text: null) can't be translated without a localesPath source file
-		const submitEntries = stringEntries.filter(
-			(e): e is TranslationStringEntry & { text: string } => e.text != null,
-		);
+		// Build per-app submissions — filter out id-only entries (text: null)
+		const apps = appExtractions
+			.filter((a) => a.sourceKeys.length > 0)
+			.map((a) => ({
+				appDir: a.appDir,
+				strings: a.stringEntries
+					.filter((e): e is TranslationStringEntry & { text: string } => e.text != null)
+					.map((e) => ({
+						key: e.key,
+						text: e.text,
+						...(e.context ? { context: e.context } : {}),
+						...(e.formality ? { formality: e.formality } : {}),
+						...(e.uiRole ? { uiRole: e.uiRole } : {}),
+					})),
+				stringsHash: a.stringsHash,
+			}));
 
-		spinner.start("Submitting to Vocoder");
+		spinner.start(
+			apps.length > 1
+				? `Submitting ${apps.length} apps to Vocoder`
+				: "Submitting to Vocoder",
+		);
 		const submitResult = await api.submitTranslate({
+			apps,
 			branch,
 			...(commitSha ? { commitSha } : {}),
-			stringEntries: submitEntries,
-			targetLocales: apiConfig.targetLocales,
-			stringsHash,
-			...(repoIdentity?.repoCanonical ? { repoCanonical: repoIdentity.repoCanonical } : {}),
+			repoUrl: repoIdentity?.repoCanonical ?? "",
 			clientRunId: randomUUID(),
 		});
 		spinner.stop("Job accepted");
 
-		// Server found an existing completed batch for this stringsHash — no work needed
+		// All apps cached — no work needed
 		if (submitResult.status === "complete") {
 			const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 			p.log.success(`Bundle ready (cached — ${duration}s)`);
@@ -257,11 +291,12 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 
 		const { jobId } = submitResult;
 		const localeList = apiConfig.targetLocales.join(", ");
-		process.stdout.write(`Translating ${stringEntries.length} strings → ${localeList}\n`);
+		process.stdout.write(
+			`Translating ${totalStrings} string${totalStrings === 1 ? "" : "s"} → ${localeList}\n`,
+		);
 
 		let interval = 1000;
-		let lastLine = "";
-		let finalStatus: TranslateStatusResponse | null = null;
+		let finalStatus: BatchTranslateStatusResponse | null = null;
 
 		while (true) {
 			await new Promise((resolve) =>
@@ -269,10 +304,11 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			);
 			const status = await api.pollTranslateStatus(jobId);
 
-			const line = formatProgress(status);
-			if (line !== lastLine) {
-				process.stdout.write(`\r${line}`);
-				lastLine = line;
+			// Show per-app progress
+			for (const app of status.apps) {
+				if (app.status === "running") {
+					process.stdout.write(`\r${formatAppProgress(app)}          `);
+				}
 			}
 
 			if (status.status === "complete" || status.status === "failed") {
@@ -284,7 +320,6 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			interval = Math.min(interval * 1.5, 5000);
 		}
 
-		// Loop only exits when finalStatus is set — unreachable but satisfies TypeScript
 		if (!finalStatus) {
 			p.log.error("Unexpected: no final status received");
 			return 1;
@@ -292,26 +327,47 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
-		if (finalStatus.status === "complete") {
-			process.stdout.write(`${formatLocaleResults(finalStatus.locales, elapsedSec)}\n`);
-			p.outro(chalk.green("✓ Bundle ready"));
-			return 0;
+		// Aggregate locale status across all apps for display
+		// (per-app breakdown shown as separate lines when multiple apps)
+		for (const app of finalStatus.apps) {
+			const appLabel = app.appDir || "(root)";
+			const providerEntries = Object.entries(app.providers);
+			const localeDisplay: Record<string, LocaleStatus> = {};
+			for (const [vendor, data] of providerEntries) {
+				localeDisplay[vendor] = data.status as LocaleStatus;
+			}
+			const appStatusLine =
+				app.status === "complete"
+					? chalk.green(`✓ ${appLabel}`)
+					: chalk.red(`✗ ${appLabel}`) + (app.error ? `: ${app.error}` : "");
+
+			if (finalStatus.apps.length > 1) {
+				process.stdout.write(`  ${appStatusLine}\n`);
+			}
 		}
 
-		process.stdout.write(`${formatLocaleResults(finalStatus.locales, elapsedSec)}\n`);
+		if (finalStatus.status === "complete") {
+			if (finalStatus.apps.length === 1) {
+				const singleApp = finalStatus.apps[0]!;
+				const locales: Record<string, LocaleStatus> = {};
+				for (const [vendor, data] of Object.entries(singleApp.providers)) {
+					locales[vendor] = data.status as LocaleStatus;
+				}
+				process.stdout.write(`${formatLocaleResults(locales, elapsedSec)}\n`);
+			}
+			p.outro(chalk.green(`✓ Bundle ready — ${elapsedSec}s`));
+			return 0;
+		}
 
 		if (computeExitCode("failed", onTranslationFailure) === 0) {
 			p.log.warn(
 				`Translation incomplete — proceeding (onTranslationFailure: ${onTranslationFailure})`,
 			);
-			if (finalStatus.error) {
-				p.log.info(finalStatus.error);
-			}
 			p.outro("");
 			return 0;
 		}
 
-		p.log.error(`Translation failed${finalStatus.error ? `: ${finalStatus.error}` : ""}`);
+		p.log.error("Translation failed");
 		p.outro("Build halted (onTranslationFailure: fail)");
 		return 1;
 	} catch (error) {
@@ -330,9 +386,9 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			p.log.error(error.message);
 			if (error.status === 401) {
 				p.log.warn(
-					"API key rejected — the app may have been deleted or the key revoked.",
+					"API key rejected — the project may have been deleted or the key revoked.",
 				);
-				p.log.info("  Run `npx @vocoder/cli init` to create a new app and key.");
+				p.log.info("  Run `npx @vocoder/cli init` to create a new project and key.");
 			}
 			return 1;
 		}

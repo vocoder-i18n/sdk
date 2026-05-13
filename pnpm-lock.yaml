@@ -54,6 +54,9 @@ importers:
       '@vocoder/config':
         specifier: workspace:*
         version: link:../config
+      '@vocoder/core':
+        specifier: workspace:*
+        version: link:../core
       '@vocoder/extractor':
         specifier: workspace:*
         version: link:../extractor

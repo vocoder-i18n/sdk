@@ -9,10 +9,10 @@ import {
 	removeLocales,
 } from "./commands/locales.js";
 import { logout } from "./commands/logout.js";
-import { appConfig } from "./commands/app-config.js";
+import { config } from "./commands/config.js";
 import { translate } from "./commands/translate.js";
-import { getTranslations } from "./commands/translations.js";
-import { createApp } from "./commands/create-app.js";
+import { pull } from "./commands/pull.js";
+import { createProject } from "./commands/create-project.js";
 import { regenerateKey } from "./commands/regenerate-key.js";
 import { whoami } from "./commands/whoami.js";
 
@@ -66,6 +66,10 @@ program
 	.option("--dry-run", "Extract strings and compute hash without submitting")
 	.option("--verbose", "Detailed output")
 	.option("--api-url <url>", "Override Vocoder API URL")
+	.option(
+		"--app-dirs <dirs>",
+		"Comma-separated app directories for monorepos (e.g. apps/web,apps/admin). Empty for single-app repos.",
+	)
 	.action((options) => runCommand(translate, options));
 
 program
@@ -111,25 +115,24 @@ localesCmd
 	.action((options) => runCommand(listSupportedLocales, options));
 
 program
-	.command("app")
-	.alias("project")
-	.description("Show current app configuration")
+	.command("config")
+	.description("Show current project configuration")
 	.option("--api-url <url>", "Override Vocoder API URL")
-	.action((options) => runCommand(appConfig, options));
+	.action((options) => runCommand(config, options));
 
 program
-	.command("translations")
+	.command("pull")
 	.description("Download the current translation snapshot")
 	.option("--branch <branch>", "Git branch (auto-detected if omitted)")
 	.option("--locale <locale>", "Fetch a specific locale only")
 	.option("--output <dir>", "Write locale JSON files to this directory")
 	.option("--api-url <url>", "Override Vocoder API URL")
-	.action((options) => runCommand(getTranslations, options));
+	.action((options) => runCommand(pull, options));
 
 program
-	.command("create-app")
-	.description("Create a new Vocoder app (requires prior `vocoder init`)")
-	.requiredOption("--name <name>", "App display name")
+	.command("create-project")
+	.description("Create a new Vocoder project without the interactive init flow (requires prior `vocoder init`)")
+	.requiredOption("--name <name>", "Project display name")
 	.requiredOption("--source-locale <code>", "Source language BCP 47 code (e.g. en)")
 	.requiredOption("--organization <org-id>", "Organization ID")
 	.option(
@@ -144,21 +147,9 @@ program
 		"--repo <canonical>",
 		"Git repo canonical (e.g. github:owner/repo). Auto-detected from git remote if omitted.",
 	)
-	.option(
-		"--app-dir <path>",
-		"App directory within the repo for monorepos (default: .)",
-	)
 	.option("--api-url <url>", "Override Vocoder API URL")
 	.action((options) => {
-		const translated = {
-			...options,
-			// Commander camelCases dashed options
-			sourceLocale: options.sourceLocale,
-			targetLocales: options.targetLocales,
-			targetBranches: options.targetBranches,
-			organization: options.organization,
-		};
-		return runCommand(createApp, translated);
+		return runCommand(createProject, options);
 	});
 
 program

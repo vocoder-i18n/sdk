@@ -2,20 +2,20 @@ import "dotenv/config";
 
 import { NO_API_KEY_MESSAGE, createClient } from "./client.js";
 import { dirname, join } from "node:path";
-import { runAddLocale, runRemoveLocale } from "./tools/locale.js";
-import { runInitComplete, runInitStart, runProjectCreate } from "./tools/project-init.js";
+import { runAddLocale, runRemoveLocale } from "./tools/locales.js";
+import { runInitComplete, runInitStart, runProjectCreate } from "./tools/create-project.js";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
-import { runGetTranslations } from "./tools/translations.js";
+import { runPull } from "./tools/pull.js";
 import { runImplementI18n } from "./tools/implement-i18n.js";
 import { runInitStatus } from "./tools/init-status.js";
 import { runRegenerateKey } from "./tools/regenerate-key.js";
 import { runSetup } from "./tools/setup.js";
-import { runStatus } from "./tools/status.js";
-import { runSync } from "./tools/sync.js";
+import { runConfig } from "./tools/config.js";
+import { runTranslate } from "./tools/translate.js";
 import { z } from "zod";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -32,7 +32,7 @@ Key principles:
 - Prefer <T> component for JSX content. Use t() for non-JSX strings (toast messages, aria-labels, window.title, etc.).
 - Plurals and selects belong in <T> props (one/other, _male/_female), not in JavaScript ternaries.
 - Wrap all visible UI strings. Skip: import paths, CSS classes, URLs, console.log, test files, technical HTML attributes.
-- After implementing, always run vocoder_sync to extract strings and submit for translation.
+- After implementing, always run vocoder_translate to extract strings and submit for translation.
 - If VOCODER_API_KEY is missing or invalid, tell the user to run \`npx @vocoder/cli init\` in their terminal to set up their project, then add VOCODER_API_KEY to their .env and run /mcp reset to reload.
 
 Reference resources (read when you need detail):
@@ -226,8 +226,8 @@ server.tool(
 	{},
 	async () => {
 		try {
-			const client = createClient();
-			const result = await runInitStatus(client);
+			const api = createClient();
+			const result = await runInitStatus(api);
 			return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
 		} catch (error) {
 			return {
@@ -269,7 +269,7 @@ server.tool(
 // vocoder_init_complete — poll for auth token after user completes the browser flow.
 server.tool(
 	"vocoder_init_complete",
-	"Poll for the authentication token after the user completes the browser flow from vocoder_init_start. Pass the sessionId returned by vocoder_init_start. Once authenticated, ask the user for sourceLocale, targetLocales, and targetBranches, then call vocoder_app_create.",
+	"Poll for the authentication token after the user completes the browser flow from vocoder_init_start. Pass the sessionId returned by vocoder_init_start. Once authenticated, ask the user for sourceLocale, targetLocales, and targetBranches, then call vocoder_create_project.",
 	{
 		sessionId: z.string().describe("sessionId returned by vocoder_init_start"),
 	},
@@ -290,10 +290,10 @@ server.tool(
 	},
 );
 
-// vocoder_app_create — create the Vocoder app and get the API key.
+// vocoder_create_project — create the Vocoder project and get the API key.
 server.tool(
-	"vocoder_app_create",
-	"Create a Vocoder app for this repo and return the API key. Requires a completed auth session from vocoder_init_complete. Returns apiKey, app config including appId(s), and step-by-step instructions. After calling this: append VOCODER_API_KEY to .env.local at the repo root, write .github/workflows/vocoder-translate.yml (template branches from targetBranches), add VOCODER_API_KEY as a GitHub repository secret (Settings → Secrets and variables → Actions), commit the workflow file, then call vocoder_implement_i18n to scaffold the SDK.",
+	"vocoder_create_project",
+	"Create a Vocoder project for this repo and return the API key. Requires a completed auth session from vocoder_init_complete. Returns apiKey and step-by-step instructions. After calling this: append VOCODER_API_KEY to .env.local at the repo root, write .github/workflows/vocoder-translate.yml (template branches from targetBranches), add VOCODER_API_KEY as a GitHub repository secret (Settings → Secrets and variables → Actions), commit the workflow file, then call vocoder_implement_i18n to scaffold the SDK.",
 	{
 		sessionId: z.string().describe("sessionId from vocoder_init_start"),
 		sourceLocale: z.string().describe('Source language code, e.g. "en"'),
@@ -399,24 +399,24 @@ server.tool(
 	},
 );
 
-// vocoder_status — show app config and health.
+// vocoder_config — show project configuration.
 server.tool(
-	"vocoder_status",
-	"Get the current Vocoder app status: app name, source locale, target locales, target branches, and sync policy.",
+	"vocoder_config",
+	"Get the current Vocoder project configuration: project name, workspace, source locale, target locales, target branches, and sync policy.",
 	{},
 	async () => {
-		const client = createClient();
-		if (!client)
+		const api = createClient();
+		if (!api)
 			return { content: [{ type: "text", text: NO_API_KEY_MESSAGE }] };
 		try {
-			const text = await runStatus(client);
+			const text = await runConfig(api);
 			return { content: [{ type: "text", text }] };
 		} catch (error) {
 			return {
 				content: [
 					{
 						type: "text",
-						text: `Status check failed: ${error instanceof Error ? error.message : String(error)}`,
+						text: `Config fetch failed: ${error instanceof Error ? error.message : String(error)}`,
 					},
 				],
 			};
@@ -424,9 +424,9 @@ server.tool(
 	},
 );
 
-// vocoder_sync — extract strings and submit for translation.
+// vocoder_translate — extract strings and submit for translation.
 server.tool(
-	"vocoder_sync",
+	"vocoder_translate",
 	"Extract all translatable strings from the current app and submit them to Vocoder for translation. Polls until translations are ready (up to 60 seconds).",
 	{
 		branch: z
@@ -439,18 +439,18 @@ server.tool(
 			.describe("Force re-translation even if strings are unchanged"),
 	},
 	async ({ branch, force }) => {
-		const client = createClient();
-		if (!client)
+		const api = createClient();
+		if (!api)
 			return { content: [{ type: "text", text: NO_API_KEY_MESSAGE }] };
 		try {
-			const text = await runSync({ branch, force }, client);
+			const text = await runTranslate({ branch, force }, api);
 			return { content: [{ type: "text", text }] };
 		} catch (error) {
 			return {
 				content: [
 					{
 						type: "text",
-						text: `Sync failed: ${error instanceof Error ? error.message : String(error)}`,
+						text: `Translation failed: ${error instanceof Error ? error.message : String(error)}`,
 					},
 				],
 			};
@@ -458,10 +458,10 @@ server.tool(
 	},
 );
 
-// vocoder_get_translations — fetch the current translation snapshot.
+// vocoder_pull — download the current translation snapshot for inspection or debugging.
 server.tool(
-	"vocoder_get_translations",
-	"Fetch the current translation snapshot for a branch. Returns a JSON map of { locale: { sourceText: translatedText } }.",
+	"vocoder_pull",
+	"Download the current translation snapshot for a branch. Returns a JSON map of { locale: { sourceText: translatedText } }. Use for inspection and debugging — the build plugin fetches bundles automatically at build time.",
 	{
 		branch: z
 			.string()
@@ -475,18 +475,18 @@ server.tool(
 			),
 	},
 	async ({ branch, locale }) => {
-		const client = createClient();
-		if (!client)
+		const api = createClient();
+		if (!api)
 			return { content: [{ type: "text", text: NO_API_KEY_MESSAGE }] };
 		try {
-			const text = await runGetTranslations({ branch, locale }, client);
+			const text = await runPull({ branch, locale }, api);
 			return { content: [{ type: "text", text }] };
 		} catch (error) {
 			return {
 				content: [
 					{
 						type: "text",
-						text: `Failed to fetch translations: ${error instanceof Error ? error.message : String(error)}`,
+						text: `Pull failed: ${error instanceof Error ? error.message : String(error)}`,
 					},
 				],
 			};
@@ -500,12 +500,12 @@ server.tool(
 	"List all locales supported by Vocoder. Returns BCP 47 codes with display names. Call this before vocoder_add_locale to find the correct code for a language.",
 	{},
 	async () => {
-		const client = createClient();
-		if (!client)
-			return { content: [{ type: "text", text: NO_API_KEY_MESSAGE }] };
+		const apiKey = process.env.VOCODER_API_KEY;
+		if (!apiKey) return { content: [{ type: "text", text: NO_API_KEY_MESSAGE }] };
+		const api = createClient()!;
 		try {
-			const { locales } = await client.listLocales();
-			const lines = locales.map((l) =>
+			const result = await api.listLocales(apiKey);
+			const lines = result.targetLocales.map((l) =>
 				l.nativeName && l.nativeName !== l.name
 					? `${l.code} — ${l.name} (${l.nativeName})`
 					: `${l.code} — ${l.name}`,
@@ -534,11 +534,11 @@ server.tool(
 			.describe('BCP 47 locale code to add, e.g. "fr" or "pt-BR"'),
 	},
 	async ({ locale }) => {
-		const client = createClient();
-		if (!client)
+		const api = createClient();
+		if (!api)
 			return { content: [{ type: "text", text: NO_API_KEY_MESSAGE }] };
 		try {
-			const text = await runAddLocale(locale, client);
+			const text = await runAddLocale(locale, api);
 			return { content: [{ type: "text", text }] };
 		} catch (error) {
 			return {
@@ -556,18 +556,18 @@ server.tool(
 // vocoder_remove_locale — remove a target language from the app.
 server.tool(
 	"vocoder_remove_locale",
-	'Remove a target locale from the Vocoder app. Pass the BCP 47 code of a currently-configured target locale (e.g. "fr", "de"). Use vocoder_status to see the current target locales before calling.',
+	'Remove a target locale from the Vocoder app. Pass the BCP 47 code of a currently-configured target locale (e.g. "fr", "de"). Use vocoder_config to see the current target locales before calling.',
 	{
 		locale: z
 			.string()
 			.describe('BCP 47 locale code to remove, e.g. "fr" or "pt-BR"'),
 	},
 	async ({ locale }) => {
-		const client = createClient();
-		if (!client)
+		const api = createClient();
+		if (!api)
 			return { content: [{ type: "text", text: NO_API_KEY_MESSAGE }] };
 		try {
-			const text = await runRemoveLocale(locale, client);
+			const text = await runRemoveLocale(locale, api);
 			return { content: [{ type: "text", text }] };
 		} catch (error) {
 			return {

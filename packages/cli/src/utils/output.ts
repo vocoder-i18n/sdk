@@ -11,7 +11,8 @@ import * as p from "@clack/prompts";
 import chalk from "chalk";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
+import { buildEnvCandidates } from "./load-env.js";
 
 /**
  * Tries to copy text to the system clipboard using common CLI tools.
@@ -65,21 +66,17 @@ export function printCodeBlock(code: string): void {
 }
 
 /**
- * Writes VOCODER_API_KEY to an env file at repoRoot (or cwd).
- * Prefers .env.local (secrets shouldn't be committed). Falls back to .env if it
- * exists. Creates .env.local if neither file exists.
+ * Writes VOCODER_API_KEY to an env file, using the same cascade as loadEnvFiles.
+ * Picks the highest-priority existing file; creates .env.local if none exist.
  * Updates an existing entry in-place; appends if absent.
- * Returns the filename written to, or null on failure.
+ * Returns the path relative to cwd written to, or null on failure.
  */
-export function writeApiKeyToEnv(apiKey: string, repoRoot?: string): string | null {
-	const base = repoRoot ?? process.cwd();
-	const localPath = join(base, ".env.local");
-	const envPath = join(base, ".env");
+export function writeApiKeyToEnv(apiKey: string, cwd?: string): string | null {
+	const base = cwd ?? process.cwd();
+	const candidates = buildEnvCandidates(base);
 
-	// Pick target: prefer .env.local; fall back to .env; create .env.local if neither exists
-	const targetPath = existsSync(localPath) ? localPath
-		: existsSync(envPath) ? envPath
-		: localPath;
+	// Highest-priority existing file (last in ascending list), or create .env.local
+	const targetPath = [...candidates].reverse().find(existsSync) ?? join(base, ".env.local");
 
 	try {
 		const content = existsSync(targetPath) ? readFileSync(targetPath, "utf-8") : "";
@@ -94,7 +91,7 @@ export function writeApiKeyToEnv(apiKey: string, repoRoot?: string): string | nu
 		}
 
 		writeFileSync(targetPath, updated);
-		return targetPath.endsWith(".env.local") ? ".env.local" : ".env";
+		return relative(base, targetPath) || ".env.local";
 	} catch {
 		return null;
 	}

@@ -51,7 +51,6 @@ export interface ProjectCreateResult {
 	targetBranches: string[];
 	repositoryBound: boolean;
 	configureUrl?: string;
-	apps: Array<{ appDir: string; appId: string }>;
 	instructions: string;
 }
 
@@ -63,7 +62,7 @@ interface PendingSession {
 	mode: "existing" | "new";
 	// Set when a valid stored auth token was found — skips browser polling entirely
 	storedToken?: string;
-	// Populated after vocoder_init_complete — used by vocoder_project_create
+	// Populated after vocoder_init_complete — used by vocoder_create_project
 	resolvedToken?: string;
 	// organizationId returned by the auth callback — workspace already known, skip lookup
 	pollOrganizationId?: string;
@@ -153,7 +152,7 @@ export async function runInitStart(
 }
 
 // Polls for the auth token and writes auth.json. No workspace resolution — that
-// happens in vocoder_project_create so re-runs don't hit "already claimed" errors.
+// happens in vocoder_create_project so re-runs don't hit "already claimed" errors.
 export async function runInitComplete(
 	input: InitCompleteInput,
 ): Promise<InitCompleteResult> {
@@ -232,7 +231,7 @@ export async function runInitComplete(
 	return {
 		authenticated: true,
 		email: userEmail,
-		instructions: `Authenticated. Now ask the user for: sourceLocale (e.g. "en"), targetLocales (e.g. ["es", "fr"]), targetBranches (e.g. ["main"]), and optional projectName. Then call vocoder_project_create.`,
+		instructions: `Authenticated. Now ask the user for: sourceLocale (e.g. "en"), targetLocales (e.g. ["es", "fr"]), targetBranches (e.g. ["main"]), and optional projectName. Then call vocoder_create_project.`,
 	};
 }
 
@@ -249,8 +248,7 @@ export async function runProjectCreate(
 	const api = new VocoderAPI({ apiUrl: session.apiUrl, apiKey: "" });
 	const userToken = session.resolvedToken;
 
-	// Resolve organization — happens here (not in init_complete) so re-runs never hit
-	// "already claimed" errors from claimCliGitHubInstallation.
+	// Resolve organization — happens here (not in init_complete) so re-runs are safe.
 	const organizationId = await resolveOrganization(api, userToken, session);
 
 	const projectName =
@@ -266,7 +264,6 @@ export async function runProjectCreate(
 			sourceLocale: input.sourceLocale,
 			targetLocales: input.targetLocales,
 			targetBranches: input.targetBranches,
-			appDirs: session.repoAppDir ? [session.repoAppDir] : [],
 			repoCanonical: session.repoCanonical,
 		});
 	} catch (err) {
@@ -277,37 +274,16 @@ export async function runProjectCreate(
 
 	pendingSessions.delete(input.sessionId);
 
-	const apps: Array<{ appDir: string; appId: string }> =
-		(projectResult as typeof projectResult & { apps?: Array<{ appDir: string; appId: string }> }).apps ?? [];
-
-	const configLines = apps.length > 0
-		? apps.map((app) =>
-				[
-					`import { defineConfig } from '@vocoder/config';`,
-					``,
-					`export default defineConfig({`,
-					`  appId: '${app.appId}',`,
-					`  localesPath: 'src/locales',`,
-					`  targetBranches: [${input.targetBranches.map((b) => `'${b}'`).join(", ")}],`,
-					`});`,
-				].join("\n"),
-			)
-		: [];
-
-	const step2 =
-		configLines.length > 0
-			? `\n\n2. Write vocoder.config.ts${apps.length > 1 ? " per app directory" : ""}:\n${configLines.map((c, i) => (apps[i]?.appDir ? `   # ${apps[i]!.appDir}\n${c}` : c)).join("\n\n")}`
-			: "";
-
 	const repoWarning = !projectResult.repositoryBound && session.repoCanonical
 		? `\n\nNote: Repository auto-bind did not complete — the repo will bind automatically on the first translate run.`
 		: "";
 
+	const branches = input.targetBranches.map((b) => `'${b}'`).join(", ");
 	const workflowYaml = [
 		`name: Vocoder Translate`,
 		`on:`,
 		`  push:`,
-		`    branches: [${input.targetBranches.join(", ")}]`,
+		`    branches: [${branches}]`,
 		`jobs:`,
 		`  translate:`,
 		`    runs-on: ubuntu-latest`,
@@ -316,36 +292,35 @@ export async function runProjectCreate(
 		`      - uses: vocoder-i18n/translate-action@v1`,
 		`        with:`,
 		`          api-key: \${{ secrets.VOCODER_API_KEY }}`,
-		`          repo-canonical: github/\${{ github.repository }}`,
+		`          # app-dirs: apps/web,apps/admin  # uncomment for monorepos`,
 	].join("\n");
 
 	return {
 		...projectResult,
-		apps,
 		instructions: [
-			`App "${projectResult.projectName}" created. Next steps:`,
+			`Project "${projectResult.projectName}" created. Next steps:`,
 			``,
 			`1. Write to .env at the project root:`,
 			`   VOCODER_API_KEY=${projectResult.apiKey}`,
-			step2,
 			``,
-			`3. Write .github/workflows/vocoder.yml — create directories if needed:`,
+			`2. Write .github/workflows/vocoder.yml — create directories if needed:`,
 			``,
 			workflowYaml,
 			``,
-			`   If the file already exists, do NOT overwrite it — note that the user should review it.`,
+			`   If the file already exists, do NOT overwrite it — tell the user to review it.`,
+			`   For monorepos, uncomment app-dirs and list comma-separated app directories.`,
 			``,
-			`4. Tell the user to add VOCODER_API_KEY as a GitHub repository secret:`,
+			`3. Tell the user to add VOCODER_API_KEY as a GitHub repository secret:`,
 			`   GitHub repo → Settings → Secrets and variables → Actions → New repository secret`,
 			`   Name:  VOCODER_API_KEY`,
 			`   Value: ${projectResult.apiKey}`,
 			``,
-			`5. Tell the user to commit the workflow file:`,
+			`4. Tell the user to commit the workflow file:`,
 			`   git add .github/workflows/vocoder.yml && git commit -m "Add Vocoder translate workflow"`,
 			``,
-			`6. Call vocoder_implement_i18n to install packages, set up VocoderProvider, and get the list of files to wrap strings in.`,
+			`5. Call vocoder_implement_i18n to install packages, set up VocoderProvider, and get the list of files to wrap strings in.`,
 			``,
-			`7. Tell the user: add VOCODER_API_KEY=${projectResult.apiKey} to their MCP server environment config and restart their editor.`,
+			`6. Tell the user: add VOCODER_API_KEY=${projectResult.apiKey} to their MCP server environment config and restart their editor.`,
 			repoWarning,
 		]
 			.join("\n")

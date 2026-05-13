@@ -2,7 +2,7 @@
 
 Babel AST string extractor for Vocoder — extracts `<T>` components and `t()` calls from source files.
 
-This package is bundled into `@vocoder/cli` and `@vocoder/plugin` — most users interact with it via `vocoder sync` and never need to install it directly.
+This package is bundled into `@vocoder/cli` and `@vocoder/plugin` — most users interact with it via `vocoder translate` and never need to install it directly.
 
 ---
 
@@ -25,7 +25,7 @@ Install directly only when building custom tooling: webhook pipelines, CI script
 - Custom build systems that cannot use the Vite/Next.js/Webpack plugin
 - Tools that need the raw `ExtractedString[]` array before it reaches the Vocoder API
 
-For all other cases, `vocoder sync` (from `@vocoder/cli`) runs extraction automatically.
+For all other cases, `vocoder translate` (from `@vocoder/cli`) runs extraction automatically.
 
 ---
 
@@ -60,7 +60,7 @@ const strings = extractFromContent("src/components/Button.tsx", sourceCode);
 | `file`      | `string`                                          | The `filename` argument passed in.                                          |
 | `line`      | `number`                                          | Line number of the component or call in the source file.                    |
 | `context`   | `string \| undefined`                             | Translation context from the `context` prop or option.                      |
-| `formality` | `"formal" \| "informal" \| "neutral" \| "auto" \| undefined` | Formality hint for the translation engine.              |
+| `formality` | `"formal" \| "informal" \| "auto" \| undefined` | Formality hint for the translation engine.              |
 | `uiRole`    | `string \| undefined`                             | Detected UI role (e.g. `"button_label"`, `"heading"`, `"input_placeholder"`). Omitted when role cannot be determined. |
 
 **Bail cases — strings that are skipped**
@@ -263,4 +263,4 @@ t("Save changes");
 
 ## Note
 
-This package is bundled into `@vocoder/cli` and `@vocoder/plugin` — most users interact with it via `vocoder sync`. Install `@vocoder/extractor` directly only when you need programmatic access to extraction outside those tools.
+This package is bundled into `@vocoder/cli` and `@vocoder/plugin` — most users interact with it via `vocoder translate`. Install `@vocoder/extractor` directly only when you need programmatic access to extraction outside those tools.

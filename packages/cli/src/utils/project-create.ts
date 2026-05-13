@@ -2,21 +2,13 @@ import * as p from "@clack/prompts";
 import chalk from "chalk";
 import type { VocoderAPI } from "./api.js";
 import { promptTextInput } from "./prompt-text.js";
-import { collectAppDirs, promptSingleAppDir } from "./app-dir-select.js";
+import { collectAppDirs } from "./app-dir-select.js";
 import { detectGitBranches, filterableBranchSelect } from "./branch-select.js";
 import type { LocaleOption } from "./locale-search.js";
 import {
 	searchMultiSelectLocales,
 	searchSelectLocale,
 } from "./locale-search.js";
-
-export interface ExistingApp {
-	appDir: string;
-	appId: string;
-	projectId: string;
-	projectName: string;
-	organizationName: string;
-}
 
 export interface ProjectCreateParams {
 	api: VocoderAPI;
@@ -40,27 +32,6 @@ export interface ProjectCreateParams {
 	maxAppDirs?: number;
 }
 
-export interface AppCreateParams {
-	api: VocoderAPI;
-	userToken: string;
-	projectId: string;
-	projectName: string;
-	organizationName: string;
-	repoCanonical?: string;
-	/** Existing apps to display and validate against */
-	existingApps: ExistingApp[];
-}
-
-export interface AppCreateResult {
-	projectId: string;
-	projectName: string;
-	appDir: string;
-	appId: string;
-	sourceLocale: string;
-	targetLocales: string[];
-	targetBranches: string[];
-}
-
 export interface ProjectCreateResult {
 	projectId: string;
 	projectName: string;
@@ -71,8 +42,8 @@ export interface ProjectCreateResult {
 	targetBranches: string[];
 	repositoryBound: boolean;
 	configureUrl?: string;
-	/** One entry per created app, each with its own appId for vocoder.config.ts. */
-	apps: Array<{ appDir: string; appId: string }>;
+	/** App directories collected during setup — used for GitHub Actions workflow generation only. */
+	appDirs: string[];
 }
 
 function buildLocaleOptions(
@@ -198,6 +169,9 @@ export async function runProjectCreate(
 	const targetBranches = pushBranches;
 
 	// ── Create project ──────────────────────────────────────────────────────────
+	// Apps are NOT created here — they are created lazily by the GitHub Action
+	// when it first runs with the app-dirs input. appDirs collected above are
+	// only used for generating the workflow YAML with the correct app-dirs input.
 	// Errors (including plan limit errors) propagate to the caller so it can
 	// decide whether to show an upgrade link or a generic error message.
 	const result = await api.createProject(userToken, {
@@ -206,7 +180,6 @@ export async function runProjectCreate(
 		sourceLocale,
 		targetLocales,
 		targetBranches,
-		appDirs,
 		repoCanonical,
 	});
 
@@ -220,121 +193,7 @@ export async function runProjectCreate(
 		targetBranches,
 		repositoryBound: result.repositoryBound,
 		configureUrl: result.configureUrl,
-		apps: result.apps,
+		appDirs,
 	};
 }
 
-/**
- * Configure and create a new App under an existing project.
- * Used when the repo already has a project (monorepo: adding a new app directory).
- * No plan limit check runs — only a new App is created, not a new Project.
- */
-export async function runAppCreate(
-	params: AppCreateParams,
-): Promise<AppCreateResult | null> {
-	const { api, userToken, projectId, projectName, repoCanonical } = params;
-	const existingDirs = params.existingApps.map((a) => a.appDir);
-
-	// ── App directory ───────────────────────────────────────────────────────────
-	const appDir = await promptSingleAppDir({ existingDirs });
-	if (appDir === null) return null;
-	if (appDir) {
-		p.log.success(`App directory: ${chalk.bold(appDir)}`);
-	}
-
-	// ── Fetch source locales ────────────────────────────────────────────────────
-	let sourceLocales: Array<{ code: string; name: string; nativeName?: string }>;
-	try {
-		({ sourceLocales } = await api.listLocales(userToken));
-	} catch {
-		p.log.error(
-			"Failed to fetch supported locales. Check your connection and try again.",
-		);
-		return null;
-	}
-
-	const languageOptions = buildLocaleOptions(sourceLocales);
-
-	// ── Source locale ───────────────────────────────────────────────────────────
-	const sourceLocale = await searchSelectLocale(
-		languageOptions,
-		"Source language",
-		"en",
-	);
-	if (sourceLocale === null) return null;
-
-	// ── Compatible target locales (fetched after source is known) ───────────────
-	let compatibleTargets: Array<{ code: string; name: string; nativeName?: string }>;
-	try {
-		compatibleTargets = await api.listCompatibleLocales(userToken, sourceLocale);
-	} catch {
-		p.log.error(
-			"Failed to fetch compatible target locales. Check your connection and try again.",
-		);
-		return null;
-	}
-
-	// ── Target locales ──────────────────────────────────────────────────────────
-	const targetOptions = buildLocaleOptions(compatibleTargets).filter(
-		(opt) => opt.bcp47 !== sourceLocale,
-	);
-	const targetLocales = await searchMultiSelectLocales(
-		targetOptions,
-		"Target languages",
-	);
-	if (targetLocales === null) return null;
-	if (targetLocales.length === 0) {
-		p.log.warn(
-			"No target languages selected — you can add them later from the dashboard.",
-		);
-	}
-
-	// ── Branch triggers ─────────────────────────────────────────────────────────
-	const detectedApp = detectGitBranches();
-
-	let appPushBranches: string[] = [];
-	{
-		let initial = [detectedApp.defaultBranch];
-		while (appPushBranches.length === 0) {
-			const result = await filterableBranchSelect({
-				message: "Which branches should trigger translations?",
-				branches: detectedApp.branches,
-				defaultBranch: detectedApp.defaultBranch,
-				initialValues: initial,
-			});
-			if (result === null) return null;
-			if (result.length === 0) {
-				p.log.warn("At least one branch is required.");
-				initial = [detectedApp.defaultBranch];
-			} else {
-				appPushBranches = result;
-			}
-		}
-	}
-
-	const targetBranches = appPushBranches;
-
-	// ── Create the App ─────────────────────────────────────────────────────────
-	// Errors propagate to the caller for consistent plan-limit / error handling.
-	const result = await api.createApp(userToken, {
-		projectId,
-		appDir,
-		sourceLocale,
-		targetLocales,
-		targetBranches,
-		repoCanonical: repoCanonical ?? "",
-	});
-
-	p.log.success(
-		`App ${chalk.bold(appDir || "(root)")} added to ${chalk.bold(projectName)}!`,
-	);
-	return {
-		projectId: result.projectId,
-		projectName: result.projectName,
-		appDir: result.appDir,
-		appId: result.appId,
-		sourceLocale,
-		targetLocales,
-		targetBranches,
-	};
-}

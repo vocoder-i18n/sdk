@@ -132,7 +132,7 @@ function resolveProviderFile(
 			return {
 				file: found ?? "app/layout.tsx",
 				ssrNote:
-					"Next.js App Router: layout.tsx is a Server Component — it reads the vocoder_locale and vocoder_preview cookies and passes initialLocale and preview props to VocoderProvider. Also import getLocaleDir from '@vocoder/react/server' and config from 'virtual:vocoder/manifest' to set lang and dir on <html> server-side for correct RTL on first paint. See fullCode for the complete pattern.",
+					"Next.js App Router: layout.tsx is a Server Component — it reads the vocoder_locale and vocoder_preview cookies and passes initialLocale and preview props to VocoderProvider. Import getLocaleDir from '@vocoder/react/server' and getConfig/getLocales from '@vocoder/react' to set lang and dir on <html> server-side for correct RTL on first paint. See fullCode for the complete pattern.",
 			};
 		}
 		const pagesCandidates = [
@@ -167,9 +167,8 @@ function resolveProviderFile(
 
 function buildNextAppRouterLayoutCode(): string {
 	return `import { cookies } from 'next/headers';
-import { config } from 'virtual:vocoder/manifest';
+import { getConfig, getLocales, VocoderProvider } from '@vocoder/react';
 import { getLocaleDir } from '@vocoder/react/server';
-import { VocoderProvider } from '@vocoder/react';
 
 export default async function RootLayout({
   children,
@@ -179,8 +178,9 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const initialLocale = cookieStore.get('vocoder_locale')?.value;
   const preview = cookieStore.get('vocoder_preview')?.value === 'true';
-  const locale = initialLocale ?? config.sourceLocale;
-  const dir = getLocaleDir(locale, config.locales);
+  const { sourceLocale } = getConfig();
+  const locale = initialLocale ?? sourceLocale;
+  const dir = getLocaleDir(locale, getLocales());
 
   return (
     <html lang={locale} dir={dir}>
@@ -264,7 +264,7 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 				"Create app/layout.tsx using the fullCode — it reads vocoder_locale and vocoder_preview cookies and passes initialLocale and preview to VocoderProvider. Also sets lang and dir on <html> using getLocaleDir for correct RTL server-side rendering.";
 		} else {
 			wrapInstruction =
-				`In ${providerFile}, read the vocoder_locale and vocoder_preview cookies with \`(await cookies()).get('vocoder_locale')?.value\`, then pass initialLocale and preview props to VocoderProvider. Import getLocaleDir from '@vocoder/react/server' and config from 'virtual:vocoder/manifest' to set lang and dir on <html>. See vocoder://docs/framework-setup for the complete pattern.`;
+				`In ${providerFile}, read the vocoder_locale and vocoder_preview cookies with \`(await cookies()).get('vocoder_locale')?.value\`, then pass initialLocale and preview props to VocoderProvider. Import getLocaleDir from '@vocoder/react/server' and getConfig/getLocales from '@vocoder/react' to set lang and dir on <html>. See vocoder://docs/framework-setup for the complete pattern.`;
 		}
 	} else if (providerFileExists) {
 		wrapInstruction = `In ${providerFile}, wrap your root children with <VocoderProvider>. Import from '@vocoder/react'.`;

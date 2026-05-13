@@ -5,7 +5,7 @@ export interface ExtractedString {
 	file: string;
 	line: number;
 	context?: string;
-	formality?: "formal" | "informal" | "neutral" | "auto";
+	formality?: "formal" | "informal" | "auto";
 	/** Detected UI role from JSX parent element or prop. e.g. "button_label", "heading", "input_placeholder" */
 	uiRole?: string;
 }

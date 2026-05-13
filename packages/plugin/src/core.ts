@@ -1,37 +1,55 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { StringExtractor, computeFingerprint, loadVocoderConfig } from "@vocoder/extractor";
 import type { VocoderTranslationData } from "./types";
 
 export { computeFingerprint } from "@vocoder/extractor";
+export { extractProjectShortIdFromApiKey } from "@vocoder/core";
 
 /**
- * Load .env file into process.env if not already loaded.
- * Build plugins run before the bundler's own .env loading,
- * so we need to handle it ourselves.
+ * Load .env files into process.env following the standard cascade used by Vite and Next.js.
+ * Build plugins run before the bundler's own .env loading, so we replicate it ourselves.
+ *
+ * Priority (lowest → highest): .env < .env.[mode] < .env.local < .env.[mode].local
+ * Actual process.env values (CI, shell exports) always win — never overwritten.
  */
 export function loadEnvFile(): void {
-	const envPath = resolve(process.cwd(), ".env");
-	if (!existsSync(envPath)) return;
+	const mode = process.env.NODE_ENV === "production" ? "production" : "development";
+	const candidates = [
+		".env",
+		`.env.${mode}`,
+		".env.local",
+		`.env.${mode}.local`,
+	];
 
-	try {
-		const content = readFileSync(envPath, "utf-8");
-		for (const line of content.split("\n")) {
-			const trimmed = line.trim();
-			if (!trimmed || trimmed.startsWith("#")) continue;
-			const eqIndex = trimmed.indexOf("=");
-			if (eqIndex === -1) continue;
-			const key = trimmed.slice(0, eqIndex).trim();
-			const value = trimmed
-				.slice(eqIndex + 1)
-				.trim()
-				.replace(/^["']|["']$/g, "");
-			if (!(key in process.env)) {
-				process.env[key] = value;
+	const merged: Record<string, string> = {};
+	for (const candidate of candidates) {
+		const envPath = resolve(process.cwd(), candidate);
+		if (!existsSync(envPath)) continue;
+		try {
+			const content = readFileSync(envPath, "utf-8");
+			for (const line of content.split("\n")) {
+				const trimmed = line.trim();
+				if (!trimmed || trimmed.startsWith("#")) continue;
+				const eqIndex = trimmed.indexOf("=");
+				if (eqIndex === -1) continue;
+				const key = trimmed.slice(0, eqIndex).trim();
+				const value = trimmed
+					.slice(eqIndex + 1)
+					.trim()
+					.replace(/^["']|["']$/g, "");
+				merged[key] = value;
 			}
+		} catch {
+			// Non-fatal
 		}
-	} catch {
-		// Non-fatal
+	}
+
+	for (const [key, value] of Object.entries(merged)) {
+		if (!(key in process.env)) {
+			process.env[key] = value;
+		}
 	}
 }
 
@@ -50,11 +68,33 @@ const DEFAULT_INCLUDE = ["**/*.{tsx,jsx,ts,js}"];
  * Falls back to the default glob if no config file exists.
  */
 /**
- * Extract deduplicated source keys for fingerprinting.
- * Returns keys (not source texts) so that two strings with the same text but
- * different formality or context each count as distinct fingerprint inputs.
+ * Detect the app directory relative to the git root.
+ * Returns "" when cwd equals the git root (single-app repos).
+ * Matches server formula used in computeBundleFingerprint.
  */
-export async function extractSourceKeys(cwd: string): Promise<string[]> {
+export function detectAppDir(cwd: string): string {
+	const gitDir = findGitDir(cwd);
+	if (!gitDir) return "";
+	const gitRoot = dirname(gitDir);
+	const rel = relative(gitRoot, cwd).replace(/\\/g, "/").trim();
+	return rel && rel !== "." && !rel.startsWith("..") ? rel : "";
+}
+
+export type SourceEntry = {
+	key: string;
+	text: string | null;
+	context?: string;
+	formality?: string;
+};
+
+/**
+ * Extract source strings and return both deduplicated keys (for fingerprinting)
+ * and full entries (for translate job submission in dev mode).
+ */
+export async function extractSourceData(cwd: string): Promise<{
+	keys: string[];
+	entries: SourceEntry[];
+}> {
 	const config = loadVocoderConfig(cwd);
 	const include = config?.include ?? DEFAULT_INCLUDE;
 	const exclude = config?.exclude;
@@ -62,26 +102,139 @@ export async function extractSourceKeys(cwd: string): Promise<string[]> {
 	const extractor = new StringExtractor();
 	const results = await extractor.extractFromProject(include, cwd, exclude);
 
-	return [...new Set(results.map((r) => r.key))];
+	const byKey = new Map<string, SourceEntry>();
+	for (const r of results) {
+		if (!byKey.has(r.key)) {
+			byKey.set(r.key, {
+				key: r.key,
+				text: r.text,
+				...(r.context ? { context: r.context } : {}),
+				...(r.formality ? { formality: r.formality } : {}),
+			});
+		}
+	}
+
+	const entries = Array.from(byKey.values());
+	return { keys: entries.map((e) => e.key), entries };
+}
+
+/**
+ * Extract deduplicated source keys for fingerprinting.
+ */
+export async function extractSourceKeys(cwd: string): Promise<string[]> {
+	const { keys } = await extractSourceData(cwd);
+	return keys;
 }
 
 
 const CDN_POLL_INTERVAL_MS = 3000;
 const CDN_POLL_MAX_WAIT_MS = 30_000;
 
+function computeStringsHash(keys: string[]): string {
+	const sorted = [...keys].sort();
+	return createHash("sha256")
+		.update(JSON.stringify({ strings: sorted, industry: null }))
+		.digest("hex");
+}
+
 /**
- * Called when no translations exist for the current fingerprint at dev-server startup.
- * In the GitHub Action model, translations are submitted before the build runs —
- * this path means the translate workflow has not run yet for this fingerprint.
+ * Trigger a translate job from dev-server startup when no bundle exists yet.
+ * Submits strings to POST /api/translate, polls for completion, then returns
+ * the bundle. Returns null on any failure so the build proceeds with source text.
  */
 export async function triggerOnDemandSync(params: {
 	fingerprint: string;
 	branch: string;
+	appDir: string;
 	apiUrl: string;
 	apiKey: string;
 	cdnUrl: string;
+	sourceEntries: SourceEntry[];
 }): Promise<VocoderTranslationData | null> {
-	console.log(`[vocoder] No translations found for fingerprint ${params.fingerprint} — run the Vocoder translate workflow to generate them`);
+	const { fingerprint, branch, appDir, apiUrl, apiKey, cdnUrl, sourceEntries } = params;
+
+	const strings = sourceEntries
+		.filter((e): e is SourceEntry & { text: string } => e.text != null && e.text.length > 0)
+		.map((e) => ({
+			key: e.key,
+			text: e.text,
+			...(e.context ? { context: e.context } : {}),
+			...(e.formality ? { formality: e.formality } : {}),
+		}));
+
+	if (strings.length === 0) return null;
+
+	const stringsHash = computeStringsHash(sourceEntries.map((e) => e.key));
+	const repoIdentity = detectRepoIdentity();
+
+	console.log(`[vocoder] No bundle for ${fingerprint} — submitting translate job (dev mode)`);
+
+	let jobId: string;
+	try {
+		const response = await fetch(`${apiUrl}/api/translate`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${apiKey}`,
+			},
+			body: JSON.stringify({
+				apps: [{ appDir, strings, stringsHash }],
+				branch,
+				repoUrl: repoIdentity?.repoCanonical ?? "",
+				clientRunId: Math.random().toString(36).slice(2),
+			}),
+			signal: AbortSignal.timeout(15_000),
+		});
+
+		if (!response.ok) {
+			console.warn(`[vocoder] Translate job submission failed (${response.status})`);
+			return null;
+		}
+
+		const result = (await response.json()) as { jobId: string; status?: string };
+
+		// Already complete (cached fingerprint)
+		if (result.status === "complete") {
+			return await pollCDNForTranslations(fingerprint, cdnUrl) ?? fetchTranslations(fingerprint, apiUrl);
+		}
+
+		jobId = result.jobId;
+		console.log(`[vocoder] Translate job ${jobId} accepted — waiting for completion…`);
+	} catch (err) {
+		console.warn(`[vocoder] Could not submit translate job: ${err instanceof Error ? err.message : err}`);
+		return null;
+	}
+
+	const deadline = Date.now() + 120_000;
+	let interval = 2_000;
+
+	while (Date.now() < deadline) {
+		await new Promise((r) => setTimeout(r, interval));
+		interval = Math.min(interval * 1.5, 8_000);
+
+		try {
+			const statusRes = await fetch(
+				`${apiUrl}/api/translate/${encodeURIComponent(jobId)}/status`,
+				{ headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(10_000) },
+			);
+			if (!statusRes.ok) continue;
+
+			const status = (await statusRes.json()) as { status: string };
+
+			if (status.status === "complete") {
+				const bundle = await pollCDNForTranslations(fingerprint, cdnUrl);
+				return bundle ?? fetchTranslations(fingerprint, apiUrl);
+			}
+			if (status.status === "failed") {
+				console.warn("[vocoder] Translate job failed");
+				return null;
+			}
+		} catch {
+			// Continue polling on transient errors
+		}
+	}
+
+	console.warn("[vocoder] Translate job timed out after 120s");
 	return null;
 }
 

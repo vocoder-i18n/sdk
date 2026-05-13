@@ -1,5 +1,11 @@
 export interface VocoderPluginOptions {
 	/**
+	 * Your Vocoder app API key (starts with `vca_`).
+	 * Falls back to the `VOCODER_API_KEY` environment variable when omitted.
+	 * Explicit value always wins over the environment variable.
+	 */
+	apiKey?: string;
+	/**
 	 * Enable verbose build-time logging: extraction patterns, timing, fetch URL.
 	 * @default false
 	 *

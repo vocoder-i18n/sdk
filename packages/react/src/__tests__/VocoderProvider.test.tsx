@@ -33,7 +33,7 @@ describe("VocoderProvider", () => {
 			expect(screen.getByTestId("translation")).toHaveTextContent("Hello");
 		});
 
-		expect(screen.getByTestId("available")).toHaveTextContent("en,es,fr");
+		expect(screen.getByTestId("available")).toHaveTextContent("en,es,fr,pl");
 		expect(screen.getByTestId("locale")).toHaveTextContent("en");
 	});
 

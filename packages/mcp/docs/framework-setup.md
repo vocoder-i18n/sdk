@@ -154,18 +154,19 @@ export default withVocoder({})
 ```tsx
 // app/layout.tsx
 import { cookies } from 'next/headers'
-import { config } from 'virtual:vocoder/manifest'
+import { getConfig, getLocales, VocoderProvider } from '@vocoder/react'
 import { getLocaleDir } from '@vocoder/react/server'
-import { VocoderProvider } from '@vocoder/react'
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
   const initialLocale = cookieStore.get('vocoder_locale')?.value
   const preview = cookieStore.get('vocoder_preview')?.value === 'true'
-  const dir = getLocaleDir(initialLocale ?? config.sourceLocale, config.locales)
+  const { sourceLocale } = getConfig()
+  const locale = initialLocale ?? sourceLocale
+  const dir = getLocaleDir(locale, getLocales())
 
   return (
-    <html lang={initialLocale ?? config.sourceLocale} dir={dir}>
+    <html lang={locale} dir={dir}>
       <body>
         <VocoderProvider initialLocale={initialLocale} preview={preview}>
           {children}

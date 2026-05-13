@@ -1,3 +1,4 @@
+export { extractProjectShortIdFromApiKey } from "./api-key";
 export { getCookie, getBestMatchingLocale, setCookie } from "./cookies";
 export { formatValue } from "./format-value";
 export type { FormatValueOptions } from "./format-value";

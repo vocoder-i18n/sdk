@@ -14,22 +14,25 @@ export { DEFAULT_ORDINAL_ICU, buildPluralICU, buildSelectICU } from "./shared/ic
 export { transformMsgProps } from "./shared/transform";
 
 /**
- * Content-hash fingerprint for a set of source keys.
+ * Content-addressed fingerprint for a translation bundle.
  *
- * Formula: sha256(appShortCode + ":" + sorted(sourceKeys).join('\0')).slice(0, 12)
+ * Formula: sha256(scope + ":" + sorted(sourceKeys).join('\0')).slice(0, 12)
  *
- * Input must be source keys (not source texts) so that two strings with the
- * same text but different formality or context produce different fingerprints.
- * Pure function of source content — no git state, no CI env vars.
- * appShortCode isolates fingerprints across apps in the same monorepo.
+ * @param scope - Composed identifier isolating this bundle.
+ *   Single-app:  `${projectShortId}:`
+ *   Monorepo app: `${projectShortId}:${appDir}`
+ *   Caller composes scope — formula matches server (computeBundleFingerprint) and CLI.
+ * @param sourceKeys - Source string keys (not texts). Sorted internally.
+ *   Keys are used (not texts) so two strings with the same text but different
+ *   formality or context produce different fingerprints.
  */
 export function computeFingerprint(
-	appShortCode: string,
+	scope: string,
 	sourceKeys: string[],
 ): string {
 	const sorted = [...sourceKeys].sort();
 	return createHash("sha256")
-		.update(`${appShortCode}:${sorted.join("\0")}`)
+		.update(`${scope}:${sorted.join("\0")}`)
 		.digest("hex")
 		.slice(0, 12);
 }

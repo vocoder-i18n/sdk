@@ -186,7 +186,6 @@ export function extractFromContent(
 				let formality:
 					| "formal"
 					| "informal"
-					| "neutral"
 					| "auto"
 					| undefined;
 				let explicitKey: string | undefined;
@@ -201,7 +200,7 @@ export function extractFromContent(
 								context = prop.value.value;
 							}
 							if (prop.key.name === "formality" && prop.value.type === "StringLiteral") {
-								formality = prop.value.value as "formal" | "informal" | "neutral" | "auto";
+								formality = prop.value.value as "formal" | "informal" | "auto";
 							}
 							if (prop.key.name === "id" && prop.value.type === "StringLiteral") {
 								explicitKey = prop.value.value.trim();
@@ -267,7 +266,7 @@ export function extractFromContent(
 				const formality = getStringAttribute(
 					opening.attributes,
 					"formality",
-				) as "formal" | "informal" | "neutral" | "auto" | undefined;
+				) as "formal" | "informal" | "auto" | undefined;
 
 				const trimmedId = id?.trim() || undefined;
 				const trimmedText = text?.trim() || undefined;

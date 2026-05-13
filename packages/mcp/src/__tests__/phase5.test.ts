@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { WHAT_HAPPENS, INIT_INSTRUCTIONS } from "../tools/init-status.js";
 import { runSetup } from "../tools/setup.js";
-import { runInitStart, runInitComplete, runProjectCreate } from "../tools/project-init.js";
+import { runInitStart, runInitComplete, runProjectCreate } from "../tools/create-project.js";
 
 vi.mock("@vocoder/plugin", () => ({
 	detectRepoIdentity: vi.fn().mockReturnValue({ repoCanonical: "github:owner/repo", appDir: "" }),
@@ -112,7 +112,7 @@ describe("runProjectCreate", () => {
 		});
 		expect(result.instructions).toContain("vocoder-i18n/translate-action@v1");
 		expect(result.instructions).toContain(".github/workflows/vocoder.yml");
-		expect(result.instructions).toContain("branches: [main, develop]");
+		expect(result.instructions).toContain("branches: ['main', 'develop']");
 	});
 
 	it("instructions include VOCODER_API_KEY secret setup", async () => {

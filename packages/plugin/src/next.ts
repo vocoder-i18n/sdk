@@ -48,23 +48,6 @@ export function withVocoder(
 			const plugins = (config.plugins ?? []) as unknown[];
 			plugins.push(vocoderPlugin);
 
-			// Webpack doesn't support the virtual: URI scheme natively.
-			// Use NormalModuleReplacementPlugin to strip the "virtual:" prefix
-			// so unplugin's resolveId/load hooks can intercept the requests.
-			try {
-				const webpack = require("webpack");
-				plugins.push(
-					new webpack.NormalModuleReplacementPlugin(
-						/^virtual:vocoder\//,
-						(resource: { request: string }) => {
-							resource.request = resource.request.replace(/^virtual:/, "");
-						},
-					),
-				);
-			} catch {
-				// webpack not available
-			}
-
 			config.plugins = plugins;
 
 			// tsup ESM builds emit a __require shim that webpack flags as a critical

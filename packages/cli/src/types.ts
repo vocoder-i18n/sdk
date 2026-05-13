@@ -11,8 +11,33 @@ export interface TranslateCommandOptions {
 	dryRun?: boolean;
 	verbose?: boolean;
 	apiUrl?: string;
+	/** Comma-separated app directories for monorepos. Empty/absent = single-app. */
+	appDirs?: string;
 }
 
+/** Per-app string submission for POST /api/translate */
+export interface BatchTranslateAppEntry {
+	appDir: string;
+	strings: Array<{
+		key: string;
+		text: string;
+		context?: string;
+		formality?: string;
+		uiRole?: string;
+	}>;
+	stringsHash?: string;
+}
+
+export interface BatchTranslateRequestBody {
+	apps: BatchTranslateAppEntry[];
+	branch: string;
+	commitSha?: string;
+	/** Git remote URL or canonical (e.g. "github:owner/repo") */
+	repoUrl: string;
+	clientRunId?: string;
+}
+
+/** @deprecated Use BatchTranslateRequestBody for POST /api/translate */
 export interface TranslateRequestBody {
 	branch: string;
 	commitSha?: string;
@@ -30,6 +55,23 @@ export interface TranslateRequestBody {
 	clientRunId?: string;
 }
 
+export interface AppTranslateStatus {
+	appDir: string;
+	appId: string;
+	status: "pending" | "running" | "complete" | "failed";
+	providers: Record<string, { status: string; completed: number; total: number }>;
+	progress: { completed: number; total: number };
+	fingerprint?: string;
+	error?: string;
+}
+
+export interface BatchTranslateStatusResponse {
+	jobId: string;
+	status: "pending" | "running" | "complete" | "failed";
+	apps: AppTranslateStatus[];
+}
+
+/** @deprecated Use BatchTranslateStatusResponse for GET /api/translate/:jobId/status */
 export interface TranslateStatusResponse {
 	status: "pending" | "running" | "complete" | "failed";
 	progress: { completed: number; total: number };
@@ -80,7 +122,7 @@ export interface TranslationStringEntry {
 	/** Source text. null for id-only entries (<T id="key" /> with no message). */
 	text: string | null;
 	context?: string;
-	formality?: "formal" | "informal" | "neutral" | "auto";
+	formality?: "formal" | "informal" | "auto";
 	uiRole?: string;
 }
 
@@ -151,39 +193,3 @@ export interface SyncPolicyErrorResponse {
 	boundScopePath?: string | null;
 }
 
-export interface InitStartResponse {
-	sessionId: string;
-	deviceCode: string;
-	verificationUrl: string;
-	expiresAt: string;
-	poll: {
-		token: string;
-		intervalSeconds: number;
-	};
-}
-
-export type InitStatusResponse =
-	| {
-			status: "pending";
-			pollIntervalSeconds: number;
-			expiresAt: string;
-			message?: string;
-	  }
-	| {
-			status: "failed";
-			message: string;
-	  }
-	| {
-			status: "completed";
-			credentials: {
-				apiKey: string;
-				apiUrl: string;
-				organizationId: string;
-				organizationName: string;
-				projectId: string;
-				projectName: string;
-				sourceLocale: string;
-				targetLocales: string[];
-				targetBranches?: string[];
-			};
-	  };

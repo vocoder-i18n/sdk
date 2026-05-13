@@ -28,7 +28,7 @@ The `branches` list must match `targetBranches` in `vocoder.config.ts`.
 Add `VOCODER_API_KEY` as a GitHub repository secret:
 GitHub repo → Settings → Secrets and variables → Actions → New repository secret
 - Name: `VOCODER_API_KEY`
-- Value: the key printed by `vocoder init` (starts with `vca_`)
+- Value: the key printed by `vocoder init` (starts with `vcp_`)
 
 ## Commit the workflow file
 
@@ -49,7 +49,18 @@ The action must complete before the build runs. Add `needs: translate` to your b
 
 ## Failure behavior
 
-By default (`onTranslationFailure: 'proceed'`), a failed translation prints a warning and the build continues. To halt the build on translation failure, add to `vocoder.config.ts`:
+By default the action proceeds even if translation fails — the build continues with stale or source-language strings.
+
+To halt the build on translation failure, use the `on-failure` input:
+
+```yaml
+- uses: vocoder-i18n/translate-action@v1
+  with:
+    api-key: ${{ secrets.VOCODER_API_KEY }}
+    on-failure: fail
+```
+
+Alternatively, set the `VOCODER_ON_FAILURE` environment variable, or configure `onTranslationFailure` in `vocoder.config.ts`:
 
 ```typescript
 export default defineConfig({
@@ -58,6 +69,8 @@ export default defineConfig({
 });
 ```
 
+The `on-failure` action input takes precedence over `VOCODER_ON_FAILURE`, which takes precedence over `vocoder.config.ts`.
+
 ## Pinning the action version
 
 ```yaml
@@ -65,13 +78,17 @@ export default defineConfig({
 - uses: vocoder-i18n/translate-action@v1.0.0    # pinned exact version
 ```
 
-## Multi-app repos
+## Monorepo setup
 
-Use `working-directory` if `vocoder.config.ts` is not at the repo root:
+For repos with multiple apps, pass the `app-dirs` input — a comma-separated list of app directories relative to the repo root:
 
 ```yaml
 - uses: vocoder-i18n/translate-action@v1
   with:
     api-key: ${{ secrets.VOCODER_API_KEY }}
-    working-directory: apps/web
+    app-dirs: apps/web,apps/admin
 ```
+
+Each app directory must contain a `vocoder.config.ts`. Strings are extracted per app and submitted as a single batch. App records are created lazily on first run and deactivated when removed from `app-dirs`.
+
+For single-app repos, omit `app-dirs` entirely.

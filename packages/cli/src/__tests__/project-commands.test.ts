@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addLocales, listProjectLocales, removeLocales } from "../commands/locales.js";
-import { getTranslations } from "../commands/translations.js";
+import { pull } from "../commands/pull.js";
 import type { APIAppConfig, TranslationSnapshotResponse } from "../types.js";
 import { VocoderAPI } from "../utils/api.js";
 
@@ -31,7 +31,7 @@ describe("VocoderAPI.addLocale", () => {
 
 		expect(result.targetLocales).toEqual(["fr", "de"]);
 		expect(mockFetch).toHaveBeenCalledWith(
-			"https://vocoder.app/api/cli/app/locales",
+			"https://vocoder.app/api/project/locales",
 			expect.objectContaining({
 				method: "POST",
 				body: expect.stringContaining('"locale":"de"'),
@@ -79,7 +79,7 @@ describe("VocoderAPI.removeLocale", () => {
 
 		expect(result.targetLocales).toEqual(["fr"]);
 		expect(mockFetch).toHaveBeenCalledWith(
-			"https://vocoder.app/api/cli/app/locales",
+			"https://vocoder.app/api/project/locales",
 			expect.objectContaining({
 				method: "DELETE",
 				body: expect.stringContaining('"locale":"de"'),
@@ -219,9 +219,9 @@ describe("listProjectLocales command", () => {
 	});
 });
 
-// ── getTranslations command ───────────────────────────────────────────────────
+// ── pull command ───────────────────────────────────────────────────
 
-describe("getTranslations command", () => {
+describe("pull command", () => {
 	beforeEach(() => {
 		process.env.VOCODER_API_KEY = "vca_test";
 	});
@@ -267,7 +267,7 @@ describe("getTranslations command", () => {
 		const outputDir = join(tmpdir(), `vocoder-test-${Date.now()}`);
 		mkdirSync(outputDir, { recursive: true });
 
-		const code = await getTranslations({ branch: "main", output: outputDir });
+		const code = await pull({ branch: "main", output: outputDir });
 		expect(code).toBe(0);
 
 		const frContents = JSON.parse(readFileSync(join(outputDir, "fr.json"), "utf-8"));
@@ -306,68 +306,14 @@ describe("getTranslations command", () => {
 				text: async () => JSON.stringify(snapshot),
 			}) as typeof globalThis.fetch;
 
-		const code = await getTranslations({ branch: "main" });
+		const code = await pull({ branch: "main" });
 		expect(code).toBe(1);
 	});
 
 	it("returns 1 when VOCODER_API_KEY is missing", async () => {
 		delete process.env.VOCODER_API_KEY;
-		const code = await getTranslations({ branch: "main" });
+		const code = await pull({ branch: "main" });
 		expect(code).toBe(1);
-	});
-});
-
-// ── VocoderAPI.addLocale with appId ───────────────────────────────────────────
-
-describe("VocoderAPI.addLocale with appId", () => {
-	it("includes appId in request body when provided", async () => {
-		const mockFetch = vi.fn().mockResolvedValue({
-			ok: true,
-			text: async () => JSON.stringify({ targetLocales: ["fr", "de"] }),
-		});
-		globalThis.fetch = mockFetch as typeof globalThis.fetch;
-
-		const api = new VocoderAPI({ apiKey: "vcp_test", apiUrl: "https://vocoder.app" });
-		await api.addLocale("de", undefined, "cm4appid123");
-
-		const callArgs = mockFetch.mock.calls[0];
-		const body = JSON.parse(callArgs[1].body);
-		expect(body.appId).toBe("cm4appid123");
-		expect(body.locale).toBe("de");
-	});
-
-	it("omits appId from request body when not provided", async () => {
-		const mockFetch = vi.fn().mockResolvedValue({
-			ok: true,
-			text: async () => JSON.stringify({ targetLocales: ["de"] }),
-		});
-		globalThis.fetch = mockFetch as typeof globalThis.fetch;
-
-		const api = new VocoderAPI({ apiKey: "vcp_test", apiUrl: "https://vocoder.app" });
-		await api.addLocale("de");
-
-		const callArgs = mockFetch.mock.calls[0];
-		const body = JSON.parse(callArgs[1].body);
-		expect(body.appId).toBeUndefined();
-	});
-});
-
-// ── VocoderAPI.removeLocale with appId ───────────────────────────────────────
-
-describe("VocoderAPI.removeLocale with appId", () => {
-	it("includes appId in request body when provided", async () => {
-		const mockFetch = vi.fn().mockResolvedValue({
-			ok: true,
-			text: async () => JSON.stringify({ targetLocales: ["fr"] }),
-		});
-		globalThis.fetch = mockFetch as typeof globalThis.fetch;
-
-		const api = new VocoderAPI({ apiKey: "vcp_test", apiUrl: "https://vocoder.app" });
-		await api.removeLocale("de", undefined, "cm4appid123");
-
-		const callArgs = mockFetch.mock.calls[0];
-		const body = JSON.parse(callArgs[1].body);
-		expect(body.appId).toBe("cm4appid123");
 	});
 });
 

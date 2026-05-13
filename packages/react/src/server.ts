@@ -1,17 +1,19 @@
 /**
- * Returns the text direction for a given locale using the locale metadata
- * from the Vocoder manifest. Pass `config.locales` from the virtual manifest:
+ * Returns the text direction for a given locale using locale metadata.
+ * Pass `locales` from getLocales() (imported from @vocoder/react/server)
+ * or from the VocoderContext.
  *
  * @example
  * ```tsx
  * // app/layout.tsx
- * import { config } from 'virtual:vocoder/manifest';
  * import { cookies } from 'next/headers';
  * import { getLocaleDir } from '@vocoder/react/server';
+ * import { getConfig, getLocales } from '@vocoder/react';
  *
  * export default async function RootLayout({ children }) {
- *   const stored = (await cookies()).get('vocoder_locale')?.value ?? config.sourceLocale;
- *   const dir = getLocaleDir(stored, config.locales);
+ *   const { sourceLocale } = getConfig();
+ *   const stored = (await cookies()).get('vocoder_locale')?.value ?? sourceLocale;
+ *   const dir = getLocaleDir(stored, getLocales());
  *   return <html lang={stored} dir={dir}>{children}</html>;
  * }
  * ```
