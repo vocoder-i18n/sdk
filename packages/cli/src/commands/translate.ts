@@ -12,6 +12,7 @@ import type {
 } from "../types.js";
 import { VocoderAPI, VocoderAPIError, computeStringsHash } from "../utils/api.js";
 import { detectBranch, isTargetBranch } from "../utils/branch.js";
+import { readWorkflowAppDirs, readWorkflowBranches } from "../utils/workflow-read.js";
 import { validateLocalConfig } from "../utils/config.js";
 import { StringExtractor } from "../utils/extract.js";
 import { detectCommitSha, resolveGitRepositoryIdentity } from "../utils/git-identity.js";
@@ -31,8 +32,9 @@ function overallStatus(statuses: LocaleStatus[]): LocaleStatus {
 /** Returns the in-progress poll line for a single app. Exported for testing. */
 export function formatAppProgress(app: AppTranslateStatus): string {
 	const { completed, total } = app.progress;
-	const label = app.appDir || "(root)";
-	return `  ⟳ ${label}: ${completed}/${total}`;
+	return app.appDir
+		? `  ⟳ ${app.appDir}: ${completed}/${total}`
+		: `  ⟳ ${completed}/${total}`;
 }
 
 /** Returns the final per-locale status line. Exported for testing. */
@@ -138,12 +140,17 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		const apiConfig = await api.getAppConfig();
 		spinner.stop(`Branch: ${highlight(branch)}`);
 
-		if (!isTargetBranch(branch, apiConfig.targetBranches)) {
+		// YAML branches are the source of truth — fall back to server config if YAML absent.
+		const yamlBranches = readWorkflowBranches(projectRoot);
+		const yamlAppDirs = readWorkflowAppDirs(projectRoot);
+		const effectiveTargetBranches = yamlBranches ?? apiConfig.targetBranches;
+
+		if (!isTargetBranch(branch, effectiveTargetBranches)) {
 			p.log.warn(
 				`Skipping translations (${highlight(branch)} is not a target branch)`,
 			);
 			p.log.info(
-				`Target branches: ${apiConfig.targetBranches.map((b) => highlight(b)).join(", ")}`,
+				`Target branches: ${effectiveTargetBranches.map((b) => highlight(b)).join(", ")}`,
 			);
 			p.outro("");
 			return 0;
@@ -157,13 +164,13 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			fileConfig?.onTranslationFailure ??
 			"proceed";
 
-		// Parse app directories from --app-dirs flag or default to single-app (root)
+		// --app-dirs flag > YAML app-dirs > single-app (root "")
 		const appDirs = options.appDirs
 			? options.appDirs
 					.split(",")
 					.map((d) => d.trim().replace(/^\/|\/$/g, ""))
 					.filter(Boolean)
-			: [];
+			: (yamlAppDirs ?? []);
 		// Single-app: appDir = "" (whole repo)
 		const effectiveAppDirs = appDirs.length > 0 ? appDirs : [""];
 
@@ -278,6 +285,9 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			...(commitSha ? { commitSha } : {}),
 			repoUrl: repoIdentity?.repoCanonical ?? "",
 			clientRunId: randomUUID(),
+			// Send YAML-derived branches so server can reconcile project.targetBranches.
+			// Only sent when YAML was found — omitting preserves server value if no YAML.
+			...(yamlBranches ? { targetBranches: yamlBranches } : {}),
 		});
 		spinner.stop("Job accepted");
 
@@ -327,34 +337,20 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
-		// Aggregate locale status across all apps for display
-		// (per-app breakdown shown as separate lines when multiple apps)
+		// Per-app final status lines — only shown for monorepo (multiple apps or named appDir).
+		// Root-level single-app setup shows no label; the outro line is sufficient.
 		for (const app of finalStatus.apps) {
-			const appLabel = app.appDir || "(root)";
-			const providerEntries = Object.entries(app.providers);
-			const localeDisplay: Record<string, LocaleStatus> = {};
-			for (const [vendor, data] of providerEntries) {
-				localeDisplay[vendor] = data.status as LocaleStatus;
-			}
+			const showLabel = finalStatus.apps.length > 1 || !!app.appDir;
+			if (!showLabel) continue;
+
 			const appStatusLine =
 				app.status === "complete"
-					? chalk.green(`✓ ${appLabel}`)
-					: chalk.red(`✗ ${appLabel}`) + (app.error ? `: ${app.error}` : "");
-
-			if (finalStatus.apps.length > 1) {
-				process.stdout.write(`  ${appStatusLine}\n`);
-			}
+					? chalk.green(`✓ ${app.appDir}`)
+					: chalk.red(`✗ ${app.appDir}`) + (app.error ? `: ${app.error}` : "");
+			process.stdout.write(`  ${appStatusLine}\n`);
 		}
 
 		if (finalStatus.status === "complete") {
-			if (finalStatus.apps.length === 1) {
-				const singleApp = finalStatus.apps[0]!;
-				const locales: Record<string, LocaleStatus> = {};
-				for (const [vendor, data] of Object.entries(singleApp.providers)) {
-					locales[vendor] = data.status as LocaleStatus;
-				}
-				process.stdout.write(`${formatLocaleResults(locales, elapsedSec)}\n`);
-			}
 			p.outro(chalk.green(`✓ Bundle ready — ${elapsedSec}s`));
 			return 0;
 		}
@@ -371,11 +367,9 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		p.outro("Build halted (onTranslationFailure: fail)");
 		return 1;
 	} catch (error) {
-		spinner.stop();
-
 		if (error instanceof VocoderAPIError && error.limitError) {
 			const { limitError } = error;
-			p.log.error(limitError.message);
+			spinner.stop(limitError.message, 1);
 			for (const line of getLimitErrorGuidance(limitError)) {
 				p.log.info(line);
 			}
@@ -383,7 +377,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		}
 
 		if (error instanceof VocoderAPIError) {
-			p.log.error(error.message);
+			spinner.stop(error.message, 1);
 			if (error.status === 401) {
 				p.log.warn(
 					"API key rejected — the project may have been deleted or the key revoked.",
@@ -394,7 +388,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		}
 
 		if (error instanceof Error) {
-			p.log.error(error.message);
+			spinner.stop(error.message, 1);
 			if (error.message.includes("git branch")) {
 				p.log.warn("Run from a git repository, or use:");
 				p.log.info("  vocoder translate --branch main");

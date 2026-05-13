@@ -35,6 +35,8 @@ export interface BatchTranslateRequestBody {
 	/** Git remote URL or canonical (e.g. "github:owner/repo") */
 	repoUrl: string;
 	clientRunId?: string;
+	/** Branches parsed from the workflow YAML — server reconciles project.targetBranches when present. */
+	targetBranches?: string[];
 }
 
 /** @deprecated Use BatchTranslateRequestBody for POST /api/translate */

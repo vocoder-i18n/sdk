@@ -13,6 +13,11 @@ export { extractProjectShortIdFromApiKey } from "@vocoder/core";
  *
  * Priority (lowest → highest): .env < .env.[mode] < .env.local < .env.[mode].local
  * Actual process.env values (CI, shell exports) always win — never overwritten.
+ *
+ * For monorepos: after exhausting the starting directory, walks up the tree until a
+ * workspace root marker is found (pnpm-workspace.yaml, yarn workspaces, lerna.json,
+ * or a root package.json) or the filesystem root is reached. This lets sub-packages
+ * pick up VOCODER_API_KEY set at the repo root without requiring duplication.
  */
 export function loadEnvFile(): void {
 	const mode = process.env.NODE_ENV === "production" ? "production" : "development";
@@ -23,26 +28,33 @@ export function loadEnvFile(): void {
 		`.env.${mode}.local`,
 	];
 
+	// Collect vars from all .env files, starting at cwd and walking up.
+	// Lower directories take precedence over parent directories (child wins).
 	const merged: Record<string, string> = {};
-	for (const candidate of candidates) {
-		const envPath = resolve(process.cwd(), candidate);
-		if (!existsSync(envPath)) continue;
-		try {
-			const content = readFileSync(envPath, "utf-8");
-			for (const line of content.split("\n")) {
-				const trimmed = line.trim();
-				if (!trimmed || trimmed.startsWith("#")) continue;
-				const eqIndex = trimmed.indexOf("=");
-				if (eqIndex === -1) continue;
-				const key = trimmed.slice(0, eqIndex).trim();
-				const value = trimmed
-					.slice(eqIndex + 1)
-					.trim()
-					.replace(/^["']|["']$/g, "");
-				merged[key] = value;
+
+	const dirs = collectSearchDirs(process.cwd());
+	// Reverse so child dir values overwrite parent values in the merged map.
+	for (const dir of [...dirs].reverse()) {
+		for (const candidate of candidates) {
+			const envPath = resolve(dir, candidate);
+			if (!existsSync(envPath)) continue;
+			try {
+				const content = readFileSync(envPath, "utf-8");
+				for (const line of content.split("\n")) {
+					const trimmed = line.trim();
+					if (!trimmed || trimmed.startsWith("#")) continue;
+					const eqIndex = trimmed.indexOf("=");
+					if (eqIndex === -1) continue;
+					const key = trimmed.slice(0, eqIndex).trim();
+					const value = trimmed
+						.slice(eqIndex + 1)
+						.trim()
+						.replace(/^["']|["']$/g, "");
+					merged[key] = value;
+				}
+			} catch {
+				// Non-fatal
 			}
-		} catch {
-			// Non-fatal
 		}
 	}
 
@@ -51,6 +63,33 @@ export function loadEnvFile(): void {
 			process.env[key] = value;
 		}
 	}
+}
+
+/**
+ * Returns directories to search for .env files, starting at `startDir` and
+ * walking up to the git repository root (where `.git/` lives). The git root
+ * is included in the results — that's where a monorepo root .env typically lives.
+ *
+ * Using `.git` as the boundary is more reliable than workspace markers because
+ * it's universal across all repo structures. Walking past the git root risks
+ * picking up .env files from completely unrelated parent directories.
+ */
+function collectSearchDirs(startDir: string): string[] {
+	const dirs: string[] = [];
+	let current = startDir;
+
+	while (true) {
+		dirs.push(current);
+
+		// .git marks the repo root — include this dir but go no further.
+		if (existsSync(resolve(current, ".git"))) break;
+
+		const parent = dirname(current);
+		if (parent === current) break; // filesystem root (no .git found)
+		current = parent;
+	}
+
+	return dirs;
 }
 
 export type RepoIdentity = {

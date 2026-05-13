@@ -49,6 +49,15 @@ export function writeAuthData(data: AuthData): void {
 	writeFileSync(filePath, JSON.stringify(data, null, 2), { mode: 0o600 });
 }
 
+export function clearAuthData(): void {
+	const filePath = getAuthFilePath();
+	try {
+		unlinkSync(filePath);
+	} catch {
+		// Already gone — that's fine
+	}
+}
+
 // ── Stored token verification ────────────────────────────────────────────────
 
 /**
@@ -86,14 +95,5 @@ export async function verifyStoredAuth(
 			return { status: "gone" };
 		}
 		return { status: "expired" };
-	}
-}
-
-export function clearAuthData(): void {
-	const filePath = getAuthFilePath();
-	try {
-		unlinkSync(filePath);
-	} catch {
-		// Already gone — that's fine
 	}
 }
