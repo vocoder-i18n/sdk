@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { relative as pathRelative } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, relative as pathRelative, resolve } from "node:path";
 import { glob } from "glob";
 import { extractFromContent as _extractFromContent } from "./parse/react";
 import type { ExtractedString } from "./types";
@@ -12,6 +12,36 @@ export type { ExtractedString } from "./types";
 export type { TransformResult } from "./shared/transform";
 export { DEFAULT_ORDINAL_ICU, buildPluralICU, buildSelectICU } from "./shared/icu-builders";
 export { transformMsgProps } from "./shared/transform";
+
+/**
+ * Detect the app directory relative to the git root.
+ * Returns "" when cwd equals the git root (single-app repos).
+ *
+ * Always paired with computeFingerprint:
+ *   scope = `${projectShortId}:${detectAppDir(cwd)}`
+ *
+ * Matches the server-side computeBundleFingerprint formula.
+ * If the git root cannot be found (no .git directory), returns "".
+ */
+export function detectAppDir(cwd: string): string {
+	const gitDir = findGitDir(cwd);
+	if (!gitDir) return "";
+	const gitRoot = dirname(gitDir);
+	const rel = pathRelative(gitRoot, cwd).replace(/\\/g, "/").trim();
+	return rel && rel !== "." && !rel.startsWith("..") ? rel : "";
+}
+
+function findGitDir(startDir: string): string | null {
+	let dir = startDir;
+	for (let i = 0; i < 20; i++) {
+		const gitDir = resolve(dir, ".git");
+		if (existsSync(gitDir)) return gitDir;
+		const parent = dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
+	}
+	return null;
+}
 
 /**
  * Content-addressed fingerprint for a translation bundle.

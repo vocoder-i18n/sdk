@@ -267,7 +267,7 @@ describe("pull command", () => {
 		const outputDir = join(tmpdir(), `vocoder-test-${Date.now()}`);
 		mkdirSync(outputDir, { recursive: true });
 
-		const code = await pull({ branch: "main", output: outputDir });
+		const code = await pull({ snapshot: true, branch: "main", output: outputDir });
 		expect(code).toBe(0);
 
 		const frContents = JSON.parse(readFileSync(join(outputDir, "fr.json"), "utf-8"));

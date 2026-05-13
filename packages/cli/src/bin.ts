@@ -122,11 +122,25 @@ program
 
 program
 	.command("pull")
-	.description("Download the current translation snapshot")
-	.option("--branch <branch>", "Git branch (auto-detected if omitted)")
-	.option("--locale <locale>", "Fetch a specific locale only")
-	.option("--output <dir>", "Write locale JSON files to this directory")
+	.description(
+		"Fetch the compiled translation bundle for the current app — identical to what __VOCODER_BUNDLE__ contains at runtime (includes overrides). " +
+			"Use --snapshot for a raw branch-based audit view instead.",
+	)
+	.option(
+		"--app-dirs <dirs>",
+		"Comma-separated app directories for monorepos (e.g. apps/web,apps/admin). Auto-detected from cwd if omitted.",
+	)
+	.option("--locale <locale>", "Filter output to a specific locale only")
+	.option(
+		"--output <dir>",
+		"Write one <locale>.json per locale to this directory instead of printing to stdout",
+	)
 	.option("--api-url <url>", "Override Vocoder API URL")
+	.option(
+		"--snapshot",
+		"Audit mode: fetch raw Translation rows by branch (does not include overrides, use for audit/debugging only)",
+	)
+	.option("--branch <branch>", "Branch for --snapshot mode (auto-detected if omitted)")
 	.action((options) => runCommand(pull, options));
 
 program

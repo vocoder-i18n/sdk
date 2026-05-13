@@ -28,7 +28,7 @@ export { extractProjectShortIdFromApiKey } from "@vocoder/core";
 export type { TranslationStringEntry } from "./types.js";
 export { readAuthData, writeAuthData, clearAuthData, verifyStoredAuth } from "./utils/auth-store.js";
 export type { AuthData, StoredAuthStatus } from "./utils/auth-store.js";
-export { loadVocoderConfig } from "@vocoder/extractor";
+export { detectAppDir, loadVocoderConfig } from "@vocoder/extractor";
 export type { VocoderConfig } from "@vocoder/extractor";
 export { defineConfig } from "@vocoder/config";
 export type { SetupSnippets } from "./utils/setup-snippets.js";

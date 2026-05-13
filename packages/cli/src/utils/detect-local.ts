@@ -20,6 +20,7 @@ export interface LocalDetectionResult {
 	framework: DetectedFramework;
 	packageManager: PackageManager;
 	uiPackage: string | null;
+	hasCli: boolean;
 	hasUnplugin: boolean;
 	hasExtractor: boolean;
 	hasConfig: boolean;
@@ -45,6 +46,7 @@ export function detectLocalEcosystem(
 			framework: null,
 			packageManager,
 			uiPackage: null,
+			hasCli: false,
 			hasUnplugin: false,
 			hasExtractor: false,
 			hasConfig: false,
@@ -59,6 +61,7 @@ export function detectLocalEcosystem(
 		...((pkg.devDependencies as Record<string, string>) ?? {}),
 	};
 
+	const hasCli = "@vocoder/cli" in allDeps;
 	const hasUnplugin = "@vocoder/plugin" in allDeps;
 	const hasExtractor = "@vocoder/extractor" in allDeps;
 	const hasConfig = "@vocoder/config" in allDeps;
@@ -74,6 +77,7 @@ export function detectLocalEcosystem(
 		framework,
 		packageManager,
 		uiPackage,
+		hasCli,
 		hasUnplugin,
 		hasExtractor,
 		hasConfig,
@@ -183,8 +187,8 @@ export function getPackagesToInstall(detection: LocalDetectionResult): {
 	const devPackages: string[] = [];
 	const runtimePackages: string[] = [];
 
+	if (!detection.hasCli) devPackages.push("@vocoder/cli");
 	if (!detection.hasUnplugin) devPackages.push("@vocoder/plugin");
-	if (!detection.hasExtractor) devPackages.push("@vocoder/extractor");
 	if (!detection.hasConfig) devPackages.push("@vocoder/config");
 
 	if (detection.uiPackage && !detection.hasUiPackage)

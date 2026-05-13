@@ -596,7 +596,7 @@ export async function fetchTranslations(
 	apiUrl: string,
 ): Promise<VocoderTranslationData> {
 	const url = `${apiUrl}/api/t/${fingerprint}`;
-	const cacheDir = resolve(process.cwd(), "node_modules", ".vocoder", "cache");
+	const cacheDir = resolve(process.cwd(), "node_modules", ".cache", "vocoder");
 	const cacheFile = resolve(cacheDir, `${fingerprint}.json`);
 
 	try {
@@ -655,7 +655,7 @@ export async function pollCDNForTranslations(
 	cdnUrl: string,
 ): Promise<VocoderTranslationData | null> {
 	const url = `${cdnUrl}/${fingerprint}/bundle.json`;
-	const cacheDir = resolve(process.cwd(), "node_modules", ".vocoder", "cache");
+	const cacheDir = resolve(process.cwd(), "node_modules", ".cache", "vocoder");
 	const cacheFile = resolve(cacheDir, `${fingerprint}.json`);
 	const deadline = Date.now() + CDN_POLL_MAX_WAIT_MS;
 

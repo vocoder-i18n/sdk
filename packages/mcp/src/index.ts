@@ -458,28 +458,32 @@ server.tool(
 	},
 );
 
-// vocoder_pull — download the current translation snapshot for inspection or debugging.
+// vocoder_pull — fetch the compiled translation bundle for the current app.
+// Mirrors the build plugin: extract → fingerprint → /api/t/{fingerprint}.
+// Returns the same data as __VOCODER_BUNDLE__ at runtime, including overrides.
 server.tool(
 	"vocoder_pull",
-	"Download the current translation snapshot for a branch. Returns a JSON map of { locale: { sourceText: translatedText } }. Use for inspection and debugging — the build plugin fetches bundles automatically at build time.",
+	"Fetch the compiled translation bundle for the current app. Extracts source strings, computes the content-addressed fingerprint, and returns the bundle from /api/t/{fingerprint} — identical to what __VOCODER_BUNDLE__ contains at runtime (includes TranslationOverrides). Use for inspection, debugging, or to verify what the app will render before building.",
 	{
-		branch: z
+		appDir: z
 			.string()
 			.optional()
-			.describe('Branch to fetch translations for (default: "main")'),
+			.describe(
+				'App directory override for monorepos (e.g. "apps/web"). Auto-detected from cwd relative to git root when omitted.',
+			),
 		locale: z
 			.string()
 			.optional()
 			.describe(
-				'Specific locale to return (e.g. "es"). Returns all locales if omitted.',
+				'Filter to a specific locale (e.g. "es"). Returns all locales when omitted.',
 			),
 	},
-	async ({ branch, locale }) => {
+	async ({ appDir, locale }) => {
 		const api = createClient();
 		if (!api)
 			return { content: [{ type: "text", text: NO_API_KEY_MESSAGE }] };
 		try {
-			const text = await runPull({ branch, locale }, api);
+			const text = await runPull({ appDir, locale }, api);
 			return { content: [{ type: "text", text }] };
 		} catch (error) {
 			return {

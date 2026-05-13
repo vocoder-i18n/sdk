@@ -15,6 +15,7 @@ import { resolveGitContext } from "../utils/git-identity.js";
 import { runAuthFlow } from "../utils/auth-flow.js";
 import { runProjectCreate } from "../utils/project-create.js";
 import { selectOrganizationForInit } from "../utils/organization-select.js";
+import { installForProject } from "../utils/install-packages.js";
 import { writeApiKeyToEnv } from "../utils/output.js";
 import { writeGitHubActionsWorkflow } from "../utils/workflow-write.js";
 
@@ -148,12 +149,25 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		// null means user cancelled a prompt — individual steps already logged
 		if (!projectResult) return 1;
 
-		// ── 7. Write API key to .env.local ───────────────────────────────────────
+		// ── 7. Install Vocoder packages ───────────────────────────────────────────
+		const installMcpAnswer = await p.confirm({
+			message: "Install @vocoder/mcp for AI-assisted development? (optional)",
+			initialValue: false,
+		});
+		if (p.isCancel(installMcpAnswer)) return 1;
+
+		await installForProject({
+			rootDir: repoRoot ?? process.cwd(),
+			appDirs: projectResult.appDirs,
+			installMcp: installMcpAnswer === true,
+		});
+
+		// ── 8. Write API key to .env.local ───────────────────────────────────────
 		const envFile = repoRoot
 			? writeApiKeyToEnv(projectResult.apiKey, repoRoot)
 			: writeApiKeyToEnv(projectResult.apiKey);
 
-		// ── 8. GitHub Actions workflow ───────────────────────────────────────────
+		// ── 9. GitHub Actions workflow ───────────────────────────────────────────
 		let workflowWritten = false;
 		let workflowRelativePath = ".github/workflows/vocoder-translate.yml";
 		if (repoRoot) {
@@ -172,7 +186,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			}
 		}
 
-		// ── 9. Post-setup summary ────────────────────────────────────────────────
+		// ── 10. Post-setup summary ───────────────────────────────────────────────
 		const triggerBranch = projectResult.targetBranches[0] ?? "main";
 		const url = (s: string) => chalk.cyan(chalk.underline(s));
 
@@ -185,10 +199,9 @@ export async function init(options: InitOptions = {}): Promise<number> {
 
 		p.log.message(chalk.bold("Next steps:"));
 		p.log.message(`  1. Add ${highlight("VOCODER_API_KEY")} as a repository secret: ${url("https://vocoder.app/docs/secrets")}`);
-		p.log.message(`  2. Add the Vocoder unplugin to your framework config: ${url("https://vocoder.app/docs/setup")}`);
-		p.log.message(`  3. Wrap translatable strings with <T>: ${url("https://vocoder.app/docs/sdk")}`);
+		p.log.message(`  2. Configure the Vocoder plugin in your framework build config: ${url("https://vocoder.app/docs/setup")}`);
+		p.log.message(`  3. Wrap translatable strings with ${highlight("<T>")}: ${url("https://vocoder.app/docs/sdk")}`);
 		p.log.message(`  4. Push to ${highlight(triggerBranch)} (or any of your trigger branches) — translations will run automatically.`);
-		p.log.message(`  5. ${chalk.dim("(Optional)")} MCP server for AI-assisted setup: ${url("https://vocoder.app/docs/mcp")}`);
 
 		p.outro("You're all set.");
 		return 0;

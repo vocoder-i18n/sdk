@@ -32,9 +32,8 @@ function overallStatus(statuses: LocaleStatus[]): LocaleStatus {
 /** Returns the in-progress poll line for a single app. Exported for testing. */
 export function formatAppProgress(app: AppTranslateStatus): string {
 	const { completed, total } = app.progress;
-	return app.appDir
-		? `  ⟳ ${app.appDir}: ${completed}/${total}`
-		: `  ⟳ ${completed}/${total}`;
+	const label = app.appDir || "(root)";
+	return `  ⟳ ${label}: ${completed}/${total}`;
 }
 
 /** Returns the final per-locale status line. Exported for testing. */

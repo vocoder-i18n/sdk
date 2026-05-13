@@ -181,6 +181,7 @@ export async function runProjectCreate(
 		targetLocales,
 		targetBranches,
 		repoCanonical,
+		appDirs: appDirs.length > 0 ? appDirs : undefined,
 	});
 
 	p.log.success(`Project ${chalk.bold(result.projectName)} created!`);

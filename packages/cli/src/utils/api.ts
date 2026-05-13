@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { VocoderTranslationData } from "@vocoder/core";
 import type {
 	APIAppConfig,
 	BatchTranslateRequestBody,
@@ -595,6 +596,7 @@ export class VocoderAPI {
 			targetLocales: string[];
 			targetBranches: string[];
 			repoCanonical?: string;
+			appDirs?: string[];
 		},
 	): Promise<{
 		projectId: string;
@@ -625,6 +627,39 @@ export class VocoderAPI {
 			{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) },
 			"Failed to create project",
 		);
+	}
+
+	// ── Bundle fetch ─────────────────────────────────────────────────────────────
+
+	/**
+	 * Fetch the compiled translation bundle for a given fingerprint.
+	 *
+	 * Hits the public GET /api/t/{fingerprint} endpoint — no auth required.
+	 * Returns the same VocoderTranslationData that __VOCODER_BUNDLE__ contains
+	 * at build time, including TranslationOverride wins.
+	 *
+	 * Returns null when:
+	 * - fingerprint not found (no translations submitted yet)
+	 * - server unreachable / request timed out
+	 */
+	async fetchBundle(fingerprint: string): Promise<VocoderTranslationData | null> {
+		const url = `${this.apiUrl}/api/t/${encodeURIComponent(fingerprint)}`;
+		this.log("GET", url);
+		try {
+			const response = await fetch(url, {
+				headers: { Accept: "application/json" },
+				signal: AbortSignal.timeout(30_000),
+			});
+			this.log("GET", url, response.status);
+			if (!response.ok) return null;
+			const raw = await response.text();
+			const data = parsePayload(raw) as VocoderTranslationData | null;
+			if (!data || typeof data !== "object") return null;
+			// Empty bundle (fingerprint not yet translated) has no sourceLocale
+			return data;
+		} catch {
+			return null;
+		}
 	}
 
 	// ── Project lookup ────────────────────────────────────────────────────────────
