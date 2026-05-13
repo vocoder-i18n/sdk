@@ -1,6 +1,6 @@
 {
   "name": "@vocoder/react",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "description": "React components for internationalization (i18n) with SSR support, ICU MessageFormat, and build-time translation generation",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

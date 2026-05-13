@@ -505,7 +505,7 @@ server.tool(
 		const api = createClient()!;
 		try {
 			const result = await api.listLocales(apiKey);
-			const lines = result.targetLocales.map((l) =>
+			const lines = result.targetLocales.map((l: { code: string; name: string; nativeName?: string }) =>
 				l.nativeName && l.nativeName !== l.name
 					? `${l.code} — ${l.name} (${l.nativeName})`
 					: `${l.code} — ${l.name}`,

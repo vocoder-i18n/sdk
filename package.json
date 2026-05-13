@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "pnpm -r --if-present run build",
+    "build": "pnpm -r --workspace-concurrency=1 --if-present run build",
     "dev": "pnpm run watch:all",
     "watch": "pnpm run watch:all",
     "watch:react": "pnpm --dir packages/react watch",

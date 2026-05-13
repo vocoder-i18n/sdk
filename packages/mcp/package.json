@@ -1,6 +1,6 @@
 {
   "name": "@vocoder/mcp",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "description": "MCP server for Vocoder — AI-native i18n tooling",
   "files": [
     "dist",

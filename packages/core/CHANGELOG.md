@@ -1,5 +1,26 @@
 # @vocoder/core
 
+## 0.3.2
+
+### Patch Changes
+
+- Rename CLI commands and MCP tools for consistency; eliminate VocoderClient duplication.
+
+  **CLI command renames:**
+  - `translations` → `pull` (git-pull analogy)
+  - `app-config` → `config` (shows project config, not runtime status)
+  - `create-app` → `create-project` (project-centric management)
+
+  **MCP tool renames:**
+  - `vocoder_sync` → `vocoder_translate`
+  - `vocoder_get_translations` → `vocoder_pull`
+  - `vocoder_status` → `vocoder_config`
+  - `vocoder_project_create` → `vocoder_create_project`
+
+  **Architecture:** `VocoderClient` removed from `@vocoder/mcp`; `createClient()` now returns `VocoderAPI` from `@vocoder/cli/lib`. Shared logic (`buildStringEntries`, `computeStringsHash`, `extractProjectShortIdFromApiKey`) exported from `@vocoder/cli/lib` as single source of truth.
+
+  **`@vocoder/core`:** adds `extractProjectShortIdFromApiKey` utility.
+
 ## 0.3.1
 
 ### Patch Changes
