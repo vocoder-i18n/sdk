@@ -49,7 +49,7 @@ export interface BatchTranslateAppEntry {
 		formality?: string;
 		uiRole?: string;
 	}>;
-	stringsHash?: string;
+	sourceEntriesHash?: string;
 }
 
 export interface BatchTranslateRequestBody {
@@ -75,7 +75,7 @@ export interface TranslateRequestBody {
 		uiRole?: string;
 	}>;
 	targetLocales: string[];
-	stringsHash: string;
+	sourceEntriesHash: string;
 	repoCanonical?: string;
 	repoAppDir?: string;
 	clientRunId?: string;
@@ -154,9 +154,9 @@ export interface TranslationStringEntry {
 
 export interface TranslationBatchResponse {
 	batchId: string;
-	newStrings: number;
-	deletedStrings?: number;
-	totalStrings: number;
+	newSourceEntries: number;
+	deletedSourceEntries?: number;
+	totalSourceEntries: number;
 	status: "PENDING" | "TRANSLATING" | "COMPLETED" | "FAILED" | "UP_TO_DATE";
 	noChanges?: boolean;
 	estimatedTime?: number;

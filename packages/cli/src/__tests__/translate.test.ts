@@ -222,7 +222,7 @@ describe("translate API integration (mocked)", () => {
 				{
 					appDir: "",
 					strings: [{ key: "k1", text: "Hello" }],
-					stringsHash: "abc",
+					sourceEntriesHash: "abc",
 				},
 			],
 			repoUrl: "",

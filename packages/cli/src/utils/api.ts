@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-import type { VocoderTranslationData } from "@vocoder/core";
 import type {
 	APIAppConfig,
 	BatchTranslateRequestBody,
@@ -10,21 +8,37 @@ import type {
 	TranslationSnapshotResponse,
 } from "../types.js";
 
-type StringsHashInput = {
-	keys: string[];
+import type { VocoderTranslationData } from "@vocoder/core";
+import { createHash } from "node:crypto";
+
+/**
+ * Mirrors SourceEntriesHashInput in app/lib/sync/source-entries-hash.ts.
+ * Both files must use identical type shapes and serialization — if you change one, change the other.
+ */
+export type SourceEntriesHashInput = {
+	entries: Array<{ key: string; text: string }>;
 	industry?: string | null;
 };
 
 /**
- * Mirrors computeStringsHash in app/lib/sync/strings-hash.ts.
- * Both must use the identical type shape and serialization — if you change one, change the other.
- * Uses source keys (not source texts) so that strings with the same text but different
- * formality/context produce different hashes and don't incorrectly short-circuit the pipeline.
+ * Deterministic hash over all source entries (key+text pairs) and industry.
+ * Sorts by key before hashing so the result is order-independent.
+ * Mirrors computeSourceEntriesHash in app/lib/sync/source-entries-hash.ts — must produce
+ * identical output for the same input so CLI-computed hashes match server-stored hashes.
  */
-export function computeStringsHash(input: StringsHashInput): string {
-	const sorted = [...input.keys].sort();
+export function computeSourceEntriesHash(
+	input: SourceEntriesHashInput,
+): string {
+	const sorted = [...input.entries].sort((a, b) =>
+		a.key.localeCompare(b.key),
+	);
 	return createHash("sha256")
-		.update(JSON.stringify({ strings: sorted, industry: input.industry ?? null }))
+		.update(
+			JSON.stringify({
+				entries: sorted.map((e) => [e.key, e.text]),
+				industry: input.industry ?? null,
+			}),
+		)
 		.digest("hex");
 }
 

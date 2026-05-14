@@ -17,7 +17,7 @@
   - `vocoder_status` → `vocoder_config`
   - `vocoder_project_create` → `vocoder_create_project`
 
-  **Architecture:** `VocoderClient` removed from `@vocoder/mcp`; `createClient()` now returns `VocoderAPI` from `@vocoder/cli/lib`. Shared logic (`buildStringEntries`, `computeStringsHash`, `extractProjectShortIdFromApiKey`) exported from `@vocoder/cli/lib` as single source of truth.
+  **Architecture:** `VocoderClient` removed from `@vocoder/mcp`; `createClient()` now returns `VocoderAPI` from `@vocoder/cli/lib`. Shared logic (`buildStringEntries`, `computeSourceEntriesHash`, `extractProjectShortIdFromApiKey`) exported from `@vocoder/cli/lib` as single source of truth.
 
   **`@vocoder/core`:** adds `extractProjectShortIdFromApiKey` utility.
 

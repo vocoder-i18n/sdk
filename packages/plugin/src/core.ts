@@ -169,10 +169,10 @@ export async function extractSourceKeys(cwd: string): Promise<string[]> {
 const CDN_POLL_INTERVAL_MS = 3000;
 const CDN_POLL_MAX_WAIT_MS = 30_000;
 
-function computeStringsHash(keys: string[]): string {
-	const sorted = [...keys].sort();
+function computeSourceEntriesHash(entries: Array<{ key: string; text: string }>): string {
+	const sorted = [...entries].sort((a, b) => a.key.localeCompare(b.key));
 	return createHash("sha256")
-		.update(JSON.stringify({ strings: sorted, industry: null }))
+		.update(JSON.stringify({ entries: sorted.map((e) => [e.key, e.text]), industry: null }))
 		.digest("hex");
 }
 
@@ -204,7 +204,11 @@ export async function triggerOnDemandSync(params: {
 
 	if (strings.length === 0) return null;
 
-	const stringsHash = computeStringsHash(sourceEntries.map((e) => e.key));
+	const sourceEntriesHash = computeSourceEntriesHash(
+		sourceEntries
+			.filter((e): e is SourceEntry & { text: string } => e.text != null)
+			.map((e) => ({ key: e.key, text: e.text })),
+	);
 	const repoIdentity = detectRepoIdentity();
 
 	console.log(`[vocoder] No bundle for ${fingerprint} — submitting translate job (dev mode)`);
@@ -218,7 +222,7 @@ export async function triggerOnDemandSync(params: {
 				Authorization: `Bearer ${apiKey}`,
 			},
 			body: JSON.stringify({
-				apps: [{ appDir, strings, stringsHash }],
+				apps: [{ appDir, strings, sourceEntriesHash }],
 				branch,
 				repoUrl: repoIdentity?.repoCanonical ?? "",
 				clientRunId: Math.random().toString(36).slice(2),
@@ -706,9 +710,9 @@ export async function reportBuildFallback(params: {
 	apiKey: string;
 	fingerprint: string;
 	reason: string;
-	stringsCount?: number;
+	sourceEntriesCount?: number;
 }): Promise<void> {
-	const { apiUrl, apiKey, fingerprint, reason, stringsCount } = params;
+	const { apiUrl, apiKey, fingerprint, reason, sourceEntriesCount } = params;
 
 	const buildEnv =
 		process.env.GITHUB_ACTIONS ? "github-actions" :
@@ -727,7 +731,7 @@ export async function reportBuildFallback(params: {
 				fingerprint,
 				event: "build_fallback_to_runtime",
 				reason,
-				stringsCount,
+				sourceEntriesCount,
 				buildEnv,
 			}),
 			signal: AbortSignal.timeout(5_000),

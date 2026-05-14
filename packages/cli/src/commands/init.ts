@@ -10,12 +10,12 @@ import type { InitOptions } from "../types.js";
 import { VocoderAPI } from "../utils/api.js";
 import chalk from "chalk";
 import { highlight } from "../utils/theme.js";
+import { installForProject } from "../utils/install-packages.js";
 import { loadEnvFiles } from "../utils/load-env.js";
 import { resolveGitContext } from "../utils/git-identity.js";
 import { runAuthFlow } from "../utils/auth-flow.js";
 import { runProjectCreate } from "../utils/project-create.js";
 import { selectOrganizationForInit } from "../utils/organization-select.js";
-import { installForProject } from "../utils/install-packages.js";
 import { writeApiKeyToEnv } from "../utils/output.js";
 import { writeGitHubActionsWorkflow } from "../utils/workflow-write.js";
 

@@ -3,7 +3,7 @@ import {
 	type VocoderAPI,
 	StringExtractor,
 	buildStringEntries,
-	computeStringsHash,
+	computeSourceEntriesHash,
 	extractProjectShortIdFromApiKey,
 	loadVocoderConfig,
 } from "@vocoder/cli/lib";
@@ -62,12 +62,11 @@ export async function runTranslate(input: TranslateInput, api: VocoderAPI): Prom
 		return "No submittable strings found (all strings are id-only and require a localesPath source file).";
 	}
 
-	const sourceKeys = stringEntries.map((e) => e.key);
-	const stringsHash = input.force
+	const sourceEntriesHash = input.force
 		? undefined
-		: computeStringsHash({ keys: sourceKeys, industry: industry ?? null });
+		: computeSourceEntriesHash({ entries: stringEntries, industry: industry ?? null });
 
-	const fingerprint = computeFingerprint(`${projectShortId}:`, sourceKeys);
+	const fingerprint = computeFingerprint(`${projectShortId}:`, stringEntries.map((e) => e.key));
 
 	const response = await api.submitTranslate({
 		apps: [
@@ -80,7 +79,7 @@ export async function runTranslate(input: TranslateInput, api: VocoderAPI): Prom
 					...(s.formality ? { formality: s.formality } : {}),
 					...(s.uiRole ? { uiRole: s.uiRole } : {}),
 				})),
-				...(stringsHash ? { stringsHash } : {}),
+				...(sourceEntriesHash ? { sourceEntriesHash } : {}),
 			},
 		],
 		branch,
@@ -99,7 +98,7 @@ export async function runTranslate(input: TranslateInput, api: VocoderAPI): Prom
 async function pollTranslate(
 	api: VocoderAPI,
 	jobId: string,
-	totalStrings: number,
+	totalSourceEntries: number,
 ): Promise<string> {
 	const deadline = Date.now() + MAX_WAIT_MS;
 
@@ -110,7 +109,7 @@ async function pollTranslate(
 		if (status.status === "complete") {
 			const appStatus = status.apps[0];
 			const providers = appStatus ? Object.keys(appStatus.providers).join(", ") : "";
-			return `Translation complete. ${totalStrings} string(s) submitted${providers ? ` via ${providers}` : ""}.`;
+			return `Translation complete. ${totalSourceEntries} string(s) submitted${providers ? ` via ${providers}` : ""}.`;
 		}
 
 		if (status.status === "failed") {
@@ -119,7 +118,7 @@ async function pollTranslate(
 		}
 	}
 
-	return `Translations in progress (job: ${jobId}). ${totalStrings} string(s) queued. Check back shortly.`;
+	return `Translations in progress (job: ${jobId}). ${totalSourceEntries} string(s) queued. Check back shortly.`;
 }
 
 function sleep(ms: number): Promise<void> {

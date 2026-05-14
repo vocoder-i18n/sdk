@@ -22,7 +22,8 @@ export {
 	getPackagesToInstall,
 } from "./utils/detect-local.js";
 export { StringExtractor } from "./utils/extract.js";
-export { VocoderAPI, VocoderAPIError, computeStringsHash } from "./utils/api.js";
+export { VocoderAPI, VocoderAPIError, computeSourceEntriesHash } from "./utils/api.js";
+export type { SourceEntriesHashInput } from "./utils/api.js";
 export { buildStringEntries } from "./utils/string-entries.js";
 export { extractProjectShortIdFromApiKey } from "@vocoder/core";
 export type { TranslationStringEntry } from "./types.js";

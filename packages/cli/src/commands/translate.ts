@@ -10,7 +10,7 @@ import type {
 	TranslateCommandOptions,
 	TranslationStringEntry,
 } from "../types.js";
-import { VocoderAPI, VocoderAPIError, computeStringsHash } from "../utils/api.js";
+import { VocoderAPI, VocoderAPIError, computeSourceEntriesHash } from "../utils/api.js";
 import { detectBranch, isTargetBranch } from "../utils/branch.js";
 import { readWorkflowAppDirs, readWorkflowBranches } from "../utils/workflow-read.js";
 import { validateLocalConfig } from "../utils/config.js";
@@ -182,8 +182,8 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		type AppExtraction = {
 			appDir: string;
 			stringEntries: TranslationStringEntry[];
-			sourceKeys: string[];
-			stringsHash: string;
+			sourceEntriesCount: number;
+			sourceEntriesHash: string;
 			fingerprint: string;
 		};
 		const appExtractions: AppExtraction[] = [];
@@ -212,28 +212,24 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			);
 
 			const stringEntries = buildStringEntries(extractedStrings);
-			const sourceKeys = stringEntries.map((e) => e.key);
-			const stringsHash = computeStringsHash({ keys: sourceKeys, industry: industry ?? null });
+			const sourceEntriesHash = computeSourceEntriesHash({ entries: stringEntries, industry: industry ?? null });
 
 			// Fingerprint: hash(projectShortId:appDir:sortedKeys) — matches server formula
 			const scope = `${projectShortId}:${appDir}`;
-			const fingerprint = computeFingerprint(scope, sourceKeys);
+			const fingerprint = computeFingerprint(scope, stringEntries.map((e) => e.key));
 
-			appExtractions.push({ appDir, stringEntries, sourceKeys, stringsHash, fingerprint });
+			appExtractions.push({ appDir, stringEntries, sourceEntriesCount: stringEntries.length, sourceEntriesHash, fingerprint });
 		}
 
-		const totalStrings = appExtractions.reduce((sum, a) => sum + a.sourceKeys.length, 0);
-		if (totalStrings === 0) {
-			p.log.warn("No translatable strings found");
-			p.log.info("Make sure you are wrapping translatable strings with Vocoder");
-			p.outro("");
-			return 0;
+		const totalSourceEntries = appExtractions.reduce((sum, a) => sum + a.sourceEntriesCount, 0);
+		if (totalSourceEntries === 0) {
+			p.log.warn("No translatable strings found — notifying server to remove any deleted strings");
 		}
 
 		if (options.dryRun) {
 			const lines = appExtractions.map(
 				(a) =>
-					`${a.appDir || "(root)"}: ${a.sourceKeys.length} string${a.sourceKeys.length === 1 ? "" : "s"}, fingerprint ${a.fingerprint}`,
+					`${a.appDir || "(root)"}: ${a.sourceEntriesCount} string${a.sourceEntriesCount === 1 ? "" : "s"}, fingerprint ${a.fingerprint}`,
 			);
 			p.note(
 				[
@@ -257,21 +253,19 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		}
 
 		// Build per-app submissions — filter out id-only entries (text: null)
-		const apps = appExtractions
-			.filter((a) => a.sourceKeys.length > 0)
-			.map((a) => ({
-				appDir: a.appDir,
-				strings: a.stringEntries
-					.filter((e): e is TranslationStringEntry & { text: string } => e.text != null)
-					.map((e) => ({
-						key: e.key,
-						text: e.text,
-						...(e.context ? { context: e.context } : {}),
-						...(e.formality ? { formality: e.formality } : {}),
-						...(e.uiRole ? { uiRole: e.uiRole } : {}),
-					})),
-				stringsHash: a.stringsHash,
-			}));
+		const apps = appExtractions.map((a) => ({
+			appDir: a.appDir,
+			strings: a.stringEntries
+				.filter((e): e is TranslationStringEntry & { text: string } => e.text != null)
+				.map((e) => ({
+					key: e.key,
+					text: e.text,
+					...(e.context ? { context: e.context } : {}),
+					...(e.formality ? { formality: e.formality } : {}),
+					...(e.uiRole ? { uiRole: e.uiRole } : {}),
+				})),
+			sourceEntriesHash: a.sourceEntriesHash,
+		}));
 
 		spinner.start(
 			apps.length > 1
@@ -301,7 +295,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		const { jobId } = submitResult;
 		const localeList = apiConfig.targetLocales.join(", ");
 		process.stdout.write(
-			`Translating ${totalStrings} string${totalStrings === 1 ? "" : "s"} → ${localeList}\n`,
+			`Translating ${totalSourceEntries} string${totalSourceEntries === 1 ? "" : "s"} → ${localeList}\n`,
 		);
 
 		let interval = 1000;

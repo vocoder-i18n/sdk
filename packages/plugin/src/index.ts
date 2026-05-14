@@ -128,7 +128,7 @@ export const unplugin = createUnplugin(
 				const reason = "No translations available after CDN polling and API fallback";
 				console.warn(`[vocoder] WARNING: ${reason}. Translations will be fetched from CDN at runtime.`);
 				console.warn(`[vocoder] Fingerprint: ${fp} — check your Vocoder dashboard if this persists.`);
-				void reportBuildFallback({ apiUrl, apiKey, fingerprint: fp, reason, stringsCount: sourceKeys.length });
+				void reportBuildFallback({ apiUrl, apiKey, fingerprint: fp, reason, sourceEntriesCount: sourceKeys.length });
 			}
 
 			if (verbose) {
