@@ -188,9 +188,10 @@ export async function triggerOnDemandSync(params: {
 	apiUrl: string;
 	apiKey: string;
 	cdnUrl: string;
+	projectShortId: string;
 	sourceEntries: SourceEntry[];
 }): Promise<VocoderTranslationData | null> {
-	const { fingerprint, branch, appDir, apiUrl, apiKey, cdnUrl, sourceEntries } = params;
+	const { fingerprint, branch, appDir, apiUrl, apiKey, cdnUrl, projectShortId, sourceEntries } = params;
 
 	const strings = sourceEntries
 		.filter((e): e is SourceEntry & { text: string } => e.text != null && e.text.length > 0)
@@ -234,7 +235,7 @@ export async function triggerOnDemandSync(params: {
 
 		// Already complete (cached fingerprint)
 		if (result.status === "complete") {
-			return await pollCDNForTranslations(fingerprint, cdnUrl) ?? fetchTranslations(fingerprint, apiUrl);
+			return await pollCDNForTranslations(fingerprint, cdnUrl, projectShortId) ?? fetchTranslations(fingerprint, apiUrl);
 		}
 
 		jobId = result.jobId;
@@ -261,7 +262,7 @@ export async function triggerOnDemandSync(params: {
 			const status = (await statusRes.json()) as { status: string };
 
 			if (status.status === "complete") {
-				const bundle = await pollCDNForTranslations(fingerprint, cdnUrl);
+				const bundle = await pollCDNForTranslations(fingerprint, cdnUrl, projectShortId);
 				return bundle ?? fetchTranslations(fingerprint, apiUrl);
 			}
 			if (status.status === "failed") {
@@ -653,8 +654,9 @@ export async function fetchTranslations(
 export async function pollCDNForTranslations(
 	fingerprint: string,
 	cdnUrl: string,
+	projectShortId: string,
 ): Promise<VocoderTranslationData | null> {
-	const url = `${cdnUrl}/${fingerprint}/bundle.json`;
+	const url = `${cdnUrl}/${projectShortId}/${fingerprint}/bundle.json`;
 	const cacheDir = resolve(process.cwd(), "node_modules", ".cache", "vocoder");
 	const cacheFile = resolve(cacheDir, `${fingerprint}.json`);
 	const deadline = Date.now() + CDN_POLL_MAX_WAIT_MS;

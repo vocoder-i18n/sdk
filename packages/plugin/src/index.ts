@@ -110,9 +110,9 @@ export const unplugin = createUnplugin(
 			let fellBackToRuntime = false;
 			if (cdnUrl) {
 				if (verbose) {
-					console.log(`[vocoder] Polling CDN: ${cdnUrl}/${fp}/bundle.json`);
+					console.log(`[vocoder] Polling CDN: ${cdnUrl}/${projectShortId}/${fp}/bundle.json`);
 				}
-				d = await pollCDNForTranslations(fp, cdnUrl);
+				d = await pollCDNForTranslations(fp, cdnUrl, projectShortId);
 				if (d && verbose) {
 					console.log(`[vocoder] CDN hit: ${Date.now() - fetchStart}ms`);
 				} else if (!d && verbose) {
@@ -146,6 +146,7 @@ export const unplugin = createUnplugin(
 					apiUrl,
 					apiKey,
 					cdnUrl,
+					projectShortId,
 					sourceEntries,
 				});
 				if (synced) d = synced;
