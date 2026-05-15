@@ -135,6 +135,15 @@ export function resolveGitRepositoryIdentity(): GitRepositoryIdentity | null {
 	};
 }
 
+/**
+ * Returns the absolute path to the git repository root, or null when not inside a repo.
+ * Used to anchor YAML lookup, config loading, and extraction paths regardless of which
+ * subdirectory the CLI was invoked from.
+ */
+export function resolveGitRoot(): string | null {
+	return safeExec("git rev-parse --show-toplevel");
+}
+
 export function resolveGitContext(): GitContext {
 	const warnings: string[] = [];
 	const identity = resolveGitRepositoryIdentity();

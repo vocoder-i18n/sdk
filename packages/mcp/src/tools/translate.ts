@@ -64,7 +64,7 @@ export async function runTranslate(input: TranslateInput, api: VocoderAPI): Prom
 
 	const sourceEntriesHash = input.force
 		? undefined
-		: computeSourceEntriesHash({ entries: stringEntries, industry: industry ?? null });
+		: computeSourceEntriesHash({ entries: submittable, industry: industry ?? null });
 
 	const fingerprint = computeFingerprint(`${projectShortId}:`, stringEntries.map((e) => e.key));
 

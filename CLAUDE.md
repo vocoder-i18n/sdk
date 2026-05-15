@@ -92,6 +92,104 @@ Style:
 - Never mention competitors in documentation or code.
 - Each package README is self-contained.
 
+## CLI TUI Output Standards
+
+All CLI command output must follow these conventions. Apply them without prompting when working in `packages/cli/`.
+
+### Log Levels
+
+| Function | Renders | When to use |
+|---|---|---|
+| `p.log.success(msg)` | ✓ green | Operation completed. Subject + past-tense verb. One concise line. |
+| `p.log.warn(msg)` | ▲ yellow | Non-fatal condition — operation continues. What happened and why it matters. |
+| `p.log.error(msg)` | ✗ red | Fatal condition — `return 1` follows within a few lines. Never used for warnings. |
+| `p.log.info(msg)` | ℹ dim | Supplementary detail only: list items, recovery steps after an error, `""` for blank spacing. Never the primary message. |
+| `p.log.message(msg)` | (none) | Undecorated text: `chalk.bold("Section:")` headers, numbered/bulleted lists. |
+| `p.note(body, title)` | box | Multi-line key-value summary for a created or fetched resource. Body is `\n`-joined lines. |
+
+**Rule:** when exiting with code 1, the primary signal is always `p.log.error()` or `spinner.stop(msg, 1)` — never `p.log.warn()` alone. Use `p.log.warn()` only when the function continues after the warning.
+
+### Inline Styling
+
+| Construct | Use for |
+|---|---|
+| `highlight(value)` | Identifiers and discrete values that a user will scan for: project names, app dirs, locale codes, branch names, file paths, string counts, env var names, commands, API keys, emails, URLs. **Not** for prose text, error sentences, or API-returned descriptions. |
+| `chalk.bold(text)` | Standalone label text only: `p.intro()` title, `p.log.message()` and `p.note()` section headers |
+| `chalk.red(text)` | `p.outro()` only, for fatal-exit messages that must stand out |
+| `dim(text)` | Structural chrome only: separators, `printCommand()` decorations |
+| `chalk.green("✓")` / `chalk.red("✗")` | Inline per-item status within formatted result strings |
+
+**Rule:** never call `chalk.bold()` inside `p.log.success/warn/error/info()` — use `highlight()` instead.
+
+### Spinners
+
+- `spinner.start("Verb-ing noun…")` — present participle, trailing `…` (Unicode ellipsis, not `...`)
+- `spinner.stop("Past-tense result")` — no trailing ellipsis; include key result value with `highlight()`
+- `spinner.stop("Terse error", 1)` — exit code `1` for all spinner failures; message is a short noun phrase
+- Never call `p.log.*` while a spinner is running — stop the spinner first
+
+### Command Entry / Exit
+
+- Every top-level command must call `p.intro(chalk.bold("Command Title"))` as its **first** output
+- Every exit path must call `p.outro()` immediately before returning — no silent returns
+- `p.outro("")` — clean exit requiring no message
+- `p.outro(chalk.red("Fatal: reason"))` — fatal build-blocking exit that must stand out
+- `p.cancel("message")` — user-initiated cancellation only
+
+### Error + Guidance Pattern
+
+```ts
+// Fatal — no spinner running
+p.log.error("What failed.");
+p.log.info("  Run `vocoder command` to recover.");
+p.outro("");
+return 1;
+
+// Fatal — spinner was running
+spinner.stop("Terse failure noun", 1);
+for (const line of getGuidanceLines()) p.log.info(line);
+p.outro("");
+return 1;
+
+// Limit error (structured guidance)
+spinner.stop(limitError.message, 1);
+for (const line of getLimitErrorGuidance(limitError)) p.log.info(line);
+p.outro("");
+return 1;
+```
+
+Guidance / recovery lines always use `p.log.info()`. Never `p.log.warn()` after a fatal signal.
+
+### Information Density
+
+One concept, one line. Never state the same fact in multiple places.
+
+**No-repeat rule:** spinner stop, subsequent log calls, and outro are all visible to the user in sequence. If the spinner stop says X, the next log line must not restate X. If `p.log.error` names a recovery command, `p.outro` must not repeat it.
+
+**Combine related quantities on one line:**
+```ts
+// ✗ — two info lines for one comparison
+p.log.info(`Used this month: ${current.toLocaleString()} chars`);
+p.log.info(`Required for this sync: ${required.toLocaleString()} chars`);
+
+// ✓ — one line, same information
+p.log.info(`Used: ${current.toLocaleString()} / Needed: ${required.toLocaleString()} chars`);
+```
+
+**Guidance cap:** maximum 2 `p.log.info()` lines after any single error. If more context is genuinely needed, use `p.note()` instead of additional info lines.
+
+**Outro scope:** `p.outro()` is forward-looking ("what to do next") or empty. Never use it to repeat an error reason or recovery command already shown by a log line.
+
+**Guidance vs. summary:** info lines after an error tell the user WHAT TO DO — not a re-description of what went wrong (that's the error/spinner line's job).
+
+### Monorepo Labels
+
+- Single-app root: omit dir label from messages
+- Named app dir: include `highlight(appDir)` in spinner start/stop and per-result lines
+- Root app within a monorepo: display as `(root)`, not empty string
+
+---
+
 ## TypeScript
 
 Strict mode throughout. Build must succeed with zero errors before any task is complete.

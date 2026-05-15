@@ -1,24 +1,26 @@
-import { randomUUID } from "node:crypto";
 import * as p from "@clack/prompts";
-import chalk from "chalk";
-import { computeFingerprint, loadVocoderConfig } from "@vocoder/extractor";
-import { extractProjectShortIdFromApiKey } from "@vocoder/core";
+
 import type {
 	AppTranslateStatus,
 	BatchTranslateStatusResponse,
-	ExtractedString,
 	TranslateCommandOptions,
 	TranslationStringEntry,
 } from "../types.js";
 import { VocoderAPI, VocoderAPIError, computeSourceEntriesHash } from "../utils/api.js";
+import { computeFingerprint, loadVocoderConfig } from "@vocoder/extractor";
 import { detectBranch, isTargetBranch } from "../utils/branch.js";
+import { detectCommitSha, resolveGitRepositoryIdentity, resolveGitRoot } from "../utils/git-identity.js";
 import { readWorkflowAppDirs, readWorkflowBranches } from "../utils/workflow-read.js";
-import { validateLocalConfig } from "../utils/config.js";
-import { StringExtractor } from "../utils/extract.js";
-import { detectCommitSha, resolveGitRepositoryIdentity } from "../utils/git-identity.js";
-import { highlight } from "../utils/theme.js";
-import { buildStringEntries } from "../utils/string-entries.js";
+
 import type { LimitErrorResponse } from "../types.js";
+import { StringExtractor } from "../utils/extract.js";
+import { buildStringEntries } from "../utils/string-entries.js";
+import chalk from "chalk";
+import { existsSync } from "node:fs";
+import { extractProjectShortIdFromApiKey } from "@vocoder/core";
+import { highlight } from "../utils/theme.js";
+import { randomUUID } from "node:crypto";
+import { validateLocalConfig } from "../utils/config.js";
 
 type LocaleStatus = "pending" | "running" | "complete" | "failed";
 
@@ -61,55 +63,49 @@ export function computeExitCode(
 export function getLimitErrorGuidance(limitError: LimitErrorResponse): string[] {
 	if (limitError.limitType === "providers") {
 		return [
-			"Provider setup required.",
-			"Add a DeepL API key in Dashboard -> Workspace Settings -> Providers.",
+			"Add a DeepL API key in Dashboard → Workspace Settings → Providers.",
 			`Open settings: ${limitError.upgradeUrl}`,
 		];
 	}
 	if (limitError.limitType === "translation_chars") {
 		return [
-			"Monthly translation character limit reached.",
-			`Used this month: ${limitError.current.toLocaleString()} chars`,
-			`Required for this sync: ${limitError.required.toLocaleString()} chars`,
+			`Used: ${limitError.current.toLocaleString()} / Needed: ${limitError.required.toLocaleString()} chars`,
 			`Upgrade plan: ${limitError.upgradeUrl}`,
 		];
 	}
 	if (limitError.limitType === "source_strings") {
 		return [
-			"Active source string limit reached.",
-			`Current active strings: ${limitError.current.toLocaleString()}`,
-			`Required for this sync: ${limitError.required.toLocaleString()}`,
+			`Active strings: ${limitError.current.toLocaleString()} / Needed: ${limitError.required.toLocaleString()}`,
 			`Upgrade plan: ${limitError.upgradeUrl}`,
 		];
 	}
 	if (limitError.limitType === "target_locales") {
 		return [
-			`Current target locales: ${limitError.current}`,
-			`Plan limit: ${limitError.current} (${limitError.planId})`,
+			`Locale limit: ${limitError.required} (${limitError.planId} plan allows ${limitError.current})`,
 			`Upgrade plan: ${limitError.upgradeUrl}`,
 		];
 	}
 	return [
-		`Plan: ${limitError.planId}`,
-		`Current: ${limitError.current}`,
-		`Required: ${limitError.required}`,
+		`Plan: ${limitError.planId} — Current: ${limitError.current} / Required: ${limitError.required}`,
 		`Upgrade: ${limitError.upgradeUrl}`,
 	];
 }
 
 export async function translate(options: TranslateCommandOptions = {}): Promise<number> {
 	const startTime = Date.now();
-	const projectRoot = process.cwd();
+	const cwd = process.cwd();
+	// Git root anchors YAML lookup, config loading, and extraction paths so they work
+	// correctly regardless of which subdirectory the CLI was invoked from.
+	// Falls back to cwd when not inside a git repository.
+	const gitRoot = resolveGitRoot() ?? cwd;
 
 	p.intro(chalk.bold("Vocoder Translate"));
 
 	const apiKey = process.env.VOCODER_API_KEY;
 	if (!apiKey) {
-		p.log.warn("No API key found. Run init to get started:");
-		p.log.info("  npx @vocoder/cli init");
-		p.log.info("");
-		p.log.info("  Or add your key to .env or .env.local: VOCODER_API_KEY=vcp_...");
-		p.outro("Run `npx @vocoder/cli init` to set up your project.");
+		p.log.error("No API key found.");
+		p.log.info("  Run `npx @vocoder/cli init` — or set VOCODER_API_KEY in .env.local");
+		p.outro("");
 		return 1;
 	}
 
@@ -140,8 +136,8 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		spinner.stop(`Branch: ${highlight(branch)}`);
 
 		// YAML branches are the source of truth — fall back to server config if YAML absent.
-		const yamlBranches = readWorkflowBranches(projectRoot);
-		const yamlAppDirs = readWorkflowAppDirs(projectRoot);
+		const yamlBranches = readWorkflowBranches(gitRoot);
+		const yamlAppDirs = readWorkflowAppDirs(gitRoot);
 		const effectiveTargetBranches = yamlBranches ?? apiConfig.targetBranches;
 
 		if (!isTargetBranch(branch, effectiveTargetBranches)) {
@@ -155,28 +151,37 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			return 0;
 		}
 
-		const fileConfig = loadVocoderConfig(projectRoot);
-
-		// VOCODER_ON_FAILURE env var overrides vocoder.config.ts setting
+		// onTranslationFailure is a job-level setting — load from git root, not per-app.
+		// VOCODER_ON_FAILURE env var takes highest precedence.
+		const rootConfig = loadVocoderConfig(gitRoot);
 		const onTranslationFailure =
 			(process.env.VOCODER_ON_FAILURE as "fail" | "proceed" | undefined) ??
-			fileConfig?.onTranslationFailure ??
+			rootConfig?.onTranslationFailure ??
 			"proceed";
 
-		// --app-dirs flag > YAML app-dirs > single-app (root "")
+		// --app-dirs flag > YAML app-dirs > single-app root ("")
+		// Monorepo users must declare app dirs explicitly (flag or YAML); no CWD inference.
 		const appDirs = options.appDirs
 			? options.appDirs
 					.split(",")
 					.map((d) => d.trim().replace(/^\/|\/$/g, ""))
 					.filter(Boolean)
 			: (yamlAppDirs ?? []);
-		// Single-app: appDir = "" (whole repo)
 		const effectiveAppDirs = appDirs.length > 0 ? appDirs : [""];
 
-		const includePattern: string | string[] =
-			fileConfig?.include?.length ? fileConfig.include : ["**/*.{tsx,jsx,ts,js}"];
-		const excludePattern = fileConfig?.exclude?.length ? fileConfig.exclude : undefined;
-		const industry = fileConfig?.industry ?? fileConfig?.appIndustry;
+		// Validate and display named app dirs. Root ("") always valid — skip for single-app projects.
+		const namedAppDirs = effectiveAppDirs.filter(Boolean);
+		if (namedAppDirs.length > 0) {
+			spinner.start("Checking app directories");
+			for (const appDir of namedAppDirs) {
+				if (!existsSync(`${gitRoot}/${appDir}`)) {
+					spinner.stop(`App directory not found: ${highlight(appDir)}`, 1);
+					p.outro("Fix app-dirs in your workflow YAML or --app-dirs flag.");
+					return 1;
+				}
+			}
+			spinner.stop(`Apps: ${namedAppDirs.map((d) => highlight(d)).join(", ")}`);
+		}
 
 		// Extract strings for each app directory
 		type AppExtraction = {
@@ -189,7 +194,16 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		const appExtractions: AppExtraction[] = [];
 
 		for (const appDir of effectiveAppDirs) {
-			const extractRoot = appDir ? `${projectRoot}/${appDir}` : projectRoot;
+			// Each app owns its vocoder.config.ts for include/exclude/industry/formality.
+			// Root-level projects: extractRoot === gitRoot, config loaded from there.
+			const extractRoot = appDir ? `${gitRoot}/${appDir}` : gitRoot;
+			const appConfig = loadVocoderConfig(extractRoot);
+
+			const includePattern: string | string[] =
+				appConfig?.include?.length ? appConfig.include : ["**/*.{tsx,jsx,ts,js}"];
+			const excludePattern = appConfig?.exclude?.length ? appConfig.exclude : undefined;
+			const industry = appConfig?.industry;
+
 			const patternsDisplay = Array.isArray(includePattern)
 				? includePattern.join(", ")
 				: includePattern;
@@ -282,20 +296,22 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			// Only sent when YAML was found — omitting preserves server value if no YAML.
 			...(yamlBranches ? { targetBranches: yamlBranches } : {}),
 		});
-		spinner.stop("Job accepted");
 
-		// All apps cached — no work needed
+		// All apps cached — stop spinner with that result, no polling needed
 		if (submitResult.status === "complete") {
 			const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-			p.log.success(`Bundle ready (cached — ${duration}s)`);
+			spinner.stop(`Bundle ready — cached in ${duration}s`);
 			p.outro("Up to date.");
 			return 0;
 		}
 
+		spinner.stop("Queued");
+
 		const { jobId } = submitResult;
 		const localeList = apiConfig.targetLocales.join(", ");
-		process.stdout.write(
-			`Translating ${totalSourceEntries} string${totalSourceEntries === 1 ? "" : "s"} → ${localeList}\n`,
+
+		spinner.start(
+			`Translating ${totalSourceEntries} string${totalSourceEntries === 1 ? "" : "s"} → ${localeList}`,
 		);
 
 		let interval = 1000;
@@ -307,16 +323,16 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			);
 			const status = await api.pollTranslateStatus(jobId);
 
-			// Show per-app progress
+			// Update spinner message with per-app progress for monorepo
 			for (const app of status.apps) {
-				if (app.status === "running") {
-					process.stdout.write(`\r${formatAppProgress(app)}          `);
+				if (app.status === "running" && app.appDir) {
+					const { completed, total } = app.progress;
+					spinner.message(`${highlight(app.appDir)}: ${completed}/${total}`);
 				}
 			}
 
 			if (status.status === "complete" || status.status === "failed") {
 				finalStatus = status;
-				process.stdout.write("\n");
 				break;
 			}
 
@@ -330,34 +346,31 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
-		// Per-app final status lines — only shown for monorepo (multiple apps or named appDir).
-		// Root-level single-app setup shows no label; the outro line is sufficient.
-		for (const app of finalStatus.apps) {
-			const showLabel = finalStatus.apps.length > 1 || !!app.appDir;
-			if (!showLabel) continue;
-
-			const appStatusLine =
-				app.status === "complete"
-					? chalk.green(`✓ ${app.appDir}`)
-					: chalk.red(`✗ ${app.appDir}`) + (app.error ? `: ${app.error}` : "");
-			process.stdout.write(`  ${appStatusLine}\n`);
+		if (finalStatus.status === "complete") {
+			spinner.stop(`Bundle ready — ${elapsedSec}s`);
+			// Per-app lines only for monorepo (multiple apps or named appDir)
+			for (const app of finalStatus.apps) {
+				if (finalStatus.apps.length > 1 || !!app.appDir) {
+					p.log.info(`${app.appDir}: done`);
+				}
+			}
+			p.outro("Up to date.");
+			return 0;
 		}
 
-		if (finalStatus.status === "complete") {
-			p.outro(chalk.green(`✓ Bundle ready — ${elapsedSec}s`));
-			return 0;
+		spinner.stop("Translation incomplete", 1);
+		for (const app of finalStatus.apps) {
+			if ((finalStatus.apps.length > 1 || !!app.appDir) && app.status !== "complete") {
+				p.log.warn(`${app.appDir}${app.error ? `: ${app.error}` : ""}`);
+			}
 		}
 
 		if (computeExitCode("failed", onTranslationFailure) === 0) {
-			p.log.warn(
-				`Translation incomplete — proceeding (onTranslationFailure: ${onTranslationFailure})`,
-			);
-			p.outro("");
+			p.outro(`Translation incomplete — proceeding (onTranslationFailure: ${onTranslationFailure})`);
 			return 0;
 		}
 
-		p.log.error("Translation failed");
-		p.outro("Build halted (onTranslationFailure: fail)");
+		p.outro(chalk.red("Build halted — translation failed (onTranslationFailure: fail)"));
 		return 1;
 	} catch (error) {
 		if (error instanceof VocoderAPIError && error.limitError) {
@@ -383,8 +396,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		if (error instanceof Error) {
 			spinner.stop(error.message, 1);
 			if (error.message.includes("git branch")) {
-				p.log.warn("Run from a git repository, or use:");
-				p.log.info("  vocoder translate --branch main");
+				p.log.info("  Run from a git repository, or use: vocoder translate --branch main");
 			}
 			if (options.verbose) {
 				p.log.info(`Full error: ${error.stack ?? error}`);

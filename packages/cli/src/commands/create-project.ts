@@ -41,11 +41,14 @@ export interface CreateProjectOptions {
  * Endpoint: POST /api/projects
  */
 export async function createProject(options: CreateProjectOptions): Promise<number> {
+	p.intro(chalk.bold("Vocoder Create Project"));
+
 	const authData = readAuthData();
 	if (!authData) {
 		p.log.error(
 			"Not logged in. Run `npx @vocoder/cli init` to authenticate first.",
 		);
+		p.outro("");
 		return 1;
 	}
 
@@ -89,10 +92,10 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 			...(repoCanonical ? { repoCanonical } : {}),
 		});
 
-		spinner.stop(`Created project ${chalk.bold(result.projectName)}`);
+		spinner.stop(`Created project ${highlight(result.projectName)}`);
 
 		const lines = [
-			`Project ID:     ${result.projectId}`,
+			`Project ID:     ${highlight(result.projectId)}`,
 			`Source locale:  ${highlight(result.sourceLocale)}`,
 			`Target locales: ${result.targetLocales.length > 0 ? result.targetLocales.map((l) => highlight(l)).join(", ") : chalk.dim("(none)")}`,
 			`Branches:       ${result.targetBranches.map((b) => highlight(b)).join(", ")}`,
@@ -106,13 +109,14 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 
 		if (!result.repositoryBound && repoCanonical) {
 			p.log.info(
-				`Repository "${repoCanonical}" was not connected — it will bind automatically on first translate.`,
+				`Repository ${highlight(repoCanonical)} was not connected — it will bind automatically on first translate.`,
 			);
 		}
 
+		p.outro("");
 		return 0;
 	} catch (error) {
-		spinner.stop("Failed to create project.");
+		spinner.stop("Failed to create project.", 1);
 
 		if (error instanceof VocoderAPIError && error.limitError) {
 			const { limitError } = error;
@@ -120,12 +124,14 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 			for (const line of getLimitErrorGuidance(limitError)) {
 				p.log.info(line);
 			}
+			p.outro("");
 			return 1;
 		}
 
 		p.log.error(
 			error instanceof Error ? error.message : "Unknown error.",
 		);
+		p.outro("");
 		return 1;
 	}
 }

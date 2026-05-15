@@ -90,50 +90,51 @@ describe("getLimitErrorGuidance", () => {
 		};
 	}
 
-	it("providers branch — returns settings URL guidance", () => {
+	it("providers branch — includes DeepL mention and settings URL", () => {
 		const lines = getLimitErrorGuidance(makeLimit({ limitType: "providers" }));
-		expect(lines[0]).toContain("Provider setup required");
-		expect(lines[1]).toContain("DeepL");
-		expect(lines[2]).toContain("https://vocoder.app/upgrade");
+		expect(lines).toHaveLength(2);
+		expect(lines[0]).toContain("DeepL");
+		expect(lines[1]).toContain("https://vocoder.app/upgrade");
 	});
 
-	it("translation_chars branch — includes current and required char counts", () => {
+	it("translation_chars branch — combines current/required on one line + upgrade URL", () => {
 		const lines = getLimitErrorGuidance(
 			makeLimit({ limitType: "translation_chars", current: 50000, required: 75000 }),
 		);
-		expect(lines[0]).toContain("character limit");
-		expect(lines[1]).toContain("50,000");
-		expect(lines[2]).toContain("75,000");
-		expect(lines[3]).toContain("https://vocoder.app/upgrade");
+		expect(lines).toHaveLength(2);
+		expect(lines[0]).toContain("50,000");
+		expect(lines[0]).toContain("75,000");
+		expect(lines[1]).toContain("https://vocoder.app/upgrade");
 	});
 
-	it("source_strings branch — includes current and required string counts", () => {
+	it("source_strings branch — combines current/required on one line + upgrade URL", () => {
 		const lines = getLimitErrorGuidance(
 			makeLimit({ limitType: "source_strings", current: 100, required: 200 }),
 		);
-		expect(lines[0]).toContain("source string limit");
-		expect(lines[1]).toContain("100");
-		expect(lines[2]).toContain("200");
-		expect(lines[3]).toContain("https://vocoder.app/upgrade");
+		expect(lines).toHaveLength(2);
+		expect(lines[0]).toContain("100");
+		expect(lines[0]).toContain("200");
+		expect(lines[1]).toContain("https://vocoder.app/upgrade");
 	});
 
-	it("target_locales branch — includes current locale count and planId", () => {
+	it("target_locales branch — shows required count, planId, and upgrade URL", () => {
 		const lines = getLimitErrorGuidance(
-			makeLimit({ limitType: "target_locales", current: 3, planId: "starter" }),
+			makeLimit({ limitType: "target_locales", current: 2, required: 3, planId: "starter" }),
 		);
-		expect(lines[0]).toContain("3");
-		expect(lines[1]).toContain("starter");
-		expect(lines[2]).toContain("https://vocoder.app/upgrade");
+		expect(lines).toHaveLength(2);
+		expect(lines[0]).toContain("starter");
+		expect(lines[1]).toContain("https://vocoder.app/upgrade");
 	});
 
-	it("fallback branch — includes planId, current, required, and upgrade URL", () => {
+	it("fallback branch — combines planId/current/required on one line + upgrade URL", () => {
 		const lines = getLimitErrorGuidance(
 			makeLimit({ limitType: "credits", planId: "pro", current: 10, required: 50 }),
 		);
+		expect(lines).toHaveLength(2);
 		expect(lines[0]).toContain("pro");
-		expect(lines[1]).toContain("10");
-		expect(lines[2]).toContain("50");
-		expect(lines[3]).toContain("https://vocoder.app/upgrade");
+		expect(lines[0]).toContain("10");
+		expect(lines[0]).toContain("50");
+		expect(lines[1]).toContain("https://vocoder.app/upgrade");
 	});
 });
 

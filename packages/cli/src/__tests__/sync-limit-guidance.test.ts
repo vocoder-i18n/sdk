@@ -20,26 +20,31 @@ function createLimitError(
 describe("getLimitErrorGuidance", () => {
 	it("returns provider setup guidance for providers limits", () => {
 		const lines = getLimitErrorGuidance(createLimitError("providers"));
-		expect(lines[0]).toContain("Provider setup required");
-		expect(lines.join(" ")).toContain("DeepL API key");
+		expect(lines).toHaveLength(2);
+		expect(lines.join(" ")).toContain("DeepL");
+		expect(lines[1]).toContain("settings");
 	});
 
-	it("returns source string guidance for source string limits", () => {
+	it("returns source string guidance combining current and required on one line", () => {
 		const lines = getLimitErrorGuidance(createLimitError("source_strings"));
-		expect(lines[0]).toContain("Active source string limit reached");
-		expect(lines.join(" ")).toContain("Required for this sync");
+		expect(lines).toHaveLength(2);
+		expect(lines[0]).toContain("10");
+		expect(lines[0]).toContain("20");
+		expect(lines[1]).toContain("Upgrade");
 	});
 
-	it("returns locale limit guidance for target_locales limits", () => {
+	it("returns locale limit guidance with planId and upgrade URL", () => {
 		const lines = getLimitErrorGuidance(createLimitError("target_locales"));
-		expect(lines[0]).toContain("Current target locales");
-		expect(lines.join(" ")).toContain("Upgrade plan");
+		expect(lines).toHaveLength(2);
+		expect(lines[0]).toContain("free");
+		expect(lines[1]).toContain("Upgrade");
 	});
 
-	it("keeps legacy guidance for generic plan limits", () => {
+	it("fallback combines planId/current/required on one line + upgrade URL", () => {
 		const lines = getLimitErrorGuidance(createLimitError("projects"));
-		expect(lines[0]).toBe("Plan: free");
-		expect(lines[1]).toBe("Current: 10");
-		expect(lines[2]).toBe("Required: 20");
+		expect(lines).toHaveLength(2);
+		expect(lines[0]).toContain("free");
+		expect(lines[0]).toContain("10");
+		expect(lines[0]).toContain("20");
 	});
 });

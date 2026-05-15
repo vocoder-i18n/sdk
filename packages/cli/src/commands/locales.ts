@@ -37,8 +37,13 @@ function getApiConfig(options: LocaleCommandOptions): {
  * @throws If VOCODER_API_KEY is missing or the API call fails.
  */
 export async function listProjectLocales(options: LocaleCommandOptions = {}): Promise<number> {
+	p.intro(chalk.bold("Vocoder Locales"));
+
 	const config = getApiConfig(options);
-	if (!config) return 1;
+	if (!config) {
+		p.outro("");
+		return 1;
+	}
 
 	const api = new VocoderAPI(config);
 
@@ -57,11 +62,13 @@ export async function listProjectLocales(options: LocaleCommandOptions = {}): Pr
 			);
 		}
 
+		p.outro("");
 		return 0;
 	} catch (error) {
 		p.log.error(
 			error instanceof Error ? error.message : "Failed to fetch app locales.",
 		);
+		p.outro("");
 		return 1;
 	}
 }
@@ -81,13 +88,19 @@ export async function addLocales(
 	locales: string[],
 	options: LocaleCommandOptions = {},
 ): Promise<number> {
+	p.intro(chalk.bold("Vocoder Locales"));
+
 	if (locales.length === 0) {
 		p.log.error("No locale codes provided.");
+		p.outro("");
 		return 1;
 	}
 
 	const config = getApiConfig(options);
-	if (!config) return 1;
+	if (!config) {
+		p.outro("");
+		return 1;
+	}
 
 	const api = new VocoderAPI(config);
 	let lastTargetLocales: string[] = [];
@@ -102,7 +115,7 @@ export async function addLocales(
 			lastTargetLocales = result.targetLocales;
 			spinner.stop(`Added ${highlight(locale)}`);
 		} catch (error) {
-			spinner.stop(`Failed to add ${chalk.red(locale)}`);
+			spinner.stop(`Failed to add ${highlight(locale)}`, 1);
 			hadError = true;
 
 			if (error instanceof VocoderAPIError && error.limitError) {
@@ -127,6 +140,7 @@ export async function addLocales(
 		);
 	}
 
+	p.outro("");
 	return hadError ? 1 : 0;
 }
 
@@ -143,13 +157,19 @@ export async function removeLocales(
 	locales: string[],
 	options: LocaleCommandOptions = {},
 ): Promise<number> {
+	p.intro(chalk.bold("Vocoder Locales"));
+
 	if (locales.length === 0) {
 		p.log.error("No locale codes provided.");
+		p.outro("");
 		return 1;
 	}
 
 	const config = getApiConfig(options);
-	if (!config) return 1;
+	if (!config) {
+		p.outro("");
+		return 1;
+	}
 
 	const api = new VocoderAPI(config);
 	let lastTargetLocales: string[] = [];
@@ -164,7 +184,7 @@ export async function removeLocales(
 			lastTargetLocales = result.targetLocales;
 			spinner.stop(`Removed ${highlight(locale)}`);
 		} catch (error) {
-			spinner.stop(`Failed to remove ${chalk.red(locale)}`);
+			spinner.stop(`Failed to remove ${highlight(locale)}`, 1);
 			hadError = true;
 			p.log.error(
 				error instanceof Error ? error.message : "Unknown error",
@@ -180,6 +200,7 @@ export async function removeLocales(
 		p.log.info("Target locales now: (none configured)");
 	}
 
+	p.outro("");
 	return hadError ? 1 : 0;
 }
 
@@ -190,24 +211,31 @@ export async function removeLocales(
  * Endpoint: GET /api/cli/locales (accepts both user tokens and app API keys)
  */
 export async function listSupportedLocales(options: LocaleCommandOptions = {}): Promise<number> {
+	p.intro(chalk.bold("Vocoder Locales"));
+
 	const config = getApiConfig(options);
-	if (!config) return 1;
+	if (!config) {
+		p.outro("");
+		return 1;
+	}
 
 	const api = new VocoderAPI(config);
 
 	try {
 		// GET /api/cli/locales accepts both user tokens and app API keys as Bearer tokens
 		const result = await api.listLocales(config.apiKey);
-		p.log.info(chalk.bold("Source locales:"));
+		p.log.message(chalk.bold("Source locales:"));
 		printLocaleTable(result.sourceLocales);
 		p.log.info("");
-		p.log.info(chalk.bold("Target locales:"));
+		p.log.message(chalk.bold("Target locales:"));
 		printLocaleTable(result.targetLocales);
+		p.outro("");
 		return 0;
 	} catch (error) {
 		p.log.error(
 			error instanceof Error ? error.message : "Failed to fetch supported locales.",
 		);
+		p.outro("");
 		return 1;
 	}
 }
