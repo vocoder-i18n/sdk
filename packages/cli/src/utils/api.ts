@@ -290,12 +290,24 @@ export class VocoderAPI {
 	async submitTranslate(body: BatchTranslateRequestBody): Promise<{
 		jobId: string;
 		status?: "complete";
-		apps: Array<{ appDir: string; appId: string; fingerprint?: string }>;
+		apps: Array<{
+			appDir: string;
+			appId: string;
+			fingerprint?: string;
+			localeFileTree?: Record<string, string>;
+			commitConfig?: { commitMode: string; autoMergePRs: boolean; skipCiOnDirectCommit: boolean };
+		}>;
 	}> {
 		return this.request<{
 			jobId: string;
 			status?: "complete";
-			apps: Array<{ appDir: string; appId: string; fingerprint?: string }>;
+			apps: Array<{
+				appDir: string;
+				appId: string;
+				fingerprint?: string;
+				localeFileTree?: Record<string, string>;
+				commitConfig?: { commitMode: string; autoMergePRs: boolean; skipCiOnDirectCommit: boolean };
+			}>;
 		}>(
 			"/api/translate",
 			{

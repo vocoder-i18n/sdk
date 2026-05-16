@@ -89,6 +89,12 @@ export interface AppTranslateStatus {
 	progress: { completed: number; total: number };
 	fingerprint?: string;
 	error?: string;
+	localeFileTree?: Record<string, string>;
+	commitConfig?: {
+		commitMode: string;
+		autoMergePRs: boolean;
+		skipCiOnDirectCommit: boolean;
+	};
 }
 
 export interface BatchTranslateStatusResponse {

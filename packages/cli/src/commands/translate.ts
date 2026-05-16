@@ -16,7 +16,7 @@ import type { LimitErrorResponse } from "../types.js";
 import { StringExtractor } from "../utils/extract.js";
 import { buildStringEntries } from "../utils/string-entries.js";
 import chalk from "chalk";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { extractProjectShortIdFromApiKey } from "@vocoder/core";
 import { highlight } from "../utils/theme.js";
 import { randomUUID } from "node:crypto";
@@ -89,6 +89,26 @@ export function getLimitErrorGuidance(limitError: LimitErrorResponse): string[] 
 		`Plan: ${limitError.planId} — Current: ${limitError.current} / Required: ${limitError.required}`,
 		`Upgrade: ${limitError.upgradeUrl}`,
 	];
+}
+
+type TranslateResultApp = {
+	appDir: string;
+	localeFileTree?: Record<string, string>;
+	commitConfig?: { commitMode: string; autoMergePRs: boolean; skipCiOnDirectCommit: boolean };
+};
+
+// Writes a JSON result file for the GitHub Action commit step. No-op outside CI.
+function writeTranslateResult(jobId: string, apps: TranslateResultApp[]): void {
+	if (!process.env.GITHUB_ACTIONS) return;
+	const runnerTemp = process.env.RUNNER_TEMP ?? "/tmp";
+	try {
+		writeFileSync(
+			`${runnerTemp}/vocoder-result.json`,
+			JSON.stringify({ jobId, status: "complete", apps }, null, 2),
+		);
+	} catch {
+		// Non-fatal — commit step skips if file is absent
+	}
 }
 
 export async function translate(options: TranslateCommandOptions = {}): Promise<number> {
@@ -301,6 +321,14 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		if (submitResult.status === "complete") {
 			const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 			spinner.stop(`Bundle ready — cached in ${duration}s`);
+			writeTranslateResult(
+				submitResult.jobId,
+				submitResult.apps.map((a) => ({
+					appDir: a.appDir,
+					...(a.localeFileTree ? { localeFileTree: a.localeFileTree } : {}),
+					...(a.commitConfig ? { commitConfig: a.commitConfig } : {}),
+				})),
+			);
 			p.outro("Up to date.");
 			return 0;
 		}
@@ -348,6 +376,14 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 
 		if (finalStatus.status === "complete") {
 			spinner.stop(`Bundle ready — ${elapsedSec}s`);
+			writeTranslateResult(
+				finalStatus.jobId,
+				finalStatus.apps.map((a) => ({
+					appDir: a.appDir,
+					...(a.localeFileTree ? { localeFileTree: a.localeFileTree } : {}),
+					...(a.commitConfig ? { commitConfig: a.commitConfig } : {}),
+				})),
+			);
 			// Per-app lines only for monorepo (multiple apps or named appDir)
 			for (const app of finalStatus.apps) {
 				if (finalStatus.apps.length > 1 || !!app.appDir) {
