@@ -314,6 +314,31 @@ Required context provider. Place at the root of your app (client-side). Manages 
 | `initialLocale` | `string` | — | SSR-detected locale. Pass the raw `vocoder_locale` cookie value from the server. The provider normalizes it against available locales automatically. Omit for client-only apps. |
 | `preview` | `boolean` | — | Whether this user has preview mode enabled. Resolve from the `vocoder_preview` cookie server-side and pass the boolean. Only relevant when `preview: true` is set in the build plugin config. |
 | `applyDir` | `boolean` | `true` | Auto-sets `dir` and `lang` on `document.documentElement` when locale changes. Set `false` only if you manage direction yourself. |
+| `manifest` | `LocaleManifest` | — | Git-first mode: locale config + metadata from a committed `manifest.json`. When provided, the provider bypasses the `@vocoder/plugin` runtime and derives everything from this manifest. Use alongside `initialTranslations` and `loadLocale`. |
+| `initialTranslations` | `Record<string, string>` | — | Initial translation map for the starting locale. Use in manifest mode to seed translations on first render. Keys are FNV-1a hashes of source text (same format as locale JSON files). |
+| `loadLocale` | `(locale: string) => Promise<Record<string, string>>` | — | Locale loader for manifest mode. Called when the user switches locale. Typically a dynamic import of the locale JSON file. |
+
+### Git-first usage example
+
+```tsx
+import manifest from './locales/manifest.json'
+import enTranslations from './locales/en.json'
+import { VocoderProvider } from '@vocoder/react'
+
+export default function RootLayout({ children }) {
+  return (
+    <VocoderProvider
+      manifest={manifest}
+      initialTranslations={enTranslations}
+      loadLocale={(locale) => import(`./locales/${locale}.json`).then(m => m.default)}
+    >
+      {children}
+    </VocoderProvider>
+  )
+}
+```
+
+In git-first mode there is no build plugin. The `manifest.json` and locale JSON files are committed to your repository and imported directly.
 
 ### SPA (Vite, CRA)
 

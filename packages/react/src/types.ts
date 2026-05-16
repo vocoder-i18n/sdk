@@ -1,5 +1,5 @@
 import type React from "react";
-import type { FormatMode, LocalesMap, TOptions } from "@vocoder/core";
+import type { FormatMode, LocalesMap, OrdinalForms, TOptions } from "@vocoder/core";
 
 // Re-export shared framework-agnostic types from @vocoder/core so consumers
 // can import them from either @vocoder/react or @vocoder/core.
@@ -49,6 +49,22 @@ export interface VocoderContextValue {
 	ordinal: (value: number, gender?: string) => string;
 }
 
+export interface LocaleManifestEntry {
+	nativeName: string;
+	currencyCode?: string;
+	isRTL: boolean;
+	ordinalForms?: OrdinalForms;
+}
+
+export interface LocaleManifest {
+	version: 1;
+	sourceLocale: string;
+	targetLocales: string[];
+	locales: Record<string, LocaleManifestEntry>;
+	updatedAt: string;
+	fingerprint: string;
+}
+
 export interface VocoderProviderProps {
 	/** React children */
 	children: React.ReactNode;
@@ -79,6 +95,26 @@ export interface VocoderProviderProps {
 	 * @default true
 	 */
 	applyDir?: boolean;
+	/**
+	 * Git-first mode: locale configuration + metadata from a committed manifest.json.
+	 * When provided, the provider bypasses @vocoder/plugin runtime globals and derives
+	 * locale config entirely from this manifest. Use alongside initialTranslations and
+	 * loadLocale to run Vocoder without the build plugin.
+	 */
+	manifest?: LocaleManifest;
+	/**
+	 * Initial translations for the starting locale. Required in manifest mode to seed
+	 * translations on first render without an async load. The key should match
+	 * initialLocale (or manifest.sourceLocale when initialLocale is absent).
+	 */
+	initialTranslations?: Record<string, string>;
+	/**
+	 * Locale loader for manifest mode. Called when the user switches locale.
+	 * Should return the translation map for the requested locale.
+	 * @example
+	 *   loadLocale={(locale) => import(`./locales/${locale}.json`).then(m => m.default)}
+	 */
+	loadLocale?: (locale: string) => Promise<Record<string, string>>;
 }
 
 export interface TProps {

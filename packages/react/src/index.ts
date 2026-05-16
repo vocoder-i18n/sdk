@@ -11,6 +11,8 @@ export type {
 	ComponentSlot,
 	FormatMode,
 	LocaleInfo,
+	LocaleManifest,
+	LocaleManifestEntry,
 	LocaleSelectorProps,
 	LocalesMap,
 	TOptions,
