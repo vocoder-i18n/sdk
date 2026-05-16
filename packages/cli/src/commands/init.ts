@@ -149,7 +149,19 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		// null means user cancelled a prompt — individual steps already logged
 		if (!projectResult) return 1;
 
-		// ── 7. Install Vocoder packages ───────────────────────────────────────────
+		// ── 7. Commit mode ──────────────────────────────────────────────────────────
+		const commitModeAnswer = await p.select({
+			message: "How should translations be committed?",
+			options: [
+				{ value: "PR", label: "Pull request", hint: "recommended" },
+				{ value: "DIRECT", label: "Direct commit" },
+			],
+			initialValue: "PR",
+		});
+		if (p.isCancel(commitModeAnswer)) return 1;
+		const commitMode = commitModeAnswer as "PR" | "DIRECT";
+
+		// ── 8. Install Vocoder packages ───────────────────────────────────────────
 		const installMcpAnswer = await p.confirm({
 			message: "Install @vocoder/mcp for AI-assisted development? (optional)",
 			initialValue: false,
@@ -162,12 +174,12 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			installMcp: installMcpAnswer === true,
 		});
 
-		// ── 8. Write API key to .env.local ───────────────────────────────────────
+		// ── 9. Write API key to .env.local ───────────────────────────────────────
 		const envFile = repoRoot
 			? writeApiKeyToEnv(projectResult.apiKey, repoRoot)
 			: writeApiKeyToEnv(projectResult.apiKey);
 
-		// ── 9. GitHub Actions workflow ───────────────────────────────────────────
+		// ── 10. GitHub Actions workflow ──────────────────────────────────────────
 		let workflowWritten = false;
 		let workflowRelativePath = ".github/workflows/vocoder-translate.yml";
 		if (repoRoot) {
@@ -175,6 +187,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				repoRoot,
 				projectResult.targetBranches,
 				projectResult.appDirs,
+				commitMode,
 			);
 			workflowWritten = workflow.written;
 			workflowRelativePath = workflow.relativePath;
@@ -186,7 +199,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			}
 		}
 
-		// ── 10. Post-setup summary ───────────────────────────────────────────────
+		// ── 11. Post-setup summary ───────────────────────────────────────────────
 		const triggerBranch = projectResult.targetBranches[0] ?? "main";
 		const url = (s: string) => chalk.cyan(chalk.underline(s));
 

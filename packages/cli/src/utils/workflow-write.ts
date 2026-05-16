@@ -15,12 +15,19 @@ export interface WorkflowWriteResult {
  * on push to one of `targetBranches`. The branches array must already be the
  * set the user selected at project-create time — no defaulting here.
  */
-export function renderWorkflowYaml(targetBranches: string[], appDirs?: string[]): string {
+export function renderWorkflowYaml(
+	targetBranches: string[],
+	appDirs?: string[],
+	commitMode: "PR" | "DIRECT" = "PR",
+): string {
 	const branches = targetBranches.map((b) => `'${b}'`).join(", ");
 	const appDirsLine =
 		appDirs && appDirs.filter(Boolean).length > 0
 			? `          app-dirs: ${appDirs.filter(Boolean).join(",")}\n`
 			: "";
+	const commitModeLine = `          commit-mode: ${commitMode === "PR" ? "pr" : "direct"}\n`;
+	const pullRequestsPermission =
+		commitMode === "PR" ? "\n      pull-requests: write" : "";
 	return `name: Vocoder Translate
 on:
   push:
@@ -28,12 +35,15 @@ on:
 jobs:
   translate:
     runs-on: ubuntu-latest
+    if: github.actor != 'vocoder-bot[bot]'
+    permissions:
+      contents: write${pullRequestsPermission}
     steps:
       - uses: actions/checkout@v4
       - uses: vocoder-i18n/translate-action@v1
         with:
           api-key: \${{ secrets.VOCODER_API_KEY }}
-${appDirsLine}          # proceed: build continues even if translations fail (default)
+${appDirsLine}${commitModeLine}          # proceed: build continues even if translations fail (default)
           # fail: block the build if translations fail
           on-failure: proceed
 `;
@@ -48,6 +58,7 @@ export function writeGitHubActionsWorkflow(
 	repoRoot: string,
 	targetBranches: string[],
 	appDirs?: string[],
+	commitMode?: "PR" | "DIRECT",
 ): WorkflowWriteResult {
 	const relativePath = ".github/workflows/vocoder-translate.yml";
 	const absolutePath = join(repoRoot, relativePath);
@@ -57,6 +68,6 @@ export function writeGitHubActionsWorkflow(
 	}
 
 	mkdirSync(dirname(absolutePath), { recursive: true });
-	writeFileSync(absolutePath, renderWorkflowYaml(targetBranches, appDirs), "utf-8");
+	writeFileSync(absolutePath, renderWorkflowYaml(targetBranches, appDirs, commitMode), "utf-8");
 	return { path: absolutePath, relativePath, written: true };
 }

@@ -63,6 +63,54 @@ describe("renderWorkflowYaml", () => {
 	});
 });
 
+describe("commit-mode and permissions", () => {
+	it("PR mode (default): includes pull-requests: write permission", () => {
+		const yaml = renderWorkflowYaml(["main"]);
+		expect(yaml).toContain("pull-requests: write");
+	});
+
+	it("PR mode: includes commit-mode: pr input", () => {
+		const yaml = renderWorkflowYaml(["main"], undefined, "PR");
+		expect(yaml).toContain("commit-mode: pr");
+	});
+
+	it("DIRECT mode: omits pull-requests: write permission", () => {
+		const yaml = renderWorkflowYaml(["main"], undefined, "DIRECT");
+		expect(yaml).not.toContain("pull-requests: write");
+	});
+
+	it("DIRECT mode: includes commit-mode: direct input", () => {
+		const yaml = renderWorkflowYaml(["main"], undefined, "DIRECT");
+		expect(yaml).toContain("commit-mode: direct");
+	});
+
+	it("both modes: include if guard for vocoder-bot[bot]", () => {
+		expect(renderWorkflowYaml(["main"], undefined, "PR")).toContain(
+			"if: github.actor != 'vocoder-bot[bot]'",
+		);
+		expect(renderWorkflowYaml(["main"], undefined, "DIRECT")).toContain(
+			"if: github.actor != 'vocoder-bot[bot]'",
+		);
+	});
+
+	it("both modes: include contents: write permission", () => {
+		expect(renderWorkflowYaml(["main"], undefined, "PR")).toContain(
+			"contents: write",
+		);
+		expect(renderWorkflowYaml(["main"], undefined, "DIRECT")).toContain(
+			"contents: write",
+		);
+	});
+
+	it("app-dirs appears before commit-mode in with block when both present", () => {
+		const yaml = renderWorkflowYaml(["main"], ["apps/web", "apps/admin"], "PR");
+		const appDirsIdx = yaml.indexOf("app-dirs:");
+		const commitModeIdx = yaml.indexOf("commit-mode:");
+		expect(appDirsIdx).toBeGreaterThan(-1);
+		expect(commitModeIdx).toBeGreaterThan(appDirsIdx);
+	});
+});
+
 describe("writeGitHubActionsWorkflow", () => {
 	let repoRoot: string;
 
