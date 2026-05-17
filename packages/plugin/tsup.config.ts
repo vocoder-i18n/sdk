@@ -10,7 +10,11 @@ export default defineConfig({
 		next: "src/next.ts",
 	},
 	format: ["esm", "cjs"],
-	dts: true,
+	// strict: false for DTS only — plugin bundles @vocoder/extractor (noExternal) so
+	// extractor's dist/index.d.ts may not exist when building plugin in isolation.
+	// TS7016 (noImplicitAny) is suppressed here because extractor types don't appear
+	// in plugin's public API; the JS bundle is unaffected by this DTS-only relaxation.
+	dts: { compilerOptions: { strict: false } },
 	clean: true,
 	sourcemap: true,
 	target: "node18",
