@@ -107,7 +107,6 @@ export const unplugin = createUnplugin(
 			const fetchStart = Date.now();
 
 			let d: VocoderTranslationData | null = null;
-			let fellBackToRuntime = false;
 			if (cdnUrl) {
 				if (verbose) {
 					console.log(`[vocoder] Polling CDN: ${cdnUrl}/${projectShortId}/${fp}/bundle.json`);
@@ -124,7 +123,6 @@ export const unplugin = createUnplugin(
 			}
 
 			if (!isDev && d && !d.config.sourceLocale) {
-				fellBackToRuntime = true;
 				const reason = "No translations available after CDN polling and API fallback";
 				console.warn(`[vocoder] WARNING: ${reason}. Translations will be fetched from CDN at runtime.`);
 				console.warn(`[vocoder] Fingerprint: ${fp} — check your Vocoder dashboard if this persists.`);

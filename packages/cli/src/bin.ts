@@ -16,14 +16,6 @@ import { createProject } from "./commands/create-project.js";
 import { regenerateKey } from "./commands/regenerate-key.js";
 import { whoami } from "./commands/whoami.js";
 
-/**
- * Collector function for repeated CLI options
- * Allows multiple --include or --exclude flags
- */
-function collect(value: string, previous: string[] = []): string[] {
-	return previous.concat([value]);
-}
-
 async function runCommand(
 	command: (options: any) => Promise<number>,
 	options: any,

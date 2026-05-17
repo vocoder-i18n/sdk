@@ -82,31 +82,6 @@ try {
 	// Plugin not installed or bundle unavailable — empty translations
 }
 
-function getInitialLocale(): string {
-	if (!_config.sourceLocale) return "";
-
-	if (typeof document !== "undefined") {
-		const cookieMatch = document.cookie.match(/vocoder_locale=([^;]+)/);
-		const cookieLocale = cookieMatch?.[1];
-		if (cookieLocale && _config.locales[cookieLocale]) {
-			return cookieLocale;
-		}
-	}
-
-	if (typeof window !== "undefined" && window.localStorage) {
-		try {
-			const storageLocale = localStorage.getItem("vocoder_locale");
-			if (storageLocale && _config.locales[storageLocale]) {
-				return storageLocale;
-			}
-		} catch {
-			// Ignore blocked storage access.
-		}
-	}
-
-	return _config.sourceLocale;
-}
-
 // Re-export so VocoderProvider can call it; resolves immediately (no async work needed)
 export async function initializeVocoder(): Promise<void> {
 	// Bundle loaded synchronously at module init — nothing to do

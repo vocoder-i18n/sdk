@@ -24,13 +24,6 @@ import { validateLocalConfig } from "../utils/config.js";
 
 type LocaleStatus = "pending" | "running" | "complete" | "failed";
 
-function overallStatus(statuses: LocaleStatus[]): LocaleStatus {
-	if (statuses.every((s) => s === "complete")) return "complete";
-	if (statuses.some((s) => s === "failed")) return "failed";
-	if (statuses.some((s) => s === "running")) return "running";
-	return "pending";
-}
-
 /** Returns the in-progress poll line for a single app. Exported for testing. */
 export function formatAppProgress(app: AppTranslateStatus): string {
 	const { completed, total } = app.progress;
