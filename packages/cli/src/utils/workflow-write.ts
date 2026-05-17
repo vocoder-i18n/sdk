@@ -18,14 +18,14 @@ export interface WorkflowWriteResult {
 export function renderWorkflowYaml(
 	targetBranches: string[],
 	appDirs?: string[],
-	commitMode: "PR" | "DIRECT" = "PR",
+	commitMode: "PR" | "COMMIT" = "PR",
 ): string {
 	const branches = targetBranches.map((b) => `'${b}'`).join(", ");
 	const appDirsLine =
 		appDirs && appDirs.filter(Boolean).length > 0
 			? `          app-dirs: ${appDirs.filter(Boolean).join(",")}\n`
 			: "";
-	const commitModeLine = `          commit-mode: ${commitMode === "PR" ? "pr" : "direct"}\n`;
+	const commitModeLine = `          commit-mode: ${commitMode === "PR" ? "pr" : "commit"}\n`;
 	const pullRequestsPermission =
 		commitMode === "PR" ? "\n      pull-requests: write" : "";
 	return `name: Vocoder Translate
@@ -58,7 +58,7 @@ export function writeGitHubActionsWorkflow(
 	repoRoot: string,
 	targetBranches: string[],
 	appDirs?: string[],
-	commitMode?: "PR" | "DIRECT",
+	commitMode?: "PR" | "COMMIT",
 ): WorkflowWriteResult {
 	const relativePath = ".github/workflows/vocoder-translate.yml";
 	const absolutePath = join(repoRoot, relativePath);

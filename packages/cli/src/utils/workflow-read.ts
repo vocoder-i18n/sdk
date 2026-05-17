@@ -38,6 +38,31 @@ export function readWorkflowBranches(repoRoot: string): string[] | null {
 }
 
 /**
+ * Reads the Vocoder GitHub Actions workflow file and extracts the commit mode
+ * from the `with.commit-mode` field of the translate action step.
+ *
+ * Returns null when the file doesn't exist or the field is absent — callers
+ * should omit commitMode from the translate submission in that case, leaving
+ * the server value unchanged.
+ */
+export function readWorkflowCommitMode(repoRoot: string): "PR" | "COMMIT" | null {
+	const filePath = join(repoRoot, WORKFLOW_PATH);
+	if (!existsSync(filePath)) return null;
+
+	let content: string;
+	try {
+		content = readFileSync(filePath, "utf-8");
+	} catch {
+		return null;
+	}
+
+	const match = content.match(/commit-mode:\s*(pr|commit)/i);
+	if (!match?.[1]) return null;
+
+	return match[1].toUpperCase() as "PR" | "COMMIT";
+}
+
+/**
  * Reads the Vocoder GitHub Actions workflow file and extracts the app directories
  * from the `with.app-dirs` field of the translate action step.
  *

@@ -50,7 +50,7 @@ export interface BatchTranslateAppEntry {
 		uiRole?: string;
 	}>;
 	sourceEntriesHash?: string;
-	commitMode?: "PR" | "DIRECT";
+	commitMode?: "PR" | "COMMIT";
 }
 
 export interface BatchTranslateRequestBody {

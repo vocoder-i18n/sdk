@@ -154,12 +154,12 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			message: "How should translations be committed?",
 			options: [
 				{ value: "PR", label: "Pull request", hint: "recommended" },
-				{ value: "DIRECT", label: "Direct commit" },
+				{ value: "COMMIT", label: "Commit to branch" },
 			],
 			initialValue: "PR",
 		});
 		if (p.isCancel(commitModeAnswer)) return 1;
-		const commitMode = commitModeAnswer as "PR" | "DIRECT";
+		const commitMode = commitModeAnswer as "PR" | "COMMIT";
 
 		// ── 8. Install Vocoder packages ───────────────────────────────────────────
 		const installMcpAnswer = await p.confirm({

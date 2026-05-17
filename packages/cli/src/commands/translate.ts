@@ -10,7 +10,11 @@ import { VocoderAPI, VocoderAPIError, computeSourceEntriesHash } from "../utils/
 import { computeFingerprint, loadVocoderConfig } from "@vocoder/extractor";
 import { detectBranch, isTargetBranch } from "../utils/branch.js";
 import { detectCommitSha, resolveGitRepositoryIdentity, resolveGitRoot } from "../utils/git-identity.js";
-import { readWorkflowAppDirs, readWorkflowBranches } from "../utils/workflow-read.js";
+import {
+	readWorkflowAppDirs,
+	readWorkflowBranches,
+	readWorkflowCommitMode,
+} from "../utils/workflow-read.js";
 
 import type { LimitErrorResponse } from "../types.js";
 import { StringExtractor } from "../utils/extract.js";
@@ -151,6 +155,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		// YAML branches are the source of truth — fall back to server config if YAML absent.
 		const yamlBranches = readWorkflowBranches(gitRoot);
 		const yamlAppDirs = readWorkflowAppDirs(gitRoot);
+		const yamlCommitMode = readWorkflowCommitMode(gitRoot);
 		const effectiveTargetBranches = yamlBranches ?? apiConfig.targetBranches;
 
 		if (!isTargetBranch(branch, effectiveTargetBranches)) {
@@ -292,6 +297,9 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 					...(e.uiRole ? { uiRole: e.uiRole } : {}),
 				})),
 			sourceEntriesHash: a.sourceEntriesHash,
+			// Forward YAML commit-mode so DB stays in sync when the YAML is updated.
+			// Omitted when YAML is absent — server value is preserved in that case.
+			...(yamlCommitMode ? { commitMode: yamlCommitMode } : {}),
 		}));
 
 		spinner.start(
