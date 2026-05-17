@@ -51,6 +51,18 @@ Two files are written at the repository root, regardless of where you run the co
 
 No framework config file (`vocoder.config.ts`) is written. Framework integration is handled separately — see [vocoder.app/docs/setup](https://vocoder.app/docs/setup).
 
+**Commit mode:**
+
+During init, you choose how translated locale files are committed back to your repository:
+
+```
+◆  How should translations be committed?
+   ● Pull request  (recommended)
+   ○ Direct commit
+```
+
+Pull request mode opens a PR for each translation run so you can review changes before merging. Direct commit mode pushes translations directly to the target branch (useful for CI pipelines where you want translations applied immediately).
+
 **GitHub Actions workflow:**
 
 After `vocoder init` completes, add `VOCODER_API_KEY` as a GitHub repository secret (Settings → Secrets and variables → Actions → New repository secret, name: `VOCODER_API_KEY`). Then commit the workflow file:
@@ -61,7 +73,7 @@ git commit -m "Add Vocoder translate workflow"
 git push
 ```
 
-Example workflow (branches templated from your answers during init):
+Example workflow (PR mode, branches templated from your answers during init):
 
 ```yaml
 name: Vocoder Translate
@@ -71,15 +83,20 @@ on:
 jobs:
   translate:
     runs-on: ubuntu-latest
+    if: github.actor != 'vocoder-bot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - uses: vocoder-i18n/translate-action@v1
         with:
           api-key: ${{ secrets.VOCODER_API_KEY }}
-          # proceed: build continues even if translations fail (default)
-          # fail: block the build if translations fail
+          commit-mode: pr
           on-failure: proceed
 ```
+
+Direct commit mode omits `pull-requests: write` and uses `commit-mode: direct`. The `if: github.actor != 'vocoder-bot[bot]'` filter prevents re-triggering the workflow when Vocoder commits locale files back to the branch.
 
 **Monorepo support:**
 
@@ -114,7 +131,7 @@ Extract translatable strings from your source code and submit them for translati
 vocoder translate
 ```
 
-Reads `VOCODER_API_KEY` from environment or `.env`. Detects `<T>` and `t()` usages, submits them to Vocoder, and polls until translations are returned.
+Reads `VOCODER_API_KEY` from environment or `.env`. Detects `<T>` and `t()` usages, submits them to Vocoder, polls until translations are complete, then commits `locales/manifest.json` and per-locale `locales/{locale}.json` files back to the repository (via pull request or direct commit, depending on the commit mode configured during `vocoder init`).
 
 **Options:**
 

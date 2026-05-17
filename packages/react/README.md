@@ -8,49 +8,57 @@ React components and hooks for the Vocoder i18n platform. Provides `<T>` for tra
 npm install @vocoder/react
 ```
 
-Requires React 18+. Pair with [`@vocoder/plugin`](../plugin) to enable build-time extraction and translation loading.
+Requires React 18+. Pair with [`@vocoder/cli`](../cli) to extract and translate strings via your GitHub Actions workflow.
 
 ---
 
 ## Setup
 
-### SPA (Vite, Create React App, etc.)
+### Git-first setup (standard)
 
-Call `initializeVocoder()` before the first render to avoid a flash of untranslated content, then wrap your app:
+Vocoder commits locale files to your repository as `locales/manifest.json` and `locales/{locale}.json`. Import them and pass to the provider:
 
 ```tsx
-// main.tsx
+// main.tsx (Vite SPA)
 import ReactDOM from 'react-dom/client';
-import { initializeVocoder, VocoderProvider } from '@vocoder/react';
+import { VocoderProvider } from '@vocoder/react';
+import manifest from './locales/manifest.json';
+import en from './locales/en.json';
 import { App } from './App';
 
-async function bootstrap() {
-  await initializeVocoder();
-  ReactDOM.createRoot(document.getElementById('root')!).render(
-    <VocoderProvider>
-      <App />
-    </VocoderProvider>,
-  );
-}
-
-bootstrap();
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <VocoderProvider
+    manifest={manifest}
+    initialLocale="en"
+    initialTranslations={en}
+    loadLocale={(locale) => import(`./locales/${locale}.json`).then((m) => m.default)}
+  >
+    <App />
+  </VocoderProvider>,
+);
 ```
 
-### SSR (Next.js App Router)
-
-Pass the request cookies so the server renders the correct locale on the first byte:
-
 ```tsx
-// app/layout.tsx
+// app/layout.tsx (Next.js App Router)
 import { cookies } from 'next/headers';
 import { VocoderProvider } from '@vocoder/react';
+import { getLocaleDir } from '@vocoder/react/server';
+import manifest from '@/locales/manifest.json';
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
+  const locale = cookieStore.get('vocoder_locale')?.value ?? manifest.sourceLocale;
+  const translations = (await import(`@/locales/${locale}.json`)).default;
+  const dir = getLocaleDir(locale, manifest.locales);
   return (
-    <html>
+    <html lang={locale} dir={dir}>
       <body>
-        <VocoderProvider cookies={cookieStore.toString()}>
+        <VocoderProvider
+          manifest={manifest}
+          initialLocale={locale}
+          initialTranslations={translations}
+          loadLocale={(l) => import(`@/locales/${l}.json`).then((m) => m.default)}
+        >
           {children}
         </VocoderProvider>
       </body>
@@ -59,19 +67,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }
 ```
 
-The provider injects a hydration snapshot so the client renders the correct locale on first paint without a flash.
+Locale files are updated by the GitHub Action on each push — no rebuild required to pick up new translations.
 
 ### VocoderProvider props
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `children` | `ReactNode` | required | Your app tree |
-| `cookies` | `string` | — | Cookie string from the request (SSR only) |
+| `manifest` | `LocaleManifest` | — | Locale manifest from `locales/manifest.json`. When provided, the provider reads config from the manifest instead of build-time globals. |
+| `initialLocale` | `string` | — | Locale to render on first paint. Required when using `manifest`. |
+| `initialTranslations` | `Record<string, string>` | — | Pre-loaded translations for `initialLocale`. Required when using `manifest` to avoid a flash on first paint. |
+| `loadLocale` | `(locale: string) => Promise<Record<string, string>>` | — | Dynamic import function for switching locales. Required when using `manifest`. |
+| `cookies` | `string` | — | Cookie string from the request (SSR only, no-manifest mode) |
 | `applyDir` | `boolean` | `true` | Automatically set `dir` and `lang` on `document.documentElement` when locale changes. Enables RTL via CSS (`[dir="rtl"]`, Tailwind `rtl:` variants). |
 
 ### Locale persistence
 
-The active locale is stored in `localStorage` and a `vocoder_locale` cookie. On the server, the cookie is read from the `cookies` prop.
+The active locale is stored in `localStorage` and a `vocoder_locale` cookie. On the server, the cookie is read from the `cookies` prop (no-manifest mode) or the `initialLocale` prop (manifest mode).
 
 ---
 
@@ -453,23 +465,29 @@ npm install @radix-ui/react-dropdown-menu lucide-react
 
 ### `getLocaleDir(locale, locales)`
 
-Returns the text direction for a locale using the metadata from the Vocoder manifest. Use this in Next.js App Router layouts to set `dir` on the `<html>` tag before the client hydrates — `VocoderProvider` handles `dir` on the client, but the server render needs it independently.
+Returns the text direction for a locale. Use this in Next.js App Router layouts to set `dir` on the `<html>` tag before the client hydrates — `VocoderProvider` handles `dir` on the client, but the server render needs it independently.
 
 ```tsx
 // app/layout.tsx
 import { cookies } from 'next/headers';
-import { getConfig, getLocales, VocoderProvider } from '@vocoder/react';
+import { VocoderProvider } from '@vocoder/react';
 import { getLocaleDir } from '@vocoder/react/server';
+import manifest from '@/locales/manifest.json';
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
-  const { sourceLocale } = getConfig();
-  const locale = cookieStore.get('vocoder_locale')?.value ?? sourceLocale;
-  const dir = getLocaleDir(locale, getLocales());
+  const locale = cookieStore.get('vocoder_locale')?.value ?? manifest.sourceLocale;
+  const translations = (await import(`@/locales/${locale}.json`)).default;
+  const dir = getLocaleDir(locale, manifest.locales);
   return (
     <html lang={locale} dir={dir}>
       <body>
-        <VocoderProvider initialLocale={locale} preview={cookieStore.get('vocoder_preview')?.value === 'true'}>
+        <VocoderProvider
+          manifest={manifest}
+          initialLocale={locale}
+          initialTranslations={translations}
+          loadLocale={(l) => import(`@/locales/${l}.json`).then((m) => m.default)}
+        >
           {children}
         </VocoderProvider>
       </body>
@@ -481,9 +499,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 | Parameter | Type | Description |
 |---|---|---|
 | `locale` | `string` | The locale code to look up |
-| `locales` | `Record<string, { dir?: string }>` | Locale metadata map — pass `config.locales` from the virtual manifest |
+| `locales` | `Record<string, { isRTL?: boolean; dir?: string }>` | Locale metadata map — pass `manifest.locales` |
 
-Returns `'rtl'` when the locale metadata has `dir: 'rtl'`, otherwise `'ltr'`.
+Returns `'rtl'` when the locale has `isRTL: true` or `dir: 'rtl'`, otherwise `'ltr'`.
 
 ---
 
@@ -594,19 +612,20 @@ Returns a 7-character base-36 string. The algorithm is FNV-1a 32-bit, guaranteed
 
 ## How it works
 
-### Build-time bundle injection
+### Git-first delivery
 
-Translations are delivered via `__VOCODER_BUNDLE__` — a compile-time constant injected by `@vocoder/plugin`. The full `VocoderTranslationData` (config + all locale strings) is inlined as a single JSON literal at build time. No virtual modules, no runtime fetches required for client bundles.
+The GitHub Action runs `@vocoder/cli translate` on each push. It extracts all `<T>` and `t()` calls from your source code, submits them to Vocoder for translation, and commits the result back to your repository as:
 
-On SSR (Node.js), if `__VOCODER_BUNDLE__` is unavailable, the runtime falls back to reading `node_modules/.vocoder/cache/{fingerprint}.json` from disk.
+- `locales/manifest.json` — locale config (source locale, target locales, per-locale metadata including RTL flag and ordinal forms)
+- `locales/{locale}.json` — flat `{ key: text }` map for each locale
 
-### Background refresh
+The provider reads `manifest.json` at startup to determine available locales and metadata, then loads the active locale's JSON file. Switching locales dynamically imports the next locale's file via `loadLocale`.
 
-After the initial render, the provider compares the bundle's build timestamp against the Vocoder API. If newer translations exist they are applied in-memory without a page reload — no redeploy required for translation-only updates.
+Translation updates are picked up on the next page load — no rebuild or redeploy required.
 
 ### Translation key format
 
-Each message is identified by a 7-character FNV-1a 32-bit hash of the source text (plus context when provided). The build plugin injects these hashes as `id` props at compile time, keeping the network payload small.
+Each message is identified by a 7-character FNV-1a 32-bit hash of the source text (plus context when provided). The extractor computes these at extraction time; the provider uses the same hash to look up translations at runtime.
 
 ---
 
@@ -616,12 +635,14 @@ All types are exported from `@vocoder/react`:
 
 ```ts
 import type {
-  ComponentSlot,       // ReactElement | ((children: ReactNode) => ReactNode)
-  FormatMode,          // 'number' | 'integer' | 'percent' | 'compact' | 'currency' | 'date' | 'time' | 'datetime'
-  LocaleInfo,          // { nativeName, dir?, currencyCode?, ordinalForms? }
+  ComponentSlot,         // ReactElement | ((children: ReactNode) => ReactNode)
+  FormatMode,            // 'number' | 'integer' | 'percent' | 'compact' | 'currency' | 'date' | 'time' | 'datetime'
+  LocaleInfo,            // { nativeName, dir?, currencyCode?, ordinalForms? }
+  LocaleManifest,        // { version, sourceLocale, targetLocales, locales, updatedAt, fingerprint }
+  LocaleManifestEntry,   // { nativeName, isRTL, currencyCode?, ordinalForms? }
   LocaleSelectorProps,
-  LocalesMap,          // Record<string, LocaleInfo>
-  TOptions,            // { context?, formality?, id? }
+  LocalesMap,            // Record<string, LocaleInfo>
+  TOptions,              // { context?, formality?, id? }
   TProps,
   TranslationsMap,
   VocoderContextValue,
