@@ -16,6 +16,7 @@ import { resolveGitContext } from "../utils/git-identity.js";
 import { runAuthFlow } from "../utils/auth-flow.js";
 import { runProjectCreate } from "../utils/project-create.js";
 import { selectOrganizationForInit } from "../utils/organization-select.js";
+import { promptConfirm, promptSelect } from "../utils/prompt-select.js";
 import { writeApiKeyToEnv } from "../utils/output.js";
 import { writeGitHubActionsWorkflow } from "../utils/workflow-write.js";
 
@@ -150,23 +151,24 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		if (!projectResult) return 1;
 
 		// ── 7. Commit mode ──────────────────────────────────────────────────────────
-		const commitModeAnswer = await p.select({
+		const commitMode = await promptSelect({
 			message: "How should translations be committed?",
+			confirmLabel: "Commit mode",
 			options: [
-				{ value: "PR", label: "Pull request", hint: "recommended" },
-				{ value: "COMMIT", label: "Commit to branch" },
+				{ value: "PR" as const, label: "Pull request", hint: "bot opens a PR you review before merging (recommended)" },
+				{ value: "COMMIT" as const, label: "Commit to branch", hint: "bot commits directly — translations land immediately, no review step" },
 			],
 			initialValue: "PR",
 		});
-		if (p.isCancel(commitModeAnswer)) return 1;
-		const commitMode = commitModeAnswer as "PR" | "COMMIT";
+		if (!commitMode) return 1;
 
 		// ── 8. Install Vocoder packages ───────────────────────────────────────────
-		const installMcpAnswer = await p.confirm({
+		const installMcpAnswer = await promptConfirm({
 			message: "Install @vocoder/mcp for AI-assisted development? (optional)",
+			confirmLabel: "Install MCP",
 			initialValue: false,
 		});
-		if (p.isCancel(installMcpAnswer)) return 1;
+		if (installMcpAnswer === null) return 1;
 
 		await installForProject({
 			rootDir: repoRoot ?? process.cwd(),
@@ -212,9 +214,9 @@ export async function init(options: InitOptions = {}): Promise<number> {
 
 		p.log.message(chalk.bold("Next steps:"));
 		p.log.message(`  1. Add ${highlight("VOCODER_API_KEY")} as a repository secret: ${url("https://vocoder.app/docs/secrets")}`);
-		p.log.message(`  2. Configure the Vocoder plugin in your framework build config: ${url("https://vocoder.app/docs/setup")}`);
-		p.log.message(`  3. Wrap translatable strings with ${highlight("<T>")}: ${url("https://vocoder.app/docs/sdk")}`);
-		p.log.message(`  4. Push to ${highlight(triggerBranch)} (or any of your trigger branches) — translations will run automatically.`);
+		p.log.message(`  2. Set up ${highlight("@vocoder/react")}: install, configure ${highlight("VocoderProvider")}, and wrap strings with ${highlight("<T>")}: ${url("https://vocoder.app/docs/setup")}`);
+		p.log.message(`  3. Push to ${highlight(triggerBranch)} — translations will commit to your repo automatically.`);
+		p.log.message(`  4. Run ${highlight("vocoder pull")} to sync locale files locally.`);
 
 		p.outro("You're all set.");
 		return 0;
