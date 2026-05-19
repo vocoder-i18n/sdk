@@ -1,7 +1,7 @@
 import * as p from "@clack/prompts";
 
 import { checkPlanLimits, isPlanLimitFailure, printPlanLimitMessage } from "../utils/plan-check.js";
-import { promptConfirm, promptSelect } from "../utils/prompt-select.js";
+import { promptConfirm } from "../utils/prompt-select.js";
 import {
 	verifyStoredAuth,
 	writeAuthData,
@@ -150,18 +150,6 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		// null means user cancelled a prompt — individual steps already logged
 		if (!projectResult) return 1;
 
-		// ── 7. Commit mode ──────────────────────────────────────────────────────────
-		const commitMode = await promptSelect({
-			message: "How should translations be committed?",
-			confirmLabel: "Commit mode",
-			options: [
-				{ value: "PR" as const, label: "Pull request", hint: "bot opens a PR you review before merging (recommended)" },
-				{ value: "COMMIT" as const, label: "Commit to branch", hint: "bot commits directly — translations land immediately, no review step" },
-			],
-			initialValue: "PR",
-		});
-		if (!commitMode) return 1;
-
 		// ── 8. Install Vocoder packages ───────────────────────────────────────────
 		const installMcpAnswer = await promptConfirm({
 			message: "Install @vocoder/mcp for AI-assisted development? (optional)",
@@ -189,7 +177,6 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				repoRoot,
 				projectResult.targetBranches,
 				projectResult.appDirs,
-				commitMode,
 			);
 			workflowWritten = workflow.written;
 			workflowRelativePath = workflow.relativePath;

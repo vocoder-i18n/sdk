@@ -64,51 +64,25 @@ describe("renderWorkflowYaml", () => {
 	});
 });
 
-describe("commit-mode and permissions", () => {
-	it("PR mode (default): includes pull-requests: write permission", () => {
+describe("permissions and guards", () => {
+	it("omits pull-requests: write permission", () => {
 		const yaml = renderWorkflowYaml(["main"]);
-		expect(yaml).toContain("pull-requests: write");
-	});
-
-	it("PR mode: includes commit-mode: pr input", () => {
-		const yaml = renderWorkflowYaml(["main"], undefined, "PR");
-		expect(yaml).toContain("commit-mode: pr");
-	});
-
-	it("COMMIT mode: omits pull-requests: write permission", () => {
-		const yaml = renderWorkflowYaml(["main"], undefined, "COMMIT");
 		expect(yaml).not.toContain("pull-requests: write");
 	});
 
-	it("COMMIT mode: includes commit-mode: commit input", () => {
-		const yaml = renderWorkflowYaml(["main"], undefined, "COMMIT");
-		expect(yaml).toContain("commit-mode: commit");
+	it("omits commit-mode input", () => {
+		const yaml = renderWorkflowYaml(["main"]);
+		expect(yaml).not.toContain("commit-mode:");
 	});
 
-	it("both modes: include if guard for vocoder-bot[bot]", () => {
-		expect(renderWorkflowYaml(["main"], undefined, "PR")).toContain(
-			"if: github.actor != 'vocoder-bot[bot]'",
-		);
-		expect(renderWorkflowYaml(["main"], undefined, "COMMIT")).toContain(
+	it("includes if guard for vocoder-bot[bot]", () => {
+		expect(renderWorkflowYaml(["main"])).toContain(
 			"if: github.actor != 'vocoder-bot[bot]'",
 		);
 	});
 
-	it("both modes: include contents: write permission", () => {
-		expect(renderWorkflowYaml(["main"], undefined, "PR")).toContain(
-			"contents: write",
-		);
-		expect(renderWorkflowYaml(["main"], undefined, "COMMIT")).toContain(
-			"contents: write",
-		);
-	});
-
-	it("app-dirs appears before commit-mode in with block when both present", () => {
-		const yaml = renderWorkflowYaml(["main"], ["apps/web", "apps/admin"], "PR");
-		const appDirsIdx = yaml.indexOf("app-dirs:");
-		const commitModeIdx = yaml.indexOf("commit-mode:");
-		expect(appDirsIdx).toBeGreaterThan(-1);
-		expect(commitModeIdx).toBeGreaterThan(appDirsIdx);
+	it("includes contents: write permission", () => {
+		expect(renderWorkflowYaml(["main"])).toContain("contents: write");
 	});
 });
 
