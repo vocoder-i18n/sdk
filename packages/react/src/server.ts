@@ -1,14 +1,15 @@
+// getConfig and getLocales read from __VOCODER_MANIFEST__ (a build-time define constant).
+// They live here (server entry, no 'use client') so Next.js Server Components can call them.
+export { getConfig, getLocales } from "./runtime";
+
 /**
  * Returns the text direction for a given locale using locale metadata.
- * Pass `locales` from getLocales() (imported from @vocoder/react/server)
- * or from the VocoderContext.
  *
  * @example
  * ```tsx
  * // app/layout.tsx
  * import { cookies } from 'next/headers';
- * import { getLocaleDir } from '@vocoder/react/server';
- * import { getConfig, getLocales } from '@vocoder/react';
+ * import { getConfig, getLocales, getLocaleDir } from '@vocoder/react/server';
  *
  * export default async function RootLayout({ children }) {
  *   const { sourceLocale } = getConfig();

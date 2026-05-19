@@ -1,18 +1,18 @@
-import { loadEnvFile } from "./core";
+import { resolve } from "node:path";
+import { loadEnvFile } from "./env";
 import { unplugin } from "./index";
 import type { VocoderPluginOptions } from "./types";
 
 export type { VocoderPluginOptions };
 
 /**
- * Wrap a Next.js config to inject the Vocoder webpack plugin.
- * Also injects API URL via Next.js `env` config so the value is available
- * in both webpack and Turbopack builds on server and client.
+ * Wrap a Next.js config to inject the Vocoder webpack plugin and resolve alias.
+ * Also configures the Turbopack alias for Next.js 15+ dev mode.
  *
  * Usage:
- * ```js
- * const { withVocoder } = require('@vocoder/plugin/next');
- * module.exports = withVocoder(nextConfig);
+ * ```ts
+ * import { withVocoder } from '@vocoder/plugin/next';
+ * export default withVocoder(nextConfig);
  * ```
  */
 export function withVocoder(
@@ -21,25 +21,26 @@ export function withVocoder(
 ): Record<string, unknown> {
 	loadEnvFile();
 
-	const apiUrl = process.env.VOCODER_API_URL ?? "https://vocoder.app";
-	const cdnUrl = process.env.VOCODER_CDN_URL ?? "https://t.vocoder.app";
-
-	// Fingerprint is computed asynchronously in the webpack plugin's buildStart hook.
-	// If VOCODER_FINGERPRINT is set (manual override), pass it through to env for Turbopack.
-	const fingerprintOverride = process.env.VOCODER_FINGERPRINT;
+	const localesDir = pluginOptions.localesDir ?? "locales";
+	const localesAbsPath = resolve(process.cwd(), localesDir);
 
 	const vocoderPlugin = unplugin.webpack(pluginOptions);
 
+	// Merge Turbopack resolveAlias without clobbering existing config.
+	// Next.js 15.2+ moved turbopack config from experimental.turbopack to top-level turbopack.
+	const existingTurbopack =
+		(nextConfig.turbopack as Record<string, unknown> | undefined) ?? {};
+	const existingResolveAlias =
+		(existingTurbopack.resolveAlias as Record<string, string> | undefined) ?? {};
+
 	return {
 		...nextConfig,
-		env: {
-			...(nextConfig.env as Record<string, string> | undefined),
-			VOCODER_API_URL: apiUrl,
-			VOCODER_CDN_URL: cdnUrl,
-			VOCODER_BUILD_TS: String(Date.now()),
-			...(fingerprintOverride
-				? { VOCODER_FINGERPRINT: fingerprintOverride }
-				: {}),
+		turbopack: {
+			...existingTurbopack,
+			resolveAlias: {
+				...existingResolveAlias,
+				"@vocoder/locales": localesAbsPath,
+			},
 		},
 		webpack(
 			config: Record<string, unknown>,
@@ -47,19 +48,15 @@ export function withVocoder(
 		) {
 			const plugins = (config.plugins ?? []) as unknown[];
 			plugins.push(vocoderPlugin);
-
 			config.plugins = plugins;
 
-			// tsup ESM builds emit a __require shim that webpack flags as a critical
-			// dependency (dynamic require expression). It's a false positive — the shim
-			// only falls back to require() in CJS contexts. Suppress via both
-			// exprContextCritical (older webpack) and ignoreWarnings (webpack 5+).
-			const moduleConfig = config.module as Record<string, unknown> | undefined;
-			if (moduleConfig) moduleConfig.exprContextCritical = false;
-
-			const ignoreWarnings = (config.ignoreWarnings ?? []) as unknown[];
-			ignoreWarnings.push(/Critical dependency: require function is used/);
-			config.ignoreWarnings = ignoreWarnings;
+			// Add @vocoder/locales alias
+			const resolveConfig = (config.resolve ?? {}) as Record<string, unknown>;
+			resolveConfig.alias = {
+				...(resolveConfig.alias as Record<string, string | string[]> | undefined),
+				"@vocoder/locales": localesAbsPath,
+			};
+			config.resolve = resolveConfig;
 
 			const userWebpack = nextConfig.webpack as
 				| ((

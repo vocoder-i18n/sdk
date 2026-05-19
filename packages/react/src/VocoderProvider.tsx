@@ -16,6 +16,7 @@ import {
 	_setGlobalTranslations,
 	_setSourceLocale,
 } from "./translate";
+import { applyOrdinalForms, getBestMatchingLocale, getCookie, manifestToLocalesMap, setCookie } from "@vocoder/core";
 import { checkForUpdates, isRefreshAvailable } from "./api-runtime";
 import {
 	createContext,
@@ -25,7 +26,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import { applyOrdinalForms, getBestMatchingLocale, getCookie, setCookie } from "@vocoder/core";
+import { formatICU, generateMessageHash } from "@vocoder/core";
 import {
 	getConfig,
 	getLocales,
@@ -37,7 +38,6 @@ import {
 
 import type React from "react";
 import type { TOptions } from "./types";
-import { formatICU, generateMessageHash } from "@vocoder/core";
 
 export const VocoderContext = createContext<VocoderContextValue | null>(null);
 
@@ -72,18 +72,6 @@ function readHydrationFromDom(): {
 	}
 }
 
-function manifestToLocalesMap(manifest: LocaleManifest): LocalesMap {
-	const result: LocalesMap = {};
-	for (const [code, entry] of Object.entries(manifest.locales)) {
-		result[code] = {
-			nativeName: entry.nativeName,
-			...(entry.currencyCode !== undefined && { currencyCode: entry.currencyCode }),
-			...(entry.isRTL && { dir: "rtl" as const }),
-			...(entry.ordinalForms !== undefined && { ordinalForms: entry.ordinalForms }),
-		};
-	}
-	return result;
-}
 
 function buildHydrationOnServer(
 	initialLocale: string | undefined,
@@ -167,6 +155,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	const [translations, setTranslations] = useState<TranslationsMap>(() => {
 		let initial: TranslationsMap;
 
+		debugger;
 		if (hydrationData?.translations && hydrationData?.locale) {
 			initial = { [hydrationData.locale]: hydrationData.translations };
 		} else if (manifest && manifestLocales) {
@@ -396,6 +385,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 
 	const setLocale = useCallback(
 		async (newLocale: string) => {
+			debugger;
 			const best = getBestMatchingLocale(
 				newLocale,
 				availableLocales,

@@ -6,9 +6,12 @@ export type { FormatValueOptions } from "./format-value";
 export { generateMessageHash } from "./hash";
 export { ALL_CLDR, DEFAULT_ORDINAL_ICU, PLURAL_CLDR, buildPluralICU, buildSelectICU } from "./icu-builders";
 export { applyOrdinalForms, formatICU, rewriteSelectordinalInICU } from "./icu";
+export { manifestToLocalesMap } from "./manifest";
 export type {
 	FormatMode,
 	LocaleInfo,
+	LocaleManifest,
+	LocaleManifestEntry,
 	LocalesMap,
 	OrdinalForms,
 	OrdinalSuffixes,

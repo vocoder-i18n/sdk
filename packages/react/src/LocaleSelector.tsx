@@ -62,6 +62,10 @@ export const LocaleSelector: React.FC<LocaleSelectorProps> = ({
 		locales: localesFromContext,
 	} = useVocoder();
 
+	console.log('availableLocales', availableLocales)
+	console.log('locale', locale)
+	console.log('localesFromContext', localesFromContext)
+
 	const locales = localesProp ?? localesFromContext;
 	const normalizedPosition = POSITION_MAP[position] || position;
 

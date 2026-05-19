@@ -63,6 +63,22 @@ export interface TOptions {
  * translations: locale → sourceKey (hash) → translated text
  * config.locales: locale metadata snapshot for the runtime
  */
+export interface LocaleManifestEntry {
+	nativeName: string;
+	currencyCode?: string;
+	isRTL: boolean;
+	ordinalForms?: OrdinalForms;
+}
+
+export interface LocaleManifest {
+	version: 1;
+	sourceLocale: string;
+	targetLocales: string[];
+	locales: Record<string, LocaleManifestEntry>;
+	updatedAt: string;
+	fingerprint: string;
+}
+
 export interface VocoderTranslationData {
 	config: {
 		sourceLocale: string;

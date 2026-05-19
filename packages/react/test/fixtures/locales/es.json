@@ -1,0 +1,14 @@
+{
+  "1w2u0qz": "Hola",
+  "0x5nje8": "Adios",
+  "1twzd04": "Hola, mundo!",
+  "0yvn7bx": "Hola, {name}!",
+  "0qy12rf": "Tienes {count} mensajes",
+  "0bt5k53": "{count, plural, one {# articulo} other {# articulos}}",
+  "1jkmkxh": "{count, plural, =0 {Sin articulos} one {# articulo} other {# articulos}}",
+  "1ql9h40": "{count, selectordinal, other {#}}",
+  "1uanpsy": "{value, select, male {su} female {su} other {su}}",
+  "0x4ur6n": "{gender, select, male {El} female {Ella} other {Elle}} respondio",
+  "1fb9e3q": "Haz clic <0>aqui</0> para obtener ayuda",
+  "0og04vn": "Lee nuestra <0>Politica de Privacidad</0> y <1>Terminos de Servicio</1>"
+}

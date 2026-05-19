@@ -1,0 +1,11 @@
+{
+  "1w2u0qz": "Bonjour",
+  "0x5nje8": "Au revoir",
+  "1twzd04": "Bonjour, monde!",
+  "0yvn7bx": "Bonjour, {name}!",
+  "0qy12rf": "Vous avez {count} messages",
+  "1jkmkxh": "{count, plural, =0 {Aucun article} one {# article} other {# articles}}",
+  "0x4ur6n": "{gender, select, male {Il} female {Elle} other {Iel}} a repondu",
+  "1fb9e3q": "Cliquez <0>ici</0> pour obtenir de l aide",
+  "0og04vn": "Lisez notre <0>Politique de confidentialite</0> et nos <1>Conditions d utilisation</1>"
+}

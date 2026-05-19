@@ -1,0 +1,14 @@
+{
+  "1w2u0qz": "Hello",
+  "0x5nje8": "Goodbye",
+  "1twzd04": "Hello, world!",
+  "0yvn7bx": "Hello, {name}!",
+  "0qy12rf": "You have {count} messages",
+  "0bt5k53": "{count, plural, one {# item} other {# items}}",
+  "1jkmkxh": "{count, plural, =0 {No items} one {# item} other {# items}}",
+  "1ql9h40": "{count, selectordinal, other {#}}",
+  "1uanpsy": "{value, select, male {his} female {her} other {their}}",
+  "0x4ur6n": "{gender, select, male {He} female {She} other {They}} replied",
+  "1fb9e3q": "Click <0>here</0> for help",
+  "0og04vn": "Read our <0>Privacy Policy</0> and <1>Terms of Service</1>"
+}

@@ -5,7 +5,9 @@ const external = [
 	"react/jsx-runtime",
 	"react-dom",
 	"@vocoder/core",
+	"@vocoder/react/locale-loader",
 	/^virtual:/,
+	/^@vocoder\/locales/,
 ];
 
 export default defineConfig([
@@ -17,10 +19,11 @@ export default defineConfig([
 		entry: {
 			index: "src/index.ts",
 			"locale-selector": "src/locale-selector.ts",
+			"locale-loader": "src/locale-loader.ts",
 		},
 		format: ["esm", "cjs"] as const,
 		dts: true,
-		clean: true,
+		clean: false,
 		sourcemap: true,
 		target: "es2017" as const,
 		platform: "neutral" as const,

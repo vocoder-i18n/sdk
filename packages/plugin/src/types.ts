@@ -1,17 +1,7 @@
 export interface VocoderPluginOptions {
 	/**
-	 * Your Vocoder app API key (starts with `vca_`).
-	 * Falls back to the `VOCODER_API_KEY` environment variable when omitted.
-	 * Explicit value always wins over the environment variable.
-	 */
-	apiKey?: string;
-	/**
-	 * Enable verbose build-time logging: extraction patterns, timing, fetch URL.
+	 * Enable verbose build-time logging.
 	 * @default false
-	 *
-	 * Extraction patterns (include/exclude) are configured in vocoder.config.ts
-	 * committed to your repository — not here. This ensures the build plugin,
-	 * CLI sync, and git webhook all use identical patterns.
 	 */
 	verbose?: boolean;
 	/**
@@ -22,9 +12,10 @@ export interface VocoderPluginOptions {
 	 * @default false
 	 */
 	preview?: boolean;
+	/**
+	 * Path to the committed locales directory, relative to process.cwd().
+	 * Must contain manifest.json and per-locale JSON files.
+	 * @default 'locales'
+	 */
+	localesDir?: string;
 }
-
-// VocoderTranslationData is the canonical bundle format shared by plugin and CLI.
-// Defined in @vocoder/core — imported and re-exported here so plugin consumers
-// can reference it without depending on @vocoder/core directly.
-export type { VocoderTranslationData } from "@vocoder/core";

@@ -1,11 +1,13 @@
 import type React from "react";
-import type { FormatMode, LocalesMap, OrdinalForms, TOptions } from "@vocoder/core";
+import type { FormatMode, LocaleManifest, LocalesMap, OrdinalForms, TOptions } from "@vocoder/core";
 
 // Re-export shared framework-agnostic types from @vocoder/core so consumers
 // can import them from either @vocoder/react or @vocoder/core.
 export type {
 	FormatMode,
 	LocaleInfo,
+	LocaleManifest,
+	LocaleManifestEntry,
 	LocalesMap,
 	OrdinalForms,
 	OrdinalSuffixes,
@@ -49,21 +51,6 @@ export interface VocoderContextValue {
 	ordinal: (value: number, gender?: string) => string;
 }
 
-export interface LocaleManifestEntry {
-	nativeName: string;
-	currencyCode?: string;
-	isRTL: boolean;
-	ordinalForms?: OrdinalForms;
-}
-
-export interface LocaleManifest {
-	version: 1;
-	sourceLocale: string;
-	targetLocales: string[];
-	locales: Record<string, LocaleManifestEntry>;
-	updatedAt: string;
-	fingerprint: string;
-}
 
 export interface VocoderProviderProps {
 	/** React children */
