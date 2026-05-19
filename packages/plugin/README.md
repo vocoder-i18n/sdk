@@ -1,6 +1,6 @@
 # @vocoder/plugin
 
-Build plugin for Vocoder that fetches translations at build time and injects them as virtual modules. Works with Vite, Next.js, Webpack, Rollup, and esbuild.
+Build plugin for Vocoder. Works with Vite, Next.js, Webpack, Rollup, and esbuild.
 
 ## Installation
 
@@ -14,155 +14,142 @@ npm install @vocoder/plugin
 
 ```ts
 // vite.config.ts
-import vocoder from '@vocoder/plugin/vite';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import vocoder from '@vocoder/plugin/vite'
 
 export default defineConfig({
-  plugins: [vocoder()],
-});
+  plugins: [react(), vocoder()],
+})
 ```
 
 ### Next.js
 
-```js
-// next.config.js
-const { withVocoder } = require('@vocoder/plugin/next');
+```ts
+// next.config.ts
+import { withVocoder } from '@vocoder/plugin/next'
+import type { NextConfig } from 'next'
 
-module.exports = withVocoder({
-  // your Next.js config
-});
+const nextConfig: NextConfig = {}
+
+export default withVocoder(nextConfig)
 ```
 
 ### Webpack
 
 ```js
 // webpack.config.js
-const vocoder = require('@vocoder/plugin/webpack');
+const { VocoderPlugin } = require('@vocoder/plugin/webpack')
 
 module.exports = {
-  plugins: [vocoder()],
-};
+  plugins: [new VocoderPlugin()],
+}
 ```
 
 ### Rollup
 
 ```js
 // rollup.config.js
-import vocoder from '@vocoder/plugin/rollup';
+import vocoder from '@vocoder/plugin/rollup'
 
 export default {
   plugins: [vocoder()],
-};
+}
 ```
 
 ### esbuild
 
 ```js
-import vocoder from '@vocoder/plugin/esbuild';
+import { build } from 'esbuild'
+import { vocoderPlugin } from '@vocoder/plugin/esbuild'
 
-await esbuild.build({
-  plugins: [vocoder()],
-});
+await build({
+  plugins: [vocoderPlugin()],
+})
 ```
 
 ---
 
 ## Configuration
 
-All options are optional. Pass them to the plugin factory:
-
-```ts
-// vite.config.ts
-import vocoder from '@vocoder/plugin/vite';
-
-export default defineConfig({
-  plugins: [
-    vocoder({
-      // Glob patterns for files to scan for translatable strings.
-      // Default: ["**/*.{tsx,jsx,ts,js}"]
-      include: ['src/**/*.{tsx,jsx}'],
-
-      // Additional glob patterns to exclude. Always merged with built-in
-      // excludes (node_modules, dist, build, .next, .nuxt, etc.).
-      exclude: ['**/*.stories.tsx', 'src/mocks/**'],
-    }),
-  ],
-});
-```
-
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `include` | `string \| string[]` | `["**/*.{tsx,jsx,ts,js}"]` | Files to scan for `<T>` and `t()` calls |
-| `exclude` | `string \| string[]` | — | Extra patterns to skip (merged with built-in excludes) |
+| `localesDir` | `string` | `'locales'` | Path to locale files, relative to `process.cwd()` |
+| `verbose` | `boolean` | `false` | Log manifest loading details during build |
+| `preview` | `boolean` | `false` | Build in preview mode — SDK shows source text and disables locale switching |
+
+```ts
+vocoder({ localesDir: 'src/locales', verbose: true })
+```
 
 ---
 
 ## How It Works
 
-The plugin runs at build time and performs the following steps:
+The plugin performs three tasks at build time:
 
-1. **Detects your repository** from CI environment variables (`GITHUB_REPOSITORY`, `VERCEL_GIT_REPO_OWNER`, `CI_PROJECT_PATH`, etc.) or by reading `.git/config` and parsing the origin remote URL into a canonical format (`github:owner/repo`, `gitlab:owner/repo`, etc.).
+### 1. Injects the locale manifest
 
-2. **Detects the commit SHA** from CI environment variables. Variables checked in order: `VOCODER_COMMIT_SHA`, `GITHUB_SHA`, `VERCEL_GIT_COMMIT_SHA`, `CI_COMMIT_SHA`, `BITBUCKET_COMMIT`, `CIRCLE_SHA1`, `RENDER_GIT_COMMIT`. Falls back to reading the SHA from `.git/refs/heads/<branch>` or `.git/packed-refs`.
+Reads `localesDir/manifest.json` and injects its contents as `__VOCODER_MANIFEST__` — a compile-time constant the SDK reads to determine available locales, the source locale, and per-locale metadata (RTL flag, currency code, ordinal forms).
 
-3. **Computes a content fingerprint** — a 12-character hex string derived from `sha256(projectShortId + ":" + appDir + ":" + sortedKeys)`. This identifies the exact translation bundle for the current string set.
+### 2. Generates a virtual locale loader
 
-4. **Fetches the translation bundle** from the Vocoder CDN using the fingerprint, returning all locales in a single response.
+Intercepts `@vocoder/react/locale-loader` at build time and replaces it with a generated module containing a static switch statement:
 
-5. **Inlines the bundle** via `__VOCODER_BUNDLE__` — the full `VocoderTranslationData` JSON is injected as a compile-time constant. No virtual modules, no runtime fetches required for client bundles. SSR falls back to reading `node_modules/.vocoder/cache/{fingerprint}.json` from disk.
-
-6. **Enables dev-mode auto-sync** — in `NODE_ENV=development`, if no bundle exists for the current strings, the plugin submits them to the Vocoder API and polls until translations are ready. Build proceeds immediately; translations appear on the next hot-reload.
-
----
-
-## Zero Configuration
-
-No configuration files or environment variables are required for basic use. Repository identity, branch, and commit SHA are all auto-detected. `include`/`exclude` options are available for non-standard project layouts.
-
----
-
-## Offline Fallback
-
-Translations are cached to `node_modules/.vocoder/cache/` after each successful build. If the Vocoder API is unreachable on a subsequent build, the cached translations are used. If no cache exists, the build proceeds with empty translations and source text is shown.
-
----
-
-## Monorepo Support
-
-In a monorepo, run the plugin from each app's build step. The plugin computes a scope path (the relative path from the git root to `process.cwd()`) and includes it in the fingerprint, ensuring each app fetches its own translations independently.
-
----
-
-## Build Output
-
-During the build, the plugin logs:
-
-```
-[vocoder] github:owner/repo @ a1b2c3d4 -> e5f6a7b8c9d0
-[vocoder] Loaded 3 locale(s), 42 translation(s)
+```js
+// Generated at build time — one case per locale file found in localesDir
+export async function loadLocale(locale) {
+  switch (locale) {
+    case 'en': return import('/abs/path/locales/en.json').then(m => m.default ?? m)
+    case 'es': return import('/abs/path/locales/es.json').then(m => m.default ?? m)
+    case 'fr': return import('/abs/path/locales/fr.json').then(m => m.default ?? m)
+    default:   return {}
+  }
+}
 ```
 
-Local development fallback (no commit SHA):
+Static string imports allow every bundler to analyze them and split each locale into its own lazy chunk. Only the active locale is loaded at runtime — the others are fetched on demand when the user switches.
 
-```
-[vocoder] Could not detect commit SHA — using branch name for fingerprint (local dev mode).
-[vocoder] github:owner/repo @ main (branch) -> a1b2c3d4e5f6
-```
+Without the plugin, `@vocoder/react/locale-loader` resolves to a stub that returns `{}`.
 
-Before first sync:
+### 3. Transforms JSX
 
-```
-[vocoder] No translations available yet -- source text will be shown.
+Transforms natural `<T>` syntax into explicit `message`, `values`, and `components` props:
+
+```tsx
+// You write:
+<T>Hello {name}!</T>
+<T>Read <a href="/docs">the docs</a> for help.</T>
+
+// Plugin transforms to:
+<T message="Hello {name}!" values={{ name }}>Hello {name}!</T>
+<T message="Read <0>the docs</0> for help." components={[<a href="/docs" />]}>
+  Read <a href="/docs">the docs</a> for help.
+</T>
 ```
 
 ---
 
-## Environment Variables
+## Injected Constants
 
-| Variable | Description |
-|---|---|
-| `VOCODER_COMMIT_SHA` | Override the detected commit SHA. Useful if your CI uses a non-standard variable name. |
-| `VOCODER_FINGERPRINT` | Override the computed fingerprint entirely. For environments with no git context and no CI variables. |
-| `VOCODER_API_URL` | Override the Vocoder API base URL (default: `https://vocoder.app`). |
+| Constant | Type | Description |
+|---|---|---|
+| `__VOCODER_MANIFEST__` | `LocaleManifest \| null` | Contents of `localesDir/manifest.json`. `null` when the file is missing. |
+| `__VOCODER_PREVIEW__` | `boolean` | `true` when built with `preview: true`. |
+
+---
+
+## locales/ Directory
+
+The plugin reads locale files from `localesDir`. These files are committed to your repository by the Vocoder GitHub Action after each translation run.
+
+```
+locales/
+  manifest.json     # Locale config — written by vocoder CLI
+  en.json           # Source locale translations { hash: text }
+  es.json           # Target locale translations
+  fr.json
+```
 
 ---
 

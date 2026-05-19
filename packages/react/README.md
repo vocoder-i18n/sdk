@@ -14,12 +14,53 @@ Requires React 18+. Pair with [`@vocoder/cli`](../cli) to extract and translate 
 
 ## Setup
 
-### Git-first setup (standard)
+### With @vocoder/plugin (recommended)
 
-Vocoder commits locale files to your repository as `locales/manifest.json` and `locales/{locale}.json`. Import them and pass to the provider:
+Install `@vocoder/plugin` and wire it up to your bundler. The provider needs no props — the plugin injects the manifest and handles locale loading automatically:
 
 ```tsx
 // main.tsx (Vite SPA)
+import ReactDOM from 'react-dom/client';
+import { VocoderProvider } from '@vocoder/react';
+import { App } from './App';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <VocoderProvider>
+    <App />
+  </VocoderProvider>,
+);
+```
+
+```tsx
+// app/layout.tsx (Next.js App Router with @vocoder/plugin)
+import { cookies } from 'next/headers';
+import { VocoderProvider } from '@vocoder/react';
+import { getLocaleDir, getConfig, getLocales } from '@vocoder/react/server';
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const initialLocale = cookieStore.get('vocoder_locale')?.value;
+  const config = getConfig();
+  const locale = initialLocale ?? config.sourceLocale ?? 'en';
+  const dir = getLocaleDir(locale, getLocales());
+  return (
+    <html lang={locale} dir={dir}>
+      <body>
+        <VocoderProvider initialLocale={initialLocale}>
+          {children}
+        </VocoderProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+### Without @vocoder/plugin (manifest mode)
+
+Pass the manifest and locale loading logic directly as props. Use this in frameworks or environments where a build plugin is not practical:
+
+```tsx
+// main.tsx (Vite SPA — manual mode)
 import ReactDOM from 'react-dom/client';
 import { VocoderProvider } from '@vocoder/react';
 import manifest from './locales/manifest.json';
@@ -39,7 +80,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 ```
 
 ```tsx
-// app/layout.tsx (Next.js App Router)
+// app/layout.tsx (Next.js App Router — manual mode)
 import { cookies } from 'next/headers';
 import { VocoderProvider } from '@vocoder/react';
 import { getLocaleDir } from '@vocoder/react/server';
@@ -78,7 +119,6 @@ Locale files are updated by the GitHub Action on each push — no rebuild requir
 | `initialLocale` | `string` | — | Locale to render on first paint. Required when using `manifest`. |
 | `initialTranslations` | `Record<string, string>` | — | Pre-loaded translations for `initialLocale`. Required when using `manifest` to avoid a flash on first paint. |
 | `loadLocale` | `(locale: string) => Promise<Record<string, string>>` | — | Dynamic import function for switching locales. Required when using `manifest`. |
-| `cookies` | `string` | — | Cookie string from the request (SSR only, no-manifest mode) |
 | `applyDir` | `boolean` | `true` | Automatically set `dir` and `lang` on `document.documentElement` when locale changes. Enables RTL via CSS (`[dir="rtl"]`, Tailwind `rtl:` variants). |
 
 ### Locale persistence
