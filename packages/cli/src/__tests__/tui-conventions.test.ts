@@ -301,12 +301,15 @@ describe("guidance lines use p.log.info after errors", () => {
 
 		await addLocales(["pt-BR"]);
 
-		// Primary error: p.log.error with the limit message
-		expect(mockLog.error).toHaveBeenCalledWith(
+		// Primary error: spinner.stop with the limit message and exit code 1
+		expect(mockSpinner.stop).toHaveBeenCalledWith(
 			expect.stringContaining("Free plan"),
+			1,
 		);
 		// Guidance: p.log.info used for upgrade URL and context lines
 		expect(mockLog.info).toHaveBeenCalled();
+		// No p.log.error — message is in spinner.stop
+		expect(mockLog.error).not.toHaveBeenCalled();
 		// No secondary warn after the error
 		expect(mockLog.warn).not.toHaveBeenCalled();
 	});
