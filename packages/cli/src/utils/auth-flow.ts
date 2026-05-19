@@ -21,7 +21,7 @@ import * as p from "@clack/prompts";
 
 import type { InitOptions } from "../types.js";
 import type { VocoderAPI } from "./api.js";
-import chalk from "chalk";
+import { CommandSession, formatLabelValue } from "./command-session.js";
 import { highlight } from "./theme.js";
 import { startCallbackServer } from "./local-server.js";
 import { tryOpenBrowser } from "./browser.js";
@@ -47,6 +47,7 @@ export interface AuthFlowResult {
 export async function runAuthFlow(
 	api: VocoderAPI,
 	options: InitOptions,
+	commandSession: CommandSession,
 	reauth = false,
 	repoCanonical?: string,
 ): Promise<AuthFlowResult | null> {
@@ -61,14 +62,14 @@ export async function runAuthFlow(
 		}
 	}
 
-	const session = await api.startCliAuthSession(server?.port, repoCanonical);
-	const browserUrl = session.verificationUrl;
-	const expiresAt = new Date(session.expiresAt).getTime();
+	const authSession = await api.startCliAuthSession(server?.port, repoCanonical);
+	const browserUrl = authSession.verificationUrl;
+	const expiresAt = new Date(authSession.expiresAt).getTime();
 
 	if (options.ci) {
 		// Machine-readable output parsed by e2e/helpers/cli.ts
 		process.stdout.write(`VOCODER_AUTH_URL: ${browserUrl}\n`);
-		process.stdout.write(`VOCODER_SESSION_ID: ${session.sessionId}\n`);
+		process.stdout.write(`VOCODER_SESSION_ID: ${authSession.sessionId}\n`);
 	} else if (
 		process.stdin.isTTY &&
 		process.stdout.isTTY &&
@@ -88,13 +89,11 @@ export async function runAuthFlow(
 		}
 		const opened = await tryOpenBrowser(browserUrl);
 		if (!opened) {
-			p.note(browserUrl, "Sign In");
-			p.log.info("Open the URL above manually to continue.");
+			commandSession.step("Open this URL", highlight(browserUrl), "info");
 		}
 	}
 
-	const authSpinner = p.spinner();
-	authSpinner.start("Waiting for sign-in...");
+	const authStep = commandSession.startStep("Waiting for sign-in");
 
 	let rawToken: string | null = null;
 	const deadline = Math.min(expiresAt, Date.now() + 10 * 60 * 1000);
@@ -110,7 +109,7 @@ export async function runAuthFlow(
 	const sessionPoll = (async () => {
 		while (!stopPolling && Date.now() < expiresAt) {
 			try {
-				const result = await api.pollCliAuthSession(session.sessionId);
+				const result = await api.pollCliAuthSession(authSession.sessionId);
 				if (result.status === "complete" || result.status === "failed") {
 					return result;
 				}
@@ -177,21 +176,20 @@ export async function runAuthFlow(
 		} else if (winner.result.status === "complete") {
 			rawToken = winner.result.token;
 		} else {
-			authSpinner.stop();
-			p.log.error(winner.result.reason);
+			authStep.fail(winner.result.reason);
 			return null;
 		}
 	}
 
 	if (!rawToken) {
-		authSpinner.stop();
-		p.log.error("Authentication link expired.");
-		p.log.info(`  Run ${highlight("vocoder init")} to try again.`);
+		authStep.fail("Authentication link expired.", [
+			formatLabelValue("Run", highlight("vocoder init")),
+		]);
 		return null;
 	}
 
 	const userInfo = await api.getCliUserInfo(rawToken);
-	authSpinner.stop(`Authenticated as ${highlight(userInfo.email)}`);
+	authStep.done(formatLabelValue("Authenticated as", highlight(userInfo.email)));
 
 	return {
 		token: rawToken,

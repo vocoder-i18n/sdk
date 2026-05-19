@@ -1,26 +1,33 @@
-import * as p from "@clack/prompts";
 import { exec } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { CommandSession, formatLabelValue } from "./command-session.js";
 import {
 	buildInstallCommand,
 	detectLocalEcosystem,
 } from "./detect-local.js";
+import { highlight } from "./theme.js";
 
 const execAsync = promisify(exec);
 
-async function runInstall(command: string, cwd: string, label: string): Promise<boolean> {
-	const s = p.spinner();
-	s.start(`Installing packages in ${label}`);
+async function runInstall(
+	session: CommandSession,
+	command: string,
+	cwd: string,
+	label: string,
+): Promise<boolean> {
+	const step = session.startStep(`Installing packages in ${label}`);
 	try {
 		await execAsync(command, { cwd });
-		s.stop(`Installed packages in ${label}`);
+		step.done(`Installed packages in ${highlight(label)}`);
 		return true;
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
-		s.stop(`Install failed in ${label}`);
-		p.log.warn(`${command}\n${msg}`);
+		step.done(`Install skipped in ${highlight(label)}`);
+		session.warn(`Could not install packages in ${highlight(label)}.`);
+		session.info(formatLabelValue("Command", highlight(command)));
+		session.info(msg);
 		return false;
 	}
 }
@@ -36,10 +43,12 @@ export async function installForProject({
 	rootDir,
 	appDirs,
 	installMcp,
+	session,
 }: {
 	rootDir: string;
 	appDirs: string[];
 	installMcp: boolean;
+	session: CommandSession;
 }): Promise<void> {
 	const isMonorepo = appDirs.length > 0;
 	const rootDetection = detectLocalEcosystem(rootDir);
@@ -51,18 +60,20 @@ export async function installForProject({
 		if (!rootDetection.hasCli) rootDevPkgs.push("@vocoder/cli");
 		if (installMcp) rootDevPkgs.push("@vocoder/mcp");
 
-		if (rootDevPkgs.length > 0) {
-			const cmd = buildInstallCommand(pm, rootDevPkgs, true);
-			await runInstall(cmd, rootDir, "root");
-		}
+			if (rootDevPkgs.length > 0) {
+				const cmd = buildInstallCommand(pm, rootDevPkgs, true);
+				await runInstall(session, cmd, rootDir, "root");
+			}
 
 		// Per-app: plugin, config, ui package
-		for (const appDir of appDirs) {
-			const appDirFull = join(rootDir, appDir);
-			if (!existsSync(join(appDirFull, "package.json"))) {
-				p.log.warn(`No package.json in ${appDir} — skipping install`);
-				continue;
-			}
+			for (const appDir of appDirs) {
+				const appDirFull = join(rootDir, appDir);
+				if (!existsSync(join(appDirFull, "package.json"))) {
+					session.warn(
+						`No package.json found in ${highlight(appDir)} — skipping install.`,
+					);
+					continue;
+				}
 
 			const detection = detectLocalEcosystem(appDirFull);
 			const devPkgs: string[] = [];
@@ -72,17 +83,30 @@ export async function installForProject({
 			if (!detection.hasConfig) devPkgs.push("@vocoder/config");
 			if (detection.uiPackage && !detection.hasUiPackage) runtimePkgs.push(detection.uiPackage);
 
-			if (detection.uiPackage === null) {
-				p.log.warn(`Could not detect UI framework in ${appDir} — install @vocoder/react (or vue/svelte) manually`);
-			}
+				if (detection.uiPackage === null) {
+					session.warn(
+						`Could not detect a UI framework in ${highlight(appDir)}.`,
+					);
+					session.info("Install @vocoder/react (or vue/svelte) manually.");
+				}
 
-			if (devPkgs.length > 0) {
-				await runInstall(buildInstallCommand(pm, devPkgs, true), appDirFull, appDir);
+				if (devPkgs.length > 0) {
+					await runInstall(
+						session,
+						buildInstallCommand(pm, devPkgs, true),
+						appDirFull,
+						appDir,
+					);
+				}
+				if (runtimePkgs.length > 0) {
+					await runInstall(
+						session,
+						buildInstallCommand(pm, runtimePkgs, false),
+						appDirFull,
+						appDir,
+					);
+				}
 			}
-			if (runtimePkgs.length > 0) {
-				await runInstall(buildInstallCommand(pm, runtimePkgs, false), appDirFull, appDir);
-			}
-		}
 	} else {
 		// Root project — install everything at rootDir
 		const devPkgs: string[] = [];
@@ -96,15 +120,26 @@ export async function installForProject({
 			runtimePkgs.push(rootDetection.uiPackage);
 		}
 
-		if (rootDetection.uiPackage === null) {
-			p.log.warn("Could not detect UI framework — install @vocoder/react (or vue/svelte) manually");
-		}
+			if (rootDetection.uiPackage === null) {
+				session.warn("Could not detect a UI framework.");
+				session.info("Install @vocoder/react (or vue/svelte) manually.");
+			}
 
-		if (devPkgs.length > 0) {
-			await runInstall(buildInstallCommand(pm, devPkgs, true), rootDir, "root");
+			if (devPkgs.length > 0) {
+				await runInstall(
+					session,
+					buildInstallCommand(pm, devPkgs, true),
+					rootDir,
+					"root",
+				);
+			}
+			if (runtimePkgs.length > 0) {
+				await runInstall(
+					session,
+					buildInstallCommand(pm, runtimePkgs, false),
+					rootDir,
+					"root",
+				);
+			}
 		}
-		if (runtimePkgs.length > 0) {
-			await runInstall(buildInstallCommand(pm, runtimePkgs, false), rootDir, "root");
-		}
-	}
 }

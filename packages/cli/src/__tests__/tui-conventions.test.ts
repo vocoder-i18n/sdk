@@ -10,6 +10,8 @@
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // ── Hoist mock refs so vi.mock factory can close over them ─────────────────────
 
@@ -329,5 +331,30 @@ describe("guidance lines use p.log.info after errors", () => {
 		// Branch list context is info, not warn/error
 		const infoCalls = mockLog.info.mock.calls.map(([msg]) => String(msg));
 		expect(infoCalls.some((m) => m.includes("Target branches"))).toBe(true);
+	});
+});
+
+describe("style bans", () => {
+	it("does not use p.note anywhere in CLI source", () => {
+		function walk(dir: string): string[] {
+			const entries = readdirSync(dir, { withFileTypes: true });
+			const files: string[] = [];
+			for (const entry of entries) {
+				const fullPath = join(dir, entry.name);
+				if (entry.isDirectory()) {
+					if (entry.name === "__tests__") continue;
+					files.push(...walk(fullPath));
+				} else if (entry.isFile() && fullPath.endsWith(".ts")) {
+					files.push(fullPath);
+				}
+			}
+			return files;
+		}
+
+		const sourceRoot = join(process.cwd(), "src");
+		for (const file of walk(sourceRoot)) {
+			const contents = readFileSync(file, "utf-8");
+			expect(contents).not.toMatch(/\bp\.note\(/);
+		}
 	});
 });

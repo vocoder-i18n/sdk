@@ -10,12 +10,14 @@
  */
 
 import * as p from "@clack/prompts";
+import { CommandSession } from "./command-session.js";
 import type { VocoderAPI } from "./api.js";
 import { highlight } from "./theme.js";
 import { promptTextInput } from "./prompt-text.js";
 
 export interface SelectOrganizationParams {
 	api: VocoderAPI;
+	session: CommandSession;
 	userToken: string;
 	options: { yes?: boolean };
 	/** Pre-fill for the workspace name prompt when no orgs exist (e.g. git owner slug). */
@@ -34,14 +36,15 @@ export interface SelectOrganizationResult {
 export async function selectOrganizationForInit(
 	params: SelectOrganizationParams,
 ): Promise<SelectOrganizationResult | null> {
-	const { api, userToken, suggestedName } = params;
+	const { api, session, userToken, suggestedName } = params;
 
 	const { organizations, canCreateOrganization } = await api.listOrganizations(userToken);
 
 	if (organizations.length === 0) {
 		if (!canCreateOrganization) {
-			p.log.error(
-				"You're not a member of any workspace. Visit https://vocoder.app to create one, then re-run `vocoder init`.",
+			session.fail(
+				"You're not a member of any workspace.",
+				["Create one at https://vocoder.app, then run vocoder init again."],
 			);
 			return null;
 		}
@@ -61,7 +64,7 @@ export async function selectOrganizationForInit(
 
 	if (organizations.length === 1) {
 		const organization = organizations[0]!;
-		p.log.success(`Workspace: ${highlight(organization.name)}`);
+		session.step("Workspace", highlight(organization.name));
 		return { organizationId: organization.id, organizationName: organization.name };
 	}
 
@@ -80,6 +83,6 @@ export async function selectOrganizationForInit(
 	}
 
 	const organization = organizations.find((o) => o.id === choice)!;
-	p.log.success(`Workspace: ${highlight(organization.name)}`);
+	session.step("Workspace", highlight(organization.name));
 	return { organizationId: organization.id, organizationName: organization.name };
 }

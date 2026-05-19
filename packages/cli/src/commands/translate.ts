@@ -1,5 +1,3 @@
-import * as p from "@clack/prompts";
-
 import type {
 	AppTranslateStatus,
 	BatchTranslateStatusResponse,
@@ -20,6 +18,13 @@ import type { LimitErrorResponse } from "../types.js";
 import { StringExtractor } from "../utils/extract.js";
 import { buildStringEntries } from "../utils/string-entries.js";
 import chalk from "chalk";
+import {
+	CommandSession,
+	CommandStep,
+	displayAppDir,
+	formatLabelValue,
+	joinHighlighted,
+} from "../utils/command-session.js";
 import { existsSync, writeFileSync } from "node:fs";
 import { writeLocaleFileTree } from "./pull.js";
 import { extractProjectShortIdFromApiKey } from "@vocoder/core";
@@ -98,6 +103,11 @@ type TranslateResultApp = {
 	commitConfig?: { commitMode: string; autoMergePRs: boolean; skipCiOnDirectCommit: boolean };
 };
 
+type TranslationOutputApp = {
+	appDir: string;
+	localeFileTree?: Record<string, string>;
+};
+
 // Writes a JSON result file for the GitHub Action commit step. No-op outside CI.
 function writeTranslateResult(jobId: string, apps: TranslateResultApp[]): void {
 	if (!process.env.GITHUB_ACTIONS) return;
@@ -112,6 +122,31 @@ function writeTranslateResult(jobId: string, apps: TranslateResultApp[]): void {
 	}
 }
 
+function renderWrittenLocaleFiles(
+	session: CommandSession,
+	apps: TranslationOutputApp[],
+	rootDir: string,
+): void {
+	const showRootLabel = apps.length > 1;
+	for (const app of apps) {
+		if (app.localeFileTree) {
+			for (const result of writeLocaleFileTree(app.localeFileTree, rootDir)) {
+				session.success(
+					`Wrote ${highlight(String(result.count))} file${result.count === 1 ? "" : "s"} to ${highlight(result.displayDir)}`,
+				);
+			}
+		}
+		if (apps.length > 1 || !!app.appDir) {
+			session.success(
+				formatLabelValue(
+					highlight(displayAppDir(app.appDir, { showRootLabel })),
+					"translated",
+				),
+			);
+		}
+	}
+}
+
 export async function translate(options: TranslateCommandOptions = {}): Promise<number> {
 	const startTime = Date.now();
 	const cwd = process.cwd();
@@ -120,14 +155,13 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 	// Falls back to cwd when not inside a git repository.
 	const gitRoot = resolveGitRoot() ?? cwd;
 
-	p.intro(chalk.bold("Vocoder Translate"));
+	const session = new CommandSession("Vocoder Translate");
 
 	const apiKey = process.env.VOCODER_API_KEY;
 	if (!apiKey) {
-		p.log.error("No API key found.");
-		p.log.info("  Run `npx @vocoder/cli init` — or set VOCODER_API_KEY in .env.local");
-		p.outro("");
-		return 1;
+		return session.fail("VOCODER_API_KEY is not set.", [
+			"Run vocoder init or set VOCODER_API_KEY in .env.local.",
+		]);
 	}
 
 	const apiUrl = options.apiUrl ?? process.env.VOCODER_API_URL ?? "https://vocoder.app";
@@ -136,25 +170,24 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 	try {
 		validateLocalConfig(localConfig);
 	} catch (e) {
-		p.log.error(e instanceof Error ? e.message : String(e));
-		return 1;
+		return session.fail(e instanceof Error ? e.message : String(e));
 	}
 
 	const projectShortId = extractProjectShortIdFromApiKey(apiKey);
 	if (!projectShortId) {
-		p.log.error("Invalid API key format. Expected a project key (vcp_...).");
-		return 1;
+		return session.fail("Invalid API key format. Expected a project key (vcp_...).");
 	}
 
-	const spinner = p.spinner();
+	let activeStep: CommandStep | null = null;
 
 	try {
 		const branch = detectBranch(options.branch);
 
-		spinner.start("Loading project configuration");
+		activeStep = session.startStep("Loading project configuration");
 		const api = new VocoderAPI(localConfig);
 		const apiConfig = await api.getAppConfig();
-		spinner.stop(`Branch: ${highlight(branch)}`);
+		activeStep.done(formatLabelValue("Branch", highlight(branch)));
+		activeStep = null;
 
 		// YAML branches are the source of truth — fall back to server config if YAML absent.
 		const yamlBranches = readWorkflowBranches(gitRoot);
@@ -163,14 +196,9 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		const effectiveTargetBranches = yamlBranches ?? apiConfig.targetBranches;
 
 		if (!isTargetBranch(branch, effectiveTargetBranches)) {
-			p.log.warn(
-				`Skipping translations (${highlight(branch)} is not a target branch)`,
-			);
-			p.log.info(
-				`Target branches: ${effectiveTargetBranches.map((b) => highlight(b)).join(", ")}`,
-			);
-			p.outro("");
-			return 0;
+			session.warn(`Skipping translations for ${highlight(branch)}.`);
+			session.step("Target branches", joinHighlighted(effectiveTargetBranches), "info");
+			return session.end();
 		}
 
 		// onTranslationFailure is a job-level setting — load from git root, not per-app.
@@ -194,15 +222,17 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		// Validate and display named app dirs. Root ("") always valid — skip for single-app projects.
 		const namedAppDirs = effectiveAppDirs.filter(Boolean);
 		if (namedAppDirs.length > 0) {
-			spinner.start("Checking app directories");
+			activeStep = session.startStep("Checking app directories");
 			for (const appDir of namedAppDirs) {
 				if (!existsSync(`${gitRoot}/${appDir}`)) {
-					spinner.stop(`App directory not found: ${highlight(appDir)}`, 1);
-					p.outro("Fix app-dirs in your workflow YAML or --app-dirs flag.");
-					return 1;
+					activeStep.fail(`App directory not found: ${highlight(appDir)}`, [
+						"Fix app-dirs in your workflow YAML or --app-dirs.",
+					]);
+					return session.endFailure();
 				}
 			}
-			spinner.stop(`Apps: ${namedAppDirs.map((d) => highlight(d)).join(", ")}`);
+			activeStep.done(formatLabelValue("Apps", joinHighlighted(namedAppDirs)));
+			activeStep = null;
 		}
 
 		// Extract strings for each app directory
@@ -230,7 +260,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 				? includePattern.join(", ")
 				: includePattern;
 
-			spinner.start(
+			activeStep = session.startStep(
 				appDir
 					? `Extracting strings from ${highlight(appDir)} (${patternsDisplay})`
 					: `Extracting strings from ${patternsDisplay}`,
@@ -243,9 +273,18 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 				excludePattern,
 			);
 
-			spinner.stop(
-				`Extracted ${highlight(extractedStrings.length)} string${extractedStrings.length === 1 ? "" : "s"}${appDir ? ` from ${highlight(appDir)}` : ""}`,
+			activeStep.done(
+				appDir
+					? formatLabelValue(
+							highlight(appDir),
+							`${highlight(String(extractedStrings.length))} string${extractedStrings.length === 1 ? "" : "s"}`,
+						)
+					: formatLabelValue(
+							"Strings",
+							`${highlight(String(extractedStrings.length))}`,
+						),
 			);
+			activeStep = null;
 
 			const stringEntries = buildStringEntries(extractedStrings);
 			const sourceEntriesHash = computeSourceEntriesHash({ entries: stringEntries, industry: industry ?? null });
@@ -259,31 +298,31 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 
 		const totalSourceEntries = appExtractions.reduce((sum, a) => sum + a.sourceEntriesCount, 0);
 		if (totalSourceEntries === 0) {
-			p.log.warn("No translatable strings found — notifying server to remove any deleted strings");
+			session.warn(
+				"No translatable strings found — deleted strings will still be synced.",
+			);
 		}
 
 		if (options.dryRun) {
-			const lines = appExtractions.map(
-				(a) =>
-					`${a.appDir || "(root)"}: ${a.sourceEntriesCount} string${a.sourceEntriesCount === 1 ? "" : "s"}, fingerprint ${a.fingerprint}`,
-			);
-			p.note(
-				[
-					`Branch: ${branch}`,
-					`Target locales: ${apiConfig.targetLocales.map((l) => highlight(l)).join(", ")}`,
-					...lines,
-				].join("\n"),
-				"Dry run — would translate",
-			);
-			p.outro("No API calls made.");
-			return 0;
+			const showRootLabel = appExtractions.length > 1;
+			session.section("Dry run");
+			session.step("Branch", highlight(branch), "info");
+			session.step("Target locales", joinHighlighted(apiConfig.targetLocales), "info");
+			for (const extraction of appExtractions) {
+				session.step(
+					displayAppDir(extraction.appDir, { showRootLabel }) || "App",
+					`${highlight(String(extraction.sourceEntriesCount))} string${extraction.sourceEntriesCount === 1 ? "" : "s"}, fingerprint ${highlight(extraction.fingerprint)}`,
+					"info",
+				);
+			}
+			return session.end("No API calls made.");
 		}
 
 		const repoIdentity = resolveGitRepositoryIdentity();
 		const commitSha = options.commitSha ?? detectCommitSha() ?? undefined;
 
 		if (options.verbose && !repoIdentity) {
-			p.log.warn(
+			session.warn(
 				"Could not detect git remote origin. Translation will continue without repo metadata.",
 			);
 		}
@@ -306,7 +345,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			...(yamlCommitMode ? { commitMode: yamlCommitMode } : {}),
 		}));
 
-		spinner.start(
+		activeStep = session.startStep(
 			apps.length > 1
 				? `Submitting ${apps.length} apps to Vocoder`
 				: "Submitting to Vocoder",
@@ -325,7 +364,8 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		// All apps cached — stop spinner with that result, no polling needed
 		if (submitResult.status === "complete") {
 			const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-			spinner.stop(`Translations ready — cached in ${duration}s`);
+			activeStep.done(`Cached translations ready in ${duration}s`);
+			activeStep = null;
 			writeTranslateResult(
 				submitResult.jobId,
 				submitResult.apps.map((a) => ({
@@ -334,22 +374,17 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 					...(a.commitConfig ? { commitConfig: a.commitConfig } : {}),
 				})),
 			);
-			for (const app of submitResult.apps) {
-				if (app.localeFileTree) writeLocaleFileTree(app.localeFileTree, gitRoot);
-				if (submitResult.apps.length > 1 || !!app.appDir) {
-					p.log.success(`${highlight(app.appDir)}: translated`);
-				}
-			}
-			p.outro("Up to date.");
-			return 0;
+			renderWrittenLocaleFiles(session, submitResult.apps, gitRoot);
+			return session.end("Up to date.");
 		}
 
-		spinner.stop("Queued");
+		activeStep.done("Queued translation job");
+		activeStep = null;
 
 		const { jobId } = submitResult;
-		const localeList = apiConfig.targetLocales.join(", ");
+		const localeList = joinHighlighted(apiConfig.targetLocales);
 
-		spinner.start(
+		activeStep = session.startStep(
 			`Translating ${totalSourceEntries} string${totalSourceEntries === 1 ? "" : "s"} → ${localeList}`,
 		);
 
@@ -366,7 +401,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			for (const app of status.apps) {
 				if (app.status === "running" && app.appDir) {
 					const { completed, total } = app.progress;
-					spinner.message(`${highlight(app.appDir)}: ${completed}/${total}`);
+					activeStep.update(`${highlight(app.appDir)}: ${completed}/${total}`);
 				}
 			}
 
@@ -379,14 +414,15 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		}
 
 		if (!finalStatus) {
-			p.log.error("Unexpected: no final status received");
-			return 1;
+			activeStep.fail("No final translation status received.");
+			return session.endFailure();
 		}
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
 		if (finalStatus.status === "complete") {
-			spinner.stop(`Translations ready — ${elapsedSec}s`);
+			activeStep.done(`Translations ready in ${elapsedSec}s`);
+			activeStep = null;
 			writeTranslateResult(
 				finalStatus.jobId,
 				finalStatus.apps.map((a) => ({
@@ -395,62 +431,70 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 					...(a.commitConfig ? { commitConfig: a.commitConfig } : {}),
 				})),
 			);
-			// Write locale files then per-app summary
-			for (const app of finalStatus.apps) {
-				if (app.localeFileTree) writeLocaleFileTree(app.localeFileTree, gitRoot);
-				if (finalStatus.apps.length > 1 || !!app.appDir) {
-					p.log.success(`${highlight(app.appDir)}: translated`);
-				}
-			}
-			p.outro("Up to date.");
-			return 0;
+			renderWrittenLocaleFiles(session, finalStatus.apps, gitRoot);
+			return session.end("Up to date.");
 		}
 
-		spinner.stop("Translation incomplete", 1);
+		activeStep.fail("Translation incomplete");
 		for (const app of finalStatus.apps) {
 			if ((finalStatus.apps.length > 1 || !!app.appDir) && app.status !== "complete") {
-				p.log.warn(`${app.appDir}${app.error ? `: ${app.error}` : ""}`);
+				const label = displayAppDir(app.appDir, {
+					showRootLabel: finalStatus.apps.length > 1,
+				});
+				session.warn(`${highlight(label)}${app.error ? `: ${app.error}` : ""}`);
 			}
 		}
+		activeStep = null;
 
 		if (computeExitCode("failed", onTranslationFailure) === 0) {
-			p.outro(`Translation incomplete — proceeding (onTranslationFailure: ${onTranslationFailure})`);
-			return 0;
+			return session.end("Continuing with existing translations.");
 		}
 
-		p.outro(chalk.red("Build halted — translation failed (onTranslationFailure: fail)"));
-		return 1;
+		return session.endFatal("Build halted — translation failed.");
 	} catch (error) {
 		if (error instanceof VocoderAPIError && error.limitError) {
 			const { limitError } = error;
-			spinner.stop(limitError.message, 1);
-			for (const line of getLimitErrorGuidance(limitError)) {
-				p.log.info(line);
+			if (activeStep) {
+				activeStep.fail(limitError.message, getLimitErrorGuidance(limitError));
+				return session.endFailure();
 			}
-			return 1;
+			return session.fail(limitError.message, getLimitErrorGuidance(limitError));
 		}
 
 		if (error instanceof VocoderAPIError) {
-			spinner.stop(error.message, 1);
-			if (error.status === 401) {
-				p.log.warn(
-					"API key rejected — the project may have been deleted or the key revoked.",
-				);
-				p.log.info("  Run `npx @vocoder/cli init` to create a new project and key.");
+			const guidance =
+				error.status === 401
+					? [
+							"API key rejected — the project may have been deleted or the key revoked.",
+							"Run vocoder init to create a new project and key.",
+						]
+					: [];
+			if (activeStep) {
+				activeStep.fail(error.message, guidance);
+				return session.endFailure();
 			}
-			return 1;
+			return session.fail(error.message, guidance);
 		}
 
 		if (error instanceof Error) {
-			spinner.stop(error.message, 1);
+			const guidance: string[] = [];
 			if (error.message.includes("git branch")) {
-				p.log.info("  Run from a git repository, or use: vocoder translate --branch main");
+				guidance.push("Run from a git repository, or use vocoder translate --branch main.");
 			}
 			if (options.verbose) {
-				p.log.info(`Full error: ${error.stack ?? error}`);
+				guidance.push(`Full error: ${error.stack ?? error}`);
 			}
+			if (activeStep) {
+				activeStep.fail(error.message, guidance);
+				return session.endFailure();
+			}
+			return session.fail(error.message, guidance);
 		}
 
-		return 1;
+		if (activeStep) {
+			activeStep.fail("Translation failed.");
+			return session.endFailure();
+		}
+		return session.fail("Translation failed.");
 	}
 }

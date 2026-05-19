@@ -29,6 +29,13 @@ function makeApi(organizations: object[]) {
 	} as any;
 }
 
+function makeSession() {
+	return {
+		warn: vi.fn(),
+		info: vi.fn(),
+	} as any;
+}
+
 beforeEach(() => {
 	vi.clearAllMocks();
 });
@@ -102,7 +109,7 @@ describe("checkPlanLimits", () => {
 		const api = makeApi([
 			{ id: "org-1", appCount: 1, maxApps: 5, planId: "starter" },
 		]);
-		const result = await checkPlanLimits(api, "token", "org-1", "https://vocoder.app");
+		const result = await checkPlanLimits(api, makeSession(), "token", "org-1", "https://vocoder.app");
 		expect(result).toEqual({ atLimit: false, remaining: 4 });
 	});
 
@@ -110,7 +117,7 @@ describe("checkPlanLimits", () => {
 		const api = makeApi([
 			{ id: "org-1", appCount: 10, maxApps: -1, planId: "pro" },
 		]);
-		const result = await checkPlanLimits(api, "token", "org-1", "https://vocoder.app");
+		const result = await checkPlanLimits(api, makeSession(), "token", "org-1", "https://vocoder.app");
 		expect(result).toEqual({ atLimit: false, remaining: undefined });
 	});
 
@@ -119,7 +126,7 @@ describe("checkPlanLimits", () => {
 			{ id: "org-1", appCount: 2, maxApps: 2, planId: "free" },
 		]);
 		vi.mocked(p.select).mockResolvedValue("cancel");
-		const result = await checkPlanLimits(api, "token", "org-1", "https://vocoder.app");
+		const result = await checkPlanLimits(api, makeSession(), "token", "org-1", "https://vocoder.app");
 		expect(result).toEqual({ atLimit: true });
 		expect(p.cancel).toHaveBeenCalled();
 	});
@@ -129,24 +136,27 @@ describe("checkPlanLimits", () => {
 			{ id: "org-1", appCount: 2, maxApps: 2, planId: "free" },
 		]);
 		vi.mocked(p.select).mockResolvedValue("upgrade");
-		const result = await checkPlanLimits(api, "token", "org-1", "https://vocoder.app");
+		const session = makeSession();
+		const result = await checkPlanLimits(api, session, "token", "org-1", "https://vocoder.app");
 		expect(result).toEqual({ atLimit: true });
+		expect(session.info).toHaveBeenCalled();
 	});
 
 	it("warns and returns atLimit=false when API throws", async () => {
 		const api = {
 			listOrganizations: vi.fn().mockRejectedValue(new Error("Network error")),
 		} as any;
-		const result = await checkPlanLimits(api, "token", "org-1", "https://vocoder.app");
+		const session = makeSession();
+		const result = await checkPlanLimits(api, session, "token", "org-1", "https://vocoder.app");
 		expect(result).toEqual({ atLimit: false });
-		expect(p.log.warn).toHaveBeenCalledWith(
+		expect(session.warn).toHaveBeenCalledWith(
 			expect.stringContaining("Could not verify plan limits"),
 		);
 	});
 
 	it("returns atLimit=false when org not found in list", async () => {
 		const api = makeApi([{ id: "org-other", appCount: 0, maxApps: 5, planId: "starter" }]);
-		const result = await checkPlanLimits(api, "token", "org-1", "https://vocoder.app");
+		const result = await checkPlanLimits(api, makeSession(), "token", "org-1", "https://vocoder.app");
 		expect(result).toEqual({ atLimit: false });
 	});
 });

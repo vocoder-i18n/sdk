@@ -6,8 +6,6 @@ vi.mock("@clack/prompts", () => ({
 	log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 	confirm: vi.fn(),
 	select: vi.fn(),
-	note: vi.fn(),
-	spinner: vi.fn(() => ({ start: vi.fn(), stop: vi.fn() })),
 	cancel: vi.fn(),
 	isCancel: vi.fn((v) => v === Symbol.for("clack-cancel")),
 }));
@@ -45,6 +43,16 @@ function makeApi(
 	} as unknown as Parameters<typeof runAuthFlow>[0];
 }
 
+function makeSession() {
+	return {
+		step: vi.fn(),
+		startStep: vi.fn(() => ({
+			done: vi.fn(),
+			fail: vi.fn(),
+		})),
+	} as unknown as Parameters<typeof runAuthFlow>[2];
+}
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	Object.defineProperty(process.stdin, "isTTY", {
@@ -69,9 +77,10 @@ describe("runAuthFlow", () => {
 		});
 
 		const api = makeApi();
+		const session = makeSession();
 		vi.mocked(p.confirm).mockResolvedValue(CANCEL as unknown as boolean);
 
-		const result = await runAuthFlow(api, { yes: false }, false);
+		const result = await runAuthFlow(api, { yes: false }, session, false);
 		expect(result).toBeNull();
 		expect(p.cancel).toHaveBeenCalled();
 	});
@@ -87,9 +96,10 @@ describe("runAuthFlow", () => {
 		});
 
 		const api = makeApi();
+		const session = makeSession();
 		vi.mocked(p.confirm).mockResolvedValue(false);
 
-		const result = await runAuthFlow(api, { yes: false }, false);
+		const result = await runAuthFlow(api, { yes: false }, session, false);
 		expect(result).toBeNull();
 	});
 
@@ -100,8 +110,9 @@ describe("runAuthFlow", () => {
 				token: "test-token",
 			}),
 		});
+		const session = makeSession();
 
-		await runAuthFlow(api, { ci: true }, false, "github:owner/repo");
+		await runAuthFlow(api, { ci: true }, session, false, "github:owner/repo");
 
 		const startCall = vi.mocked(api.startCliAuthSession).mock.calls[0]!;
 		// Args: (callbackPort?, repoCanonical?) — repoCanonical is informational only.
@@ -114,6 +125,7 @@ describe("runAuthFlow", () => {
 		const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(
 			() => true,
 		);
+		const session = makeSession();
 		const api = makeApi({
 			pollCliAuthSession: vi.fn().mockResolvedValue({
 				status: "complete",
@@ -121,7 +133,7 @@ describe("runAuthFlow", () => {
 			}),
 		});
 
-		await runAuthFlow(api, { ci: true }, false);
+		await runAuthFlow(api, { ci: true }, session, false);
 
 		const written = writeSpy.mock.calls.map((c) => c[0]).join("");
 		expect(written).toContain("VOCODER_AUTH_URL: https://vocoder.app/auth/cli");
@@ -138,12 +150,11 @@ describe("runAuthFlow", () => {
 			}),
 			pollCliAuthSession: vi.fn().mockResolvedValue({ status: "pending" }),
 		});
+		const session = makeSession();
 
-		const result = await runAuthFlow(api, { ci: true }, false);
+		const result = await runAuthFlow(api, { ci: true }, session, false);
 		expect(result).toBeNull();
-		expect(p.log.error).toHaveBeenCalledWith(
-			expect.stringContaining("expired"),
-		);
+		expect(session.startStep).toHaveBeenCalled();
 	});
 
 	it("returns the token + user info on a successful poll", async () => {
@@ -153,8 +164,9 @@ describe("runAuthFlow", () => {
 				token: "good-token",
 			}),
 		});
+		const session = makeSession();
 
-		const result = await runAuthFlow(api, { ci: true }, false);
+		const result = await runAuthFlow(api, { ci: true }, session, false);
 		expect(result).toEqual({
 			token: "good-token",
 			userId: "user-1",

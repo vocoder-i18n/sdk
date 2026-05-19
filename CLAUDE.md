@@ -100,13 +100,15 @@ All CLI command output must follow these conventions. Apply them without prompti
 
 | Function | Renders | When to use |
 |---|---|---|
-| `p.log.success(msg)` | ✓ green | Operation completed. Subject + past-tense verb. One concise line. |
+| `p.log.success(msg)` | ✓ green | Primary completed step or result line. Prefer simple output such as `Label: value` or a short completed sentence. |
 | `p.log.warn(msg)` | ▲ yellow | Non-fatal condition — operation continues. What happened and why it matters. |
 | `p.log.error(msg)` | ✗ red | Fatal condition — `return 1` follows within a few lines. Never used for warnings. |
 | `p.log.info(msg)` | ℹ dim | Supplementary detail only: list items, recovery steps after an error, `""` for blank spacing. Never the primary message. |
 | `p.log.message(msg)` | (none) | Undecorated text: `chalk.bold("Section:")` headers, numbered/bulleted lists. |
 
-**Rule:** never use `p.note()`. Use `p.log.message(chalk.bold(...))` for section headers and `p.log.info(...)` for field values. Use `p.log.info("")` for blank line spacing between sections.
+**Rule:** never use `p.note()`.
+
+**Rule:** when working in `packages/cli`, use the shared `CommandSession` helper instead of calling `@clack/prompts` primitives ad hoc from top-level commands.
 
 **Rule:** when exiting with code 1, the primary signal is always `p.log.error()` or `spinner.stop(msg, 1)` — never `p.log.warn()` alone. Use `p.log.warn()` only when the function continues after the warning.
 
@@ -122,16 +124,18 @@ All CLI command output must follow these conventions. Apply them without prompti
 
 **Rule:** never call `chalk.bold()` inside `p.log.success/warn/error/info()` — use `highlight()` instead.
 
+**Rule:** prefer `Label: value` rows for summaries and steady-state output. Keep labels plain text and highlight only the dynamic values that users need to scan.
+
 ### Spinners
 
 - `spinner.start("Verb-ing noun…")` — present participle, trailing `…` (Unicode ellipsis, not `...`)
-- `spinner.stop("Past-tense result")` — no trailing ellipsis; include key result value with `highlight()`
+- `spinner.stop("Result line")` — no trailing ellipsis; usually a short completed sentence or `Label: value`
 - `spinner.stop("Terse error", 1)` — exit code `1` for all spinner failures; message is a short noun phrase
 - Never call `p.log.*` while a spinner is running — stop the spinner first
 
 ### Command Entry / Exit
 
-- Every top-level command must call `p.intro(chalk.bold("Command Title"))` as its **first** output
+- Every top-level command must start through `CommandSession("Command Title")`
 - Every exit path must call `p.outro()` immediately before returning — no silent returns
 - `p.outro("")` — clean exit requiring no message
 - `p.outro(chalk.red("Fatal: reason"))` — fatal build-blocking exit that must stand out
@@ -177,7 +181,7 @@ p.log.info(`Required for this sync: ${required.toLocaleString()} chars`);
 p.log.info(`Used: ${current.toLocaleString()} / Needed: ${required.toLocaleString()} chars`);
 ```
 
-**Guidance cap:** maximum 2 `p.log.info()` lines after any single error. If more context is genuinely needed, use `p.note()` instead of additional info lines.
+**Guidance cap:** maximum 2 `p.log.info()` lines after any single error.
 
 **Outro scope:** `p.outro()` is forward-looking ("what to do next") or empty. Never use it to repeat an error reason or recovery command already shown by a log line.
 
@@ -188,6 +192,12 @@ p.log.info(`Used: ${current.toLocaleString()} / Needed: ${required.toLocaleStrin
 - Single-app root: omit dir label from messages
 - Named app dir: include `highlight(appDir)` in spinner start/stop and per-result lines
 - Root app within a monorepo: display as `(root)`, not empty string
+
+### Surface Consistency
+
+- `bin.ts`, `packages/cli/README.md`, and command implementations must describe the same commands and flags
+- Remove dead flags instead of documenting future behavior
+- Keep examples aligned with the actual current output style
 
 ---
 

@@ -1,5 +1,4 @@
-import * as p from "@clack/prompts";
-import chalk from "chalk";
+import { CommandSession, joinHighlighted } from "../utils/command-session.js";
 import { highlight } from "../utils/theme.js";
 import { loadEnvFiles } from "../utils/load-env.js";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
@@ -14,13 +13,10 @@ export interface LocaleCommandOptions {
 function getApiConfig(options: LocaleCommandOptions): {
 	apiKey: string;
 	apiUrl: string;
-} | null {
+} | { error: string } {
 	const apiKey = process.env.VOCODER_API_KEY;
 	if (!apiKey) {
-		p.log.error(
-			"VOCODER_API_KEY is not set. Run `npx @vocoder/cli init` to set up your app.",
-		);
-		return null;
+		return { error: "VOCODER_API_KEY is not set." };
 	}
 	return {
 		apiKey,
@@ -37,12 +33,11 @@ function getApiConfig(options: LocaleCommandOptions): {
  * @throws If VOCODER_API_KEY is missing or the API call fails.
  */
 export async function listProjectLocales(options: LocaleCommandOptions = {}): Promise<number> {
-	p.intro(chalk.bold("Vocoder Locales"));
+	const session = new CommandSession("Vocoder Locales");
 
 	const config = getApiConfig(options);
-	if (!config) {
-		p.outro("");
-		return 1;
+	if ("error" in config) {
+		return session.fail(config.error, ["Run vocoder init to set up your project."]);
 	}
 
 	const api = new VocoderAPI(config);
@@ -52,20 +47,17 @@ export async function listProjectLocales(options: LocaleCommandOptions = {}): Pr
 
 		const targetDisplay =
 			projectConfig.targetLocales.length > 0
-				? projectConfig.targetLocales.map((l) => highlight(l)).join(", ")
-				: chalk.dim("(none configured)");
+				? joinHighlighted(projectConfig.targetLocales)
+				: "(none configured)";
 
-		p.log.info(`Source locale:  ${highlight(projectConfig.sourceLocale)}`);
-		p.log.info(`Target locales: ${targetDisplay}`);
+		session.step("Source locale", highlight(projectConfig.sourceLocale));
+		session.step("Target locales", targetDisplay);
 
-		p.outro("");
-		return 0;
+		return session.end();
 	} catch (error) {
-		p.log.error(
+		return session.fail(
 			error instanceof Error ? error.message : "Failed to fetch app locales.",
 		);
-		p.outro("");
-		return 1;
 	}
 }
 
@@ -84,60 +76,46 @@ export async function addLocales(
 	locales: string[],
 	options: LocaleCommandOptions = {},
 ): Promise<number> {
-	p.intro(chalk.bold("Vocoder Locales"));
+	const session = new CommandSession("Vocoder Locales");
 
 	if (locales.length === 0) {
-		p.log.error("No locale codes provided.");
-		p.outro("");
-		return 1;
+		return session.fail("No locale codes provided.");
 	}
 
 	const config = getApiConfig(options);
-	if (!config) {
-		p.outro("");
-		return 1;
+	if ("error" in config) {
+		return session.fail(config.error, ["Run vocoder init to set up your project."]);
 	}
 
 	const api = new VocoderAPI(config);
 	let lastTargetLocales: string[] = [];
-	let hadError = false;
 
 	for (const locale of locales) {
-		const spinner = p.spinner();
-		spinner.start(`Adding ${locale}…`);
+		const step = session.startStep(`Adding ${highlight(locale)}`);
 
 		try {
 			const result = await api.addLocale(locale);
 			lastTargetLocales = result.targetLocales;
-			spinner.stop(`Added ${highlight(locale)}`);
+			step.done(`Added ${highlight(locale)}`);
 		} catch (error) {
-			hadError = true;
-
 			if (error instanceof VocoderAPIError && error.limitError) {
 				const { limitError } = error;
-				spinner.stop(limitError.message, 1);
-				for (const line of getLimitErrorGuidance(limitError)) {
-					p.log.info(line);
-				}
-				// Plan limit hit — remaining locales will also fail, so stop early
-				break;
+				step.fail(limitError.message, getLimitErrorGuidance(limitError));
+				return session.endFailure();
 			}
 
-			spinner.stop(
+			step.fail(
 				error instanceof Error ? error.message : `Failed to add ${highlight(locale)}`,
-				1,
 			);
+			return session.endFailure();
 		}
 	}
 
 	if (lastTargetLocales.length > 0) {
-		p.log.info(
-			`Target locales now: ${lastTargetLocales.map((l) => highlight(l)).join(", ")}`,
-		);
+		session.step("Target locales", joinHighlighted(lastTargetLocales), "info");
 	}
 
-	p.outro("");
-	return hadError ? 1 : 0;
+	return session.end();
 }
 
 /**
@@ -153,51 +131,42 @@ export async function removeLocales(
 	locales: string[],
 	options: LocaleCommandOptions = {},
 ): Promise<number> {
-	p.intro(chalk.bold("Vocoder Locales"));
+	const session = new CommandSession("Vocoder Locales");
 
 	if (locales.length === 0) {
-		p.log.error("No locale codes provided.");
-		p.outro("");
-		return 1;
+		return session.fail("No locale codes provided.");
 	}
 
 	const config = getApiConfig(options);
-	if (!config) {
-		p.outro("");
-		return 1;
+	if ("error" in config) {
+		return session.fail(config.error, ["Run vocoder init to set up your project."]);
 	}
 
 	const api = new VocoderAPI(config);
 	let lastTargetLocales: string[] = [];
-	let hadError = false;
 
 	for (const locale of locales) {
-		const spinner = p.spinner();
-		spinner.start(`Removing ${locale}…`);
+		const step = session.startStep(`Removing ${highlight(locale)}`);
 
 		try {
 			const result = await api.removeLocale(locale);
 			lastTargetLocales = result.targetLocales;
-			spinner.stop(`Removed ${highlight(locale)}`);
+			step.done(`Removed ${highlight(locale)}`);
 		} catch (error) {
-			hadError = true;
-			spinner.stop(
+			step.fail(
 				error instanceof Error ? error.message : `Failed to remove ${highlight(locale)}`,
-				1,
 			);
+			return session.endFailure();
 		}
 	}
 
 	if (lastTargetLocales.length > 0) {
-		p.log.info(
-			`Target locales now: ${lastTargetLocales.map((l) => highlight(l)).join(", ")}`,
-		);
-	} else if (!hadError) {
-		p.log.info("Target locales now: (none configured)");
+		session.step("Target locales", joinHighlighted(lastTargetLocales), "info");
+	} else {
+		session.step("Target locales", "(none configured)", "info");
 	}
 
-	p.outro("");
-	return hadError ? 1 : 0;
+	return session.end();
 }
 
 /**
@@ -207,12 +176,11 @@ export async function removeLocales(
  * Endpoint: GET /api/cli/locales (accepts both user tokens and app API keys)
  */
 export async function listSupportedLocales(options: LocaleCommandOptions = {}): Promise<number> {
-	p.intro(chalk.bold("Vocoder Locales"));
+	const session = new CommandSession("Vocoder Locales");
 
 	const config = getApiConfig(options);
-	if (!config) {
-		p.outro("");
-		return 1;
+	if ("error" in config) {
+		return session.fail(config.error, ["Run vocoder init to set up your project."]);
 	}
 
 	const api = new VocoderAPI(config);
@@ -220,30 +188,28 @@ export async function listSupportedLocales(options: LocaleCommandOptions = {}): 
 	try {
 		// GET /api/cli/locales accepts both user tokens and app API keys as Bearer tokens
 		const result = await api.listLocales(config.apiKey);
-		p.log.message(chalk.bold("Source locales:"));
-		printLocaleTable(result.sourceLocales);
-		p.log.info("");
-		p.log.message(chalk.bold("Target locales:"));
-		printLocaleTable(result.targetLocales);
-		p.outro("");
-		return 0;
+		session.section("Source locales");
+		printLocaleTable(result.sourceLocales, session);
+		session.blank();
+		session.section("Target locales");
+		printLocaleTable(result.targetLocales, session);
+		return session.end();
 	} catch (error) {
-		p.log.error(
+		return session.fail(
 			error instanceof Error ? error.message : "Failed to fetch supported locales.",
 		);
-		p.outro("");
-		return 1;
 	}
 }
 
 function printLocaleTable(
 	locales: Array<{ code: string; name: string; nativeName?: string }>,
+	session: CommandSession,
 ): void {
 	for (const locale of locales) {
 		const native =
 			locale.nativeName && locale.nativeName !== locale.name
 				? ` (${locale.nativeName})`
 				: "";
-		p.log.info(`  ${highlight(locale.code.padEnd(10))} ${locale.name}${native}`);
+		session.info(`  ${highlight(locale.code.padEnd(10))} ${locale.name}${native}`);
 	}
 }

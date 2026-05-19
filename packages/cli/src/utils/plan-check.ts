@@ -12,8 +12,9 @@
  */
 
 import * as p from "@clack/prompts";
-import chalk from "chalk";
+import { CommandSession, formatLabelValue } from "./command-session.js";
 import type { VocoderAPI } from "./api.js";
+import { highlight } from "./theme.js";
 import { tryOpenBrowser } from "./browser.js";
 
 const SUBSCRIPTION_SETTINGS_PATH =
@@ -53,6 +54,7 @@ export interface PlanCheckResult {
  */
 export async function checkPlanLimits(
 	api: VocoderAPI,
+	session: CommandSession,
 	userToken: string,
 	organizationId: string,
 	apiUrl: string,
@@ -63,41 +65,47 @@ export async function checkPlanLimits(
 
 		if (!organization) {
 			return { atLimit: false };
-		}
+			}
 
-		if (organization.maxApps !== -1 && organization.appCount >= organization.maxApps) {
-			p.log.warn(
-				`App limit reached — ${organization.appCount}/${organization.maxApps} on your ${chalk.bold(organization.planId)} plan.`,
-			);
+			if (organization.maxApps !== -1 && organization.appCount >= organization.maxApps) {
+				session.warn(
+					`App limit reached for the ${highlight(organization.planId)} plan.`,
+				);
+				session.info(
+					formatLabelValue(
+						"Apps",
+						`${highlight(String(organization.appCount))} / ${highlight(String(organization.maxApps))}`,
+					),
+				);
 
-			const limitAction = await p.select<string>({
-				message: "What would you like to do?",
+				const limitAction = await p.select<string>({
+					message: "What would you like to do?",
 				options: [
 					{ value: "upgrade", label: "Upgrade plan" },
 					{ value: "cancel", label: "Cancel" },
 				],
 			});
 
-			if (p.isCancel(limitAction) || limitAction === "cancel") {
-				p.cancel("Setup cancelled.");
+				if (p.isCancel(limitAction) || limitAction === "cancel") {
+					p.cancel("Setup cancelled.");
+					return { atLimit: true };
+				}
+
+				await tryOpenBrowser(getSubscriptionSettingsUrl(apiUrl));
+				session.info("Upgrade your plan in the browser, then run vocoder init again.");
 				return { atLimit: true };
 			}
-
-			await tryOpenBrowser(getSubscriptionSettingsUrl(apiUrl));
-			p.cancel("Upgrade your plan in the browser, then re-run `vocoder init`.");
-			return { atLimit: true };
-		}
 
 		const remaining =
 			organization.maxApps === -1
 				? undefined
 				: Math.max(0, organization.maxApps - organization.appCount);
 
-		return { atLimit: false, remaining };
-	} catch {
-		p.log.warn(
-			"Could not verify plan limits — proceeding, the server will enforce them.",
-		);
-		return { atLimit: false };
-	}
+			return { atLimit: false, remaining };
+		} catch {
+			session.warn(
+				"Could not verify plan limits — proceeding, the server will enforce them.",
+			);
+			return { atLimit: false };
+		}
 }

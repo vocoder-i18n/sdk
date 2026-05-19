@@ -1,5 +1,4 @@
-import * as p from "@clack/prompts";
-import chalk from "chalk";
+import { CommandSession } from "../utils/command-session.js";
 import { VocoderAPI } from "../utils/api.js";
 import { clearAuthData, readAuthData } from "../utils/auth-store.js";
 import { loadEnvFiles } from "../utils/load-env.js";
@@ -12,14 +11,13 @@ export interface LogoutOptions {
 }
 
 export async function logout(options: LogoutOptions = {}): Promise<number> {
-	p.intro(chalk.bold("Vocoder Logout"));
+	const session = new CommandSession("Vocoder Logout");
 
 	const stored = readAuthData();
 
 	if (!stored) {
-		p.log.warn("Not logged in.");
-		p.outro("");
-		return 0;
+		session.warn("Not logged in.");
+		return session.end();
 	}
 
 	const apiUrl = options.apiUrl ?? process.env.VOCODER_API_URL ?? "https://vocoder.app";
@@ -32,7 +30,6 @@ export async function logout(options: LogoutOptions = {}): Promise<number> {
 	}
 
 	clearAuthData();
-	p.log.success(`Logged out (was ${highlight(stored.email)})`);
-	p.outro("");
-	return 0;
+	session.step("Logged out", highlight(stored.email));
+	return session.end();
 }

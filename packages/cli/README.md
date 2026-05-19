@@ -1,14 +1,14 @@
 # @vocoder/cli
 
-Command-line tool for Vocoder. Handles project setup, string extraction, and translation.
+CLI for Vocoder project setup, translation sync, and project management.
 
 ## Installation
 
 ```bash
-npm install -g @vocoder/cli
+npm install -D @vocoder/cli
 ```
 
-Or use without installing:
+Or run it without installing:
 
 ```bash
 npx @vocoder/cli <command>
@@ -18,319 +18,188 @@ npx @vocoder/cli <command>
 
 ### `vocoder init`
 
-Connect your repository to Vocoder. Runs an interactive TUI that handles authentication, workspace setup, and project configuration — all in the terminal. Only one browser step is required (Vocoder sign-in), and only on first run.
+Authenticate with Vocoder, select a workspace, create or connect a project, optionally install SDK packages, write `VOCODER_API_KEY`, and create the GitHub Actions workflow.
 
 ```bash
 vocoder init
 ```
 
-**First-time setup:**
+Typical flow:
 
-The CLI opens the Vocoder sign-in page. After authenticating, your workspace is ready and the CLI writes your API key and a GitHub Actions workflow file.
+- Authenticate in the browser on first run
+- Select or create a workspace
+- Choose app directories for monorepos
+- Choose source language, target languages, and trigger branches
+- Optionally install `@vocoder/mcp`
+- Write `.github/workflows/vocoder-translate.yml`
+- Write `VOCODER_API_KEY` into `.env.local` or `.env`
 
-**Returning user (stored credentials):**
+Files written at the repository root:
 
-No browser opens. The stored token is verified and the flow continues in the terminal.
+1. `.github/workflows/vocoder-translate.yml`
+2. `.env.local` or `.env`
 
-```
-┌  Vocoder Setup
-
-◇  Authenticated as user@example.com
-
-◆  Select workspace
-│  ● my-workspace  (3 projects)
-│  ○ + Create new workspace
-```
-
-**What `vocoder init` writes:**
-
-Two files are written at the repository root, regardless of where you run the command:
-
-1. `.github/workflows/vocoder-translate.yml` — GitHub Actions workflow that runs translations on push
-2. `.env.local` — your project API key (`VOCODER_API_KEY`) appended to this file
-
-No framework config file (`vocoder.config.ts`) is written. Framework integration is handled separately — see [vocoder.app/docs/setup](https://vocoder.app/docs/setup).
-
-**Commit mode:**
-
-During init, you choose how translated locale files are committed back to your repository:
-
-```
-◆  How should translations be committed?
-   ● Pull request  (recommended)
-   ○ Direct commit
-```
-
-Pull request mode opens a PR for each translation run so you can review changes before merging. Direct commit mode pushes translations directly to the target branch (useful for CI pipelines where you want translations applied immediately).
-
-**GitHub Actions workflow:**
-
-After `vocoder init` completes, add `VOCODER_API_KEY` as a GitHub repository secret (Settings → Secrets and variables → Actions → New repository secret, name: `VOCODER_API_KEY`). Then commit the workflow file:
-
-```bash
-git add .github/workflows/vocoder-translate.yml
-git commit -m "Add Vocoder translate workflow"
-git push
-```
-
-Example workflow (PR mode, branches templated from your answers during init):
-
-```yaml
-name: Vocoder Translate
-on:
-  push:
-    branches: [main]
-jobs:
-  translate:
-    runs-on: ubuntu-latest
-    if: github.actor != 'vocoder-bot[bot]'
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: vocoder-i18n/translate-action@v1
-        with:
-          api-key: ${{ secrets.VOCODER_API_KEY }}
-          commit-mode: pr
-          on-failure: proceed
-```
-
-Direct commit mode omits `pull-requests: write` and uses `commit-mode: direct`. The `if: github.actor != 'vocoder-bot[bot]'` filter prevents re-triggering the workflow when Vocoder commits locale files back to the branch.
-
-**Monorepo support:**
-
-When running `vocoder init` from a subdirectory (e.g. `apps/web`), the CLI pre-fills the app directory prompt with that path. Both output files are always written at the repository root, never the current directory.
-
-**Options:**
+Options:
 
 | Flag | Description |
 |---|---|
-| `--yes` | Skip the "Open in your browser?" confirmation |
-| `--ci` | Non-interactive mode. Prints `VOCODER_AUTH_URL: <url>` to stdout instead of opening a browser. Intended for CI environments where the browser step is driven externally. |
-
-**Stored credentials:**
-
-After first sign-in, the CLI stores credentials at `~/.vocoder/auth.json` (mode `0600`). Tokens do not expire. Use `vocoder logout` to revoke.
-
-**Token resolution:**
-
-| Command | Source |
-|---|---|
-| `vocoder init` | `VOCODER_AUTH_TOKEN` env var → `~/.vocoder/auth.json` |
-| `vocoder translate` | `VOCODER_API_KEY` env var → `.env` file |
-| MCP tools | `VOCODER_API_KEY` env var |
-
----
+| `--api-url <url>` | Override the Vocoder API URL |
+| `--yes` | Skip the browser-open confirmation |
+| `--ci` | Print `VOCODER_AUTH_URL` and `VOCODER_SESSION_ID` instead of opening the browser |
+| `--verbose` | Log API request URLs and response statuses |
 
 ### `vocoder translate`
 
-Extract translatable strings from your source code and submit them for translation. This is the command the GitHub Action calls — you can also run it locally to test before pushing.
+Extract strings, submit them to Vocoder, poll until completion, and write the latest locale files into the git root.
 
 ```bash
 vocoder translate
+vocoder translate --dry-run
+vocoder translate --app-dirs apps/web,apps/admin
 ```
 
-Reads `VOCODER_API_KEY` from environment or `.env`. Detects `<T>` and `t()` usages, submits them to Vocoder, polls until translations are complete, then commits `locales/manifest.json` and per-locale `locales/{locale}.json` files back to the repository (via pull request or direct commit, depending on the commit mode configured during `vocoder init`).
+Reads `VOCODER_API_KEY` from the environment or local env files.
 
-**Options:**
+Options:
 
 | Flag | Description |
 |---|---|
-| `--app-dirs <dirs>` | Comma-separated app directories for monorepos, e.g. `apps/web,apps/admin`. Omit for single-app repos (submits as root app). |
-| `--branch <name>` | Git branch (auto-detected from git/CI env vars if omitted) |
-| `--commit-sha <sha>` | Commit SHA (auto-detected from CI env vars if omitted) |
-| `--dry-run` | Show what would be submitted without sending |
-| `--verbose` | Show extraction and submission details |
+| `--branch <branch>` | Override the detected git branch |
+| `--commit-sha <sha>` | Override the detected commit SHA |
+| `--dry-run` | Extract and summarize what would be submitted without making API calls |
+| `--verbose` | Show extra diagnostics |
+| `--api-url <url>` | Override the Vocoder API URL |
+| `--app-dirs <dirs>` | Comma-separated app directories for monorepos |
 
----
+### `vocoder pull`
 
-## Project Management
+Fetch the latest compiled locale files for a branch and write them into your project.
 
-These commands operate on an existing Vocoder project and require `VOCODER_API_KEY` in your environment (set it in `.env` or export it before running).
+```bash
+vocoder pull
+vocoder pull --branch main
+vocoder pull --output ./tmp/vocoder
+vocoder pull --app-dirs apps/web,apps/admin
+```
+
+Options:
+
+| Flag | Description |
+|---|---|
+| `--app-dirs <dirs>` | Comma-separated app directories for monorepos |
+| `--output <dir>` | Write locale files into this directory instead of the git root |
+| `--api-url <url>` | Override the Vocoder API URL |
+| `--branch <branch>` | Override the detected git branch |
 
 ### `vocoder locales`
 
-Show the project's configured source locale and all target locales.
+Show the configured source locale and target locales for the current project.
 
 ```bash
 vocoder locales
-# Source locale:  en
-# Target locales: fr, de, pt-BR
 ```
 
-#### `vocoder locales add <codes...>`
+### `vocoder locales add <codes...>`
 
-Add one or more target locales to the project. Accepts variadic BCP 47 codes.
+Add one or more target locales.
 
 ```bash
 vocoder locales add fr
 vocoder locales add fr de pt-BR
 ```
 
-Returns an error with an upgrade link if the plan's locale limit is reached.
+### `vocoder locales remove <codes...>`
 
-#### `vocoder locales remove <codes...>`
-
-Remove one or more target locales from the project. Idempotent — silently skips locales that are not configured.
+Remove one or more target locales.
 
 ```bash
 vocoder locales remove fr
 vocoder locales remove de pt-BR
 ```
 
-#### `vocoder locales supported`
+### `vocoder locales supported`
 
-List all locales supported by Vocoder. Useful for finding BCP 47 codes before calling `add`.
+List all locales supported by Vocoder.
 
 ```bash
 vocoder locales supported
-# Source locales:
-#   en         English
-#   ...
-# Target locales:
-#   ar         Arabic (العربية)
-#   de         German (Deutsch)
-#   es         Spanish (Español)
-#   fr         French (Français)
-#   ...
 ```
 
----
+### `vocoder config`
 
-### `vocoder project`
-
-Display the full project configuration: name, organization, source locale, target locales, target branches, and sync policy.
+Show the current project configuration.
 
 ```bash
-vocoder project
-# ╭─ My App — project config ────────────────────╮
-# │ Project:         My App                       │
-# │ Organization:    Acme Corp                    │
-# │ Source locale:   en                           │
-# │ Target locales:  fr, de, pt-BR                │
-# │ Target branches: main                         │
-# │ Primary branch:  main                         │
-# │ Sync policy:                                  │
-# │   Blocking branches: main, master             │
-# │   Blocking mode:     required                 │
-# │   Non-blocking mode: best-effort              │
-# │   Max wait:          60000 ms                 │
-# ╰───────────────────────────────────────────────╯
+vocoder config
 ```
-
----
-
-### `vocoder translations`
-
-Download the current translation snapshot for a branch.
-
-```bash
-vocoder translations
-vocoder translations --branch main --locale fr
-vocoder translations --output ./public/locales
-```
-
-Without `--output`, prints the full snapshot as JSON to stdout (suitable for piping). With `--output <dir>`, writes one `<locale>.json` file per locale to the specified directory. Each file shape:
-
-```json
-{
-  "Hello": "Bonjour",
-  "Goodbye": "Au revoir"
-}
-```
-
-**Options:**
-
-| Flag | Description |
-|---|---|
-| `--branch <branch>` | Git branch (auto-detected from git/CI if omitted) |
-| `--locale <locale>` | Fetch a single locale only |
-| `--output <dir>` | Write locale JSON files to this directory |
-
----
 
 ### `vocoder create-project`
 
-Create a new Vocoder project without the interactive `init` flow. Requires authentication (run `vocoder init` first).
+Create a project without running the interactive `init` flow. Requires prior authentication.
 
 ```bash
 vocoder create-project \
   --name "My App" \
   --source-locale en \
-  --target-locales fr,de,pt-BR \
-  --target-branches main \
-  --workspace <org-id>
+  --organization <org-id> \
+  --target-locales fr,de \
+  --target-branches main
 ```
 
-On success, prints the generated `VOCODER_API_KEY`. The organization ID can be found with `vocoder whoami`.
-
-Git repository is auto-detected from the current directory's git remote. Use `--repo github:owner/repo` to override, or omit to create the project without repo binding (push-based sync will not function until a repository is connected via the dashboard).
-
-**Options:**
+Options:
 
 | Flag | Description |
 |---|---|
-| `--name <name>` | Project display name (required) |
-| `--source-locale <code>` | Source language BCP 47 code, e.g. `en` (required) |
-| `--workspace <org-id>` | Organization ID (required) |
-| `--target-locales <codes>` | Comma-separated target locale codes, e.g. `fr,de,pt-BR` |
-| `--target-branches <names>` | Comma-separated branch names to sync (default: `main`) |
-| `--repo <canonical>` | Git repo canonical, e.g. `github:owner/repo` |
+| `--name <name>` | Project display name |
+| `--source-locale <code>` | Source language BCP 47 code |
+| `--organization <org-id>` | Workspace ID |
+| `--target-locales <codes>` | Comma-separated target locale codes |
+| `--target-branches <branches>` | Comma-separated trigger branches |
+| `--repo <canonical>` | Override the detected git repo canonical, for example `github:owner/repo` |
+| `--api-url <url>` | Override the Vocoder API URL |
 
----
+### `vocoder regenerate-key`
+
+Generate a new project API key for the current repository.
+
+```bash
+vocoder regenerate-key
+```
+
+### `vocoder whoami`
+
+Show the currently authenticated user.
+
+```bash
+vocoder whoami
+```
 
 ### `vocoder logout`
 
-Revoke the stored credentials and clear `~/.vocoder/auth.json`.
+Revoke stored credentials and clear `~/.vocoder/auth.json`.
 
 ```bash
 vocoder logout
 ```
 
-The token is also revoked server-side.
+## Authentication
 
----
+`vocoder init` opens the browser only when authentication is needed. After that, credentials are stored in:
 
-### `vocoder whoami`
-
-Print the currently authenticated user.
-
-```bash
-vocoder whoami
-# Authenticated as user@example.com (my-workspace)
+```text
+~/.vocoder/auth.json
 ```
 
----
-
-## How `init` interacts with the browser
-
-`vocoder init` opens exactly one browser window, and only on first run. The browser is used to sign in to your Vocoder account (email/password or OAuth). After sign-in, the CLI receives a CLI-scoped token automatically via a local callback server and stores it at `~/.vocoder/auth.json` (mode `0600`). The rest of setup happens in the terminal.
-
-On subsequent runs, the stored token is used directly and no browser is needed.
-
----
-
-## Git Integration
-
-The CLI auto-detects repository context from the working directory:
-
-- **Repository:** Reads the git remote URL and normalizes it to `github:owner/repo`
-- **Branch:** Checks CI environment variables first (GitHub Actions, Vercel, Netlify, etc.), then falls back to `.git/HEAD`
-- **App directory:** For monorepos, computes the relative path from the git root to `process.cwd()`
-
----
+Use `vocoder logout` to revoke and clear them.
 
 ## Environment Variables
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `VOCODER_API_KEY` | `translate`, `locales`, `project`, `translations`, MCP | Project API key (`vcp_` prefix) |
-| `VOCODER_ON_FAILURE` | `translate` | Override `onTranslationFailure` from config: `fail` or `proceed` |
-| `VOCODER_AUTH_TOKEN` | `init` | Override stored user token (`vcu_` prefix) |
-| `VOCODER_API_URL` | All commands | Override API base URL (default: `https://vocoder.app`) |
-
----
+| `VOCODER_API_KEY` | `translate`, `pull`, `locales`, `config` | Project API key |
+| `VOCODER_AUTH_TOKEN` | `init` | Override the stored user token |
+| `VOCODER_ON_FAILURE` | `translate` | Override `onTranslationFailure` with `fail` or `proceed` |
+| `VOCODER_API_URL` | All commands | Override the API base URL |
 
 ## License
 

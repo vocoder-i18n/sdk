@@ -24,7 +24,7 @@ npm install -D @vocoder/cli
 npx @vocoder/cli init
 ```
 
-`npx @vocoder/cli init` connects your repository to Vocoder, asks how translations should be committed (pull request or direct commit), and writes a `VOCODER_API_KEY` to your environment along with a GitHub Actions workflow file.
+`npx @vocoder/cli init` connects your repository to Vocoder, walks through workspace and language setup, optionally installs supporting packages, and writes a `VOCODER_API_KEY` plus a GitHub Actions workflow file.
 
 ### Mark strings for translation
 

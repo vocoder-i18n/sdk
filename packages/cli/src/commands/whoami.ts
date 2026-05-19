@@ -1,8 +1,6 @@
-import * as p from "@clack/prompts";
-
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
 
-import chalk from "chalk";
+import { CommandSession } from "../utils/command-session.js";
 import { highlight } from "../utils/theme.js";
 import { loadEnvFiles } from "../utils/load-env.js";
 import { readAuthData } from "../utils/auth-store.js";
@@ -14,15 +12,12 @@ export interface WhoamiOptions {
 }
 
 export async function whoami(options: WhoamiOptions = {}): Promise<number> {
-	p.intro(chalk.bold("Vocoder Whoami"));
+	const session = new CommandSession("Vocoder Whoami");
 
 	const stored = readAuthData();
 
 	if (!stored) {
-		p.log.error("Not logged in.");
-		p.log.info(`  Run ${highlight("vocoder init")} to authenticate.`);
-		p.outro("");
-		return 1;
+		return session.fail("Not logged in.", ["Run vocoder init to authenticate."]);
 	}
 
 	const apiUrl = options.apiUrl ?? process.env.VOCODER_API_URL ?? "https://vocoder.app";
@@ -30,21 +25,19 @@ export async function whoami(options: WhoamiOptions = {}): Promise<number> {
 
 	try {
 		const info = await api.getCliUserInfo(stored.token);
-		p.log.success(`Logged in as ${highlight(info.email)}`);
+		session.step("Authenticated as", highlight(info.email));
 		if (info.name) {
-			p.log.success(`Name: ${highlight(info.name)}`);
+			session.step("Name", highlight(info.name));
 		}
-		p.outro("");
-		return 0;
+		return session.end();
 	} catch (err) {
 		if (err instanceof VocoderAPIError) {
-			p.log.error("Stored credentials are invalid or expired.");
-			p.log.info(`  Run ${highlight("vocoder init")} to re-authenticate.`);
-		} else {
-			p.log.error("Could not reach server.");
-			p.log.info("  Check your network connection or try again.");
+			return session.fail("Stored credentials are invalid or expired.", [
+				"Run vocoder init to re-authenticate.",
+			]);
 		}
-		p.outro("");
-		return 1;
+		return session.fail("Could not reach the server.", [
+			"Check your network connection and try again.",
+		]);
 	}
 }

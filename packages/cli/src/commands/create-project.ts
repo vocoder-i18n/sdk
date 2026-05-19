@@ -1,5 +1,4 @@
-import * as p from "@clack/prompts";
-import chalk from "chalk";
+import { CommandSession, joinHighlighted } from "../utils/command-session.js";
 import { highlight } from "../utils/theme.js";
 import { loadEnvFiles } from "../utils/load-env.js";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
@@ -41,14 +40,13 @@ export interface CreateProjectOptions {
  * Endpoint: POST /api/projects
  */
 export async function createProject(options: CreateProjectOptions): Promise<number> {
-	p.intro(chalk.bold("Vocoder Create Project"));
+	const session = new CommandSession("Vocoder Create Project");
 
 	const authData = readAuthData();
 	if (!authData) {
-		p.log.error("Not logged in.");
-		p.log.info(`  Run ${highlight("vocoder init")} to authenticate first.`);
-		p.outro("");
-		return 1;
+		return session.fail("Not logged in.", [
+			"Run vocoder init to authenticate first.",
+		]);
 	}
 
 	const apiUrl = options.apiUrl ?? process.env.VOCODER_API_URL ?? "https://vocoder.app";
@@ -63,7 +61,7 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 		if (identity) {
 			repoCanonical = identity.repoCanonical;
 		} else {
-			p.log.warn(
+			session.warn(
 				"Could not detect a git remote. The project will be created without repo binding — " +
 					"sync will not function until a repository is connected via the Vocoder dashboard.",
 			);
@@ -78,8 +76,7 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 		? options.targetBranches.split(",").map((b) => b.trim()).filter(Boolean)
 		: ["main"];
 
-	const spinner = p.spinner();
-	spinner.start(`Creating project "${options.name}"…`);
+	const step = session.startStep(`Creating project ${highlight(options.name)}`);
 
 	try {
 		const result = await api.createProject(authData.token, {
@@ -91,43 +88,39 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 			...(repoCanonical ? { repoCanonical } : {}),
 		});
 
-		spinner.stop(`Created project ${highlight(result.projectName)}`);
-
-		p.log.info(`Project ID:     ${highlight(result.projectId)}`);
-		p.log.info(`Source locale:  ${highlight(result.sourceLocale)}`);
-		p.log.info(`Target locales: ${result.targetLocales.length > 0 ? result.targetLocales.map((l) => highlight(l)).join(", ") : chalk.dim("(none)")}`);
-		p.log.info(`Branches:       ${result.targetBranches.map((b) => highlight(b)).join(", ")}`);
+		step.done(`Created project ${highlight(result.projectName)}`);
+		session.step("Project ID", highlight(result.projectId), "info");
+		session.step("Source locale", highlight(result.sourceLocale), "info");
+		session.step(
+			"Target locales",
+			result.targetLocales.length > 0 ? joinHighlighted(result.targetLocales) : "(none)",
+			"info",
+		);
+		session.step("Branches", joinHighlighted(result.targetBranches), "info");
 		if (repoCanonical) {
-			p.log.info(`Repository:     ${highlight(repoCanonical)}`);
+			session.step("Repository", highlight(repoCanonical), "info");
 		}
-		p.log.info("");
-		p.log.message(chalk.bold("Add to your .env.local:"));
-		p.log.info(`  ${highlight("VOCODER_API_KEY")}=${highlight(result.apiKey)}`);
+		session.blank();
+		session.section("Add to your .env.local");
+		session.message(`  ${highlight("VOCODER_API_KEY")}=${highlight(result.apiKey)}`);
 
 		if (!result.repositoryBound && repoCanonical) {
-			p.log.info(
+			session.info(
 				`Repository ${highlight(repoCanonical)} was not connected — it will bind automatically on first translate.`,
 			);
 		}
 
-		p.outro("");
-		return 0;
+		return session.end();
 	} catch (error) {
 		if (error instanceof VocoderAPIError && error.limitError) {
 			const { limitError } = error;
-			spinner.stop(limitError.message, 1);
-			for (const line of getLimitErrorGuidance(limitError)) {
-				p.log.info(line);
-			}
-			p.outro("");
-			return 1;
+			step.fail(limitError.message, getLimitErrorGuidance(limitError));
+			return session.endFailure();
 		}
 
-		spinner.stop(
+		step.fail(
 			error instanceof Error ? error.message : "Failed to create project",
-			1,
 		);
-		p.outro("");
-		return 1;
+		return session.endFailure();
 	}
 }

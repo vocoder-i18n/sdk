@@ -1,6 +1,9 @@
-import * as p from "@clack/prompts";
-
 import { checkPlanLimits, isPlanLimitFailure, printPlanLimitMessage } from "../utils/plan-check.js";
+import {
+	CommandSession,
+	displayAppDir,
+	joinHighlighted,
+} from "../utils/command-session.js";
 import { promptConfirm } from "../utils/prompt-select.js";
 import {
 	verifyStoredAuth,
@@ -9,7 +12,6 @@ import {
 
 import type { InitOptions } from "../types.js";
 import { VocoderAPI } from "../utils/api.js";
-import chalk from "chalk";
 import { highlight } from "../utils/theme.js";
 import { installForProject } from "../utils/install-packages.js";
 import { loadEnvFiles } from "../utils/load-env.js";
@@ -33,7 +35,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		process.stderr.write(`[vocoder] API URL: ${apiUrl}\n`);
 	}
 
-	p.intro(chalk.bold("Vocoder Setup"));
+	const session = new CommandSession("Vocoder Setup");
 
 	try {
 		// ── 1. Detect git context ───────────────────────────────────────────────
@@ -41,7 +43,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		const identity = gitContext.identity;
 
 		for (const warning of gitContext.warnings) {
-			p.log.warn(warning);
+			session.warn(warning);
 		}
 
 		const repoRoot = identity?.repoRoot;
@@ -58,17 +60,21 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			if (lookup.existingApps.length > 0) {
 				const allApps = lookup.existingApps;
 				const firstApp = allApps[0]!;
-				const isMonorepo = allApps.every(app => app.appDir !== '');
+				const showRootLabel = allApps.length > 1;
 
-				p.log.success(`Project ${highlight(firstApp.projectName)} already configured`);
-				if (isMonorepo) {
-					p.log.info(
-						`Configured apps: ${allApps.map((a) => highlight(a.appDir)).join(", ")}`,
+				session.step("Project", highlight(firstApp.projectName));
+				if (allApps.length > 0) {
+					session.step(
+						"Apps",
+						joinHighlighted(
+							allApps.map((app) =>
+								displayAppDir(app.appDir, { showRootLabel }),
+							),
+						),
 					);
 				}
-				p.log.info(`Need a new API key? Run ${highlight("vocoder regenerate-key")}`);
-				p.outro("");
-				return 0;
+				session.info("Run vocoder regenerate-key to create a new API key.");
+				return session.end();
 			}
 		}
 
@@ -80,23 +86,24 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		const storedAuth = await verifyStoredAuth(api);
 
 		if (storedAuth.status === "valid") {
-			p.log.success(`Authenticated as: ${highlight(storedAuth.email)}`);
+			session.step("Authenticated as", highlight(storedAuth.email));
 			userToken = storedAuth.token;
 			userName = storedAuth.name;
 		} else {
 			const reauth = storedAuth.status === "expired";
 			if (reauth) {
-				p.log.warn("Stored credentials expired — signing in again");
+				session.warn("Stored credentials expired — signing in again.");
 			} else if (storedAuth.status === "gone") {
-				p.log.warn("Account not found — starting fresh setup");
+				session.warn("Account not found — starting fresh setup.");
 			}
 			const authResult = await runAuthFlow(
 				api,
 				options,
+				session,
 				reauth,
 				identity?.repoCanonical,
 			);
-			if (!authResult) return 1;
+			if (!authResult) return session.cancelled();
 			userToken = authResult.token;
 			userName = authResult.name;
 
@@ -114,27 +121,30 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		const repoOwner = identity?.repoCanonical?.split(":")?.[1]?.split("/")?.[0];
 		const organizationResult = await selectOrganizationForInit({
 			api,
+			session,
 			userToken,
 			options,
 			suggestedName: repoOwner,
 		});
 
-		if (!organizationResult) return 1;
+		if (!organizationResult) return session.cancelled();
 
 		const { organizationId: selectedOrganizationId } = organizationResult;
 
 		// ── 5. Plan limit pre-flight ─────────────────────────────────────────────
 		const planCheck = await checkPlanLimits(
 			api,
+			session,
 			userToken,
 			selectedOrganizationId,
 			apiUrl,
 		);
-		if (planCheck.atLimit) return 1;
+		if (planCheck.atLimit) return session.cancelled();
 
 		// ── 6. Project configuration ─────────────────────────────────────────────
 		const projectResult = await runProjectCreate({
 			api,
+			session,
 			userToken,
 			organizationId: selectedOrganizationId,
 			defaultName: identity?.repoCanonical
@@ -148,7 +158,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		});
 
 		// null means user cancelled a prompt — individual steps already logged
-		if (!projectResult) return 1;
+		if (!projectResult) return session.cancelled();
 
 		// ── 8. Install Vocoder packages ───────────────────────────────────────────
 		const installMcpAnswer = await promptConfirm({
@@ -156,12 +166,14 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			confirmLabel: "Install MCP",
 			initialValue: false,
 		});
-		if (installMcpAnswer === null) return 1;
+		if (installMcpAnswer === null) return session.cancelled();
+		session.step("Install MCP", highlight(installMcpAnswer ? "Yes" : "No"));
 
 		await installForProject({
 			rootDir: repoRoot ?? process.cwd(),
 			appDirs: projectResult.appDirs,
 			installMcp: installMcpAnswer === true,
+			session,
 		});
 
 		// ── 9. Write API key to .env.local ───────────────────────────────────────
@@ -182,7 +194,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			workflowRelativePath = workflow.relativePath;
 
 			if (!workflow.written) {
-				p.log.warn(
+				session.warn(
 					`${workflow.relativePath} already exists — review it to ensure it includes the Vocoder translate step.`,
 				);
 			}
@@ -190,32 +202,27 @@ export async function init(options: InitOptions = {}): Promise<number> {
 
 		// ── 11. Post-setup summary ───────────────────────────────────────────────
 		const triggerBranch = projectResult.targetBranches[0] ?? "main";
-		const url = (s: string) => chalk.cyan(chalk.underline(s));
-
 		if (repoRoot && workflowWritten) {
-			p.log.success(`Created ${highlight(workflowRelativePath)}`);
+			session.success(`Created ${highlight(workflowRelativePath)}`);
 		}
 		if (envFile) {
-			p.log.success(`API key saved to ${highlight(envFile)}`);
+			session.success(`API key saved to ${highlight(envFile)}`);
 		}
 
-		p.log.message(chalk.bold("Next steps:"));
-		p.log.message(`1. Add ${highlight("VOCODER_API_KEY")} as a repository secret: ${url("https://vocoder.app/docs/secrets")}`);
-		p.log.message(`2. Set up ${highlight("@vocoder/react")}: install, configure ${highlight("VocoderProvider")}, and wrap strings with ${highlight("<T>")}: ${url("https://vocoder.app/docs/setup")}`);
-		p.log.message(`3. Push to ${highlight(triggerBranch)} — translations will commit to your repo automatically.`);
-		p.log.message(`4. Run ${highlight("vocoder pull")} to sync locale files locally.`);
+		session.blank();
+		session.section("Next steps");
+		session.message(`1. Add ${highlight("VOCODER_API_KEY")} as a repository secret: https://vocoder.app/docs/secrets`);
+		session.message(`2. Set up ${highlight("@vocoder/react")}: install it, configure ${highlight("VocoderProvider")}, and wrap strings with ${highlight("<T>")}: https://vocoder.app/docs/setup`);
+		session.message(`3. Push to ${highlight(triggerBranch)} to let Vocoder commit translations automatically.`);
+		session.message(`4. Run ${highlight("vocoder pull")} to sync locale files locally.`);
 
-		p.outro("You're all set.");
-		return 0;
+		return session.end("You're all set.");
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Unknown setup error";
 		if (isPlanLimitFailure(message)) {
 			printPlanLimitMessage(apiUrl, message);
-		} else {
-			p.log.error(message);
+			return session.endFailure();
 		}
-		p.outro("");
-		return 1;
+		return session.fail(message);
 	}
 }
-

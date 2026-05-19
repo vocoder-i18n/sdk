@@ -33,6 +33,13 @@ function makeApi(organizations: ReturnType<typeof makeOrg>[]) {
 	} as unknown as Parameters<typeof selectOrganizationForInit>[0]["api"];
 }
 
+function makeSession() {
+	return {
+		fail: vi.fn(),
+		step: vi.fn(),
+	} as unknown as Parameters<typeof selectOrganizationForInit>[0]["session"];
+}
+
 beforeEach(() => {
 	vi.clearAllMocks();
 });
@@ -40,30 +47,33 @@ beforeEach(() => {
 describe("selectOrganizationForInit", () => {
 	it("returns null and logs an error when the user has 0 organizations", async () => {
 		const api = makeApi([]);
+		const session = makeSession();
 
 		const result = await selectOrganizationForInit({
 			api,
+			session,
 			userToken: "tok",
 			options: {},
 		});
 
 		expect(result).toBeNull();
-		expect(p.log.error).toHaveBeenCalledWith(
-			expect.stringContaining("not a member of any workspace"),
-		);
+		expect(session.fail).toHaveBeenCalled();
 		expect(p.select).not.toHaveBeenCalled();
 	});
 
 	it("auto-selects the only organization without prompting", async () => {
 		const api = makeApi([makeOrg("org-1", "Acme")]);
+		const session = makeSession();
 
 		const result = await selectOrganizationForInit({
 			api,
+			session,
 			userToken: "tok",
 			options: {},
 		});
 
 		expect(result).toEqual({ organizationId: "org-1", organizationName: "Acme" });
+		expect(session.step).toHaveBeenCalled();
 		expect(p.select).not.toHaveBeenCalled();
 	});
 
@@ -72,10 +82,12 @@ describe("selectOrganizationForInit", () => {
 			makeOrg("org-1", "Acme", 3),
 			makeOrg("org-2", "Globex", 1),
 		]);
+		const session = makeSession();
 		vi.mocked(p.select).mockResolvedValue("org-2");
 
 		const result = await selectOrganizationForInit({
 			api,
+			session,
 			userToken: "tok",
 			options: {},
 		});
@@ -84,15 +96,18 @@ describe("selectOrganizationForInit", () => {
 			organizationId: "org-2",
 			organizationName: "Globex",
 		});
+		expect(session.step).toHaveBeenCalled();
 		expect(p.select).toHaveBeenCalledOnce();
 	});
 
 	it("returns null when the user cancels the multi-org prompt", async () => {
 		const api = makeApi([makeOrg("org-1", "Acme"), makeOrg("org-2", "Globex")]);
+		const session = makeSession();
 		vi.mocked(p.select).mockResolvedValue(CANCEL as unknown as string);
 
 		const result = await selectOrganizationForInit({
 			api,
+			session,
 			userToken: "tok",
 			options: {},
 		});

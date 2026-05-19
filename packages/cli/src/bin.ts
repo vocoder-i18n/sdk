@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import packageJson from "../package.json";
 import { init } from "./commands/init.js";
 import {
 	addLocales,
@@ -16,9 +17,9 @@ import { createProject } from "./commands/create-project.js";
 import { regenerateKey } from "./commands/regenerate-key.js";
 import { whoami } from "./commands/whoami.js";
 
-async function runCommand(
-	command: (options: any) => Promise<number>,
-	options: any,
+async function runCommand<TOptions>(
+	command: (options: TOptions) => Promise<number>,
+	options: TOptions,
 ): Promise<void> {
 	const exitCode = await command(options);
 	// Force exit so open stdin handles from readline/clack don't stall the process.
@@ -29,8 +30,8 @@ const program = new Command();
 
 program
 	.name("vocoder")
-	.description("Vocoder CLI - App setup and string extraction")
-	.version("0.1.5");
+	.description("Vocoder CLI for setup, translation sync, and project management")
+	.version(packageJson.version);
 
 program
 	.command("init")
@@ -40,12 +41,6 @@ program
 	.option(
 		"--ci",
 		"Non-interactive mode: print auth URL to stdout, skip browser open",
-	)
-	.option("--app-name <name>", "Starter app name to create")
-	.option("--source-locale <locale>", "Source locale for the starter app")
-	.option(
-		"--target-locales <list>",
-		"Comma-separated target locales (e.g. es,fr,de)",
 	)
 	.option("--verbose", "Log each API request URL and response status")
 	.action((options) => runCommand(init, options));
@@ -115,24 +110,15 @@ program
 program
 	.command("pull")
 	.description(
-		"Fetch the compiled translation bundle for the current app — identical to what __VOCODER_BUNDLE__ contains at runtime (includes overrides). " +
-			"Use --snapshot for a raw branch-based audit view instead.",
+		"Fetch the latest compiled locale files for the current branch and write them into your project",
 	)
 	.option(
 		"--app-dirs <dirs>",
-		"Comma-separated app directories for monorepos (e.g. apps/web,apps/admin). Auto-detected from cwd if omitted.",
+		"Comma-separated app directories for monorepos (e.g. apps/web,apps/admin). Omit for single-app repos.",
 	)
-	.option("--locale <locale>", "Filter output to a specific locale only")
-	.option(
-		"--output <dir>",
-		"Write one <locale>.json per locale to this directory instead of printing to stdout",
-	)
+	.option("--output <dir>", "Write locale files to this directory instead of the git root")
 	.option("--api-url <url>", "Override Vocoder API URL")
-	.option(
-		"--snapshot",
-		"Audit mode: fetch raw Translation rows by branch (does not include overrides, use for audit/debugging only)",
-	)
-	.option("--branch <branch>", "Branch for --snapshot mode (auto-detected if omitted)")
+	.option("--branch <branch>", "Branch to pull locale files for (auto-detected if omitted)")
 	.action((options) => runCommand(pull, options));
 
 program

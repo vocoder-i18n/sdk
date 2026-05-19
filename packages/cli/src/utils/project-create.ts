@@ -1,5 +1,4 @@
-import * as p from "@clack/prompts";
-import chalk from "chalk";
+import { CommandSession, joinHighlighted } from "./command-session.js";
 import { highlight } from "./theme.js";
 import type { VocoderAPI } from "./api.js";
 import { promptTextInput } from "./prompt-text.js";
@@ -13,6 +12,7 @@ import {
 
 export interface ProjectCreateParams {
 	api: VocoderAPI;
+	session: CommandSession;
 	userToken: string;
 	organizationId: string;
 	/** Default project name (repo name or directory name) */
@@ -56,6 +56,10 @@ function buildLocaleOptions(
 	}));
 }
 
+function getLocaleLabel(options: LocaleOption[], code: string): string {
+	return options.find((option) => option.bcp47 === code)?.label ?? code;
+}
+
 /**
  * Run the full project configuration TUI: prompts for app directories, source locale,
  * target locales, and target branches, then calls POST /api/cli/apps.
@@ -66,7 +70,7 @@ function buildLocaleOptions(
 export async function runProjectCreate(
 	params: ProjectCreateParams,
 ): Promise<ProjectCreateResult | null> {
-	const { api, userToken, organizationId, repoCanonical, repoRoot } = params;
+	const { api, session, userToken, organizationId, repoCanonical, repoRoot } = params;
 
 	// ── Project name ────────────────────────────────────────────────────────────
 	const projectName = await promptTextInput({
@@ -83,9 +87,9 @@ export async function runProjectCreate(
 	try {
 		({ sourceLocales } = await api.listLocales(userToken));
 	} catch {
-		p.log.error(
-			"Failed to fetch supported locales. Check your connection and try again.",
-		);
+		session.fail("Failed to fetch supported languages.", [
+			"Check your connection and try again.",
+		]);
 		return null;
 	}
 
@@ -110,9 +114,9 @@ export async function runProjectCreate(
 	try {
 		compatibleTargets = await api.listCompatibleLocales(userToken, sourceLocale);
 	} catch {
-		p.log.error(
-			"Failed to fetch compatible target locales. Check your connection and try again.",
-		);
+		session.fail("Failed to fetch compatible target languages.", [
+			"Check your connection and try again.",
+		]);
 		return null;
 	}
 
@@ -133,7 +137,7 @@ export async function runProjectCreate(
 	if (targetLocales === null) return null;
 
 	if (targetLocales.length === 0) {
-		p.log.warn(
+		session.warn(
 			"No target languages selected — you can add them later from the dashboard.",
 		);
 	}
@@ -157,7 +161,7 @@ export async function runProjectCreate(
 			});
 			if (result === null) return null;
 			if (result.length === 0) {
-				p.log.warn(
+				session.warn(
 					"At least one branch is required. Please select at least one.",
 				);
 				initial = [detected.defaultBranch];
@@ -185,7 +189,18 @@ export async function runProjectCreate(
 		appDirs: appDirs.length > 0 ? appDirs : undefined,
 	});
 
-	p.log.success(`Project ${highlight(result.projectName)} created`);
+	session.step("Project", highlight(result.projectName));
+	if (appDirs.length > 0) {
+		session.step("Apps", joinHighlighted(appDirs));
+	}
+	session.step("Source language", highlight(getLocaleLabel(languageOptions, sourceLocale)));
+	if (targetLocales.length > 0) {
+		session.step(
+			"Target languages",
+			joinHighlighted(targetLocales.map((locale) => getLocaleLabel(localeOptions, locale))),
+		);
+	}
+	session.step("Trigger branches", joinHighlighted(targetBranches));
 	return {
 		projectId: result.projectId,
 		projectName: result.projectName,
@@ -198,4 +213,3 @@ export async function runProjectCreate(
 		appDirs,
 	};
 }
-
