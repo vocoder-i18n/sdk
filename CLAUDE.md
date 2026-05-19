@@ -105,7 +105,8 @@ All CLI command output must follow these conventions. Apply them without prompti
 | `p.log.error(msg)` | ✗ red | Fatal condition — `return 1` follows within a few lines. Never used for warnings. |
 | `p.log.info(msg)` | ℹ dim | Supplementary detail only: list items, recovery steps after an error, `""` for blank spacing. Never the primary message. |
 | `p.log.message(msg)` | (none) | Undecorated text: `chalk.bold("Section:")` headers, numbered/bulleted lists. |
-| `p.note(body, title)` | box | Multi-line key-value summary for a created or fetched resource. Body is `\n`-joined lines. |
+
+**Rule:** never use `p.note()`. Use `p.log.message(chalk.bold(...))` for section headers and `p.log.info(...)` for field values. Use `p.log.info("")` for blank line spacing between sections.
 
 **Rule:** when exiting with code 1, the primary signal is always `p.log.error()` or `spinner.stop(msg, 1)` — never `p.log.warn()` alone. Use `p.log.warn()` only when the function continues after the warning.
 
@@ -114,7 +115,7 @@ All CLI command output must follow these conventions. Apply them without prompti
 | Construct | Use for |
 |---|---|
 | `highlight(value)` | Identifiers and discrete values that a user will scan for: project names, app dirs, locale codes, branch names, file paths, string counts, env var names, commands, API keys, emails, URLs. **Not** for prose text, error sentences, or API-returned descriptions. |
-| `chalk.bold(text)` | Standalone label text only: `p.intro()` title, `p.log.message()` and `p.note()` section headers |
+| `chalk.bold(text)` | Standalone label text only: `p.intro()` title, `p.log.message()` section headers |
 | `chalk.red(text)` | `p.outro()` only, for fatal-exit messages that must stand out |
 | `dim(text)` | Structural chrome only: separators, `printCommand()` decorations |
 | `chalk.green("✓")` / `chalk.red("✗")` | Inline per-item status within formatted result strings |

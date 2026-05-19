@@ -21,10 +21,14 @@ import { StringExtractor } from "../utils/extract.js";
 import { buildStringEntries } from "../utils/string-entries.js";
 import chalk from "chalk";
 import { existsSync, writeFileSync } from "node:fs";
+import { writeLocaleFileTree } from "./pull.js";
 import { extractProjectShortIdFromApiKey } from "@vocoder/core";
 import { highlight } from "../utils/theme.js";
+import { loadEnvFiles } from "../utils/load-env.js";
 import { randomUUID } from "node:crypto";
 import { validateLocalConfig } from "../utils/config.js";
+
+loadEnvFiles();
 
 type LocaleStatus = "pending" | "running" | "complete" | "failed";
 
@@ -321,7 +325,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		// All apps cached — stop spinner with that result, no polling needed
 		if (submitResult.status === "complete") {
 			const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-			spinner.stop(`Bundle ready — cached in ${duration}s`);
+			spinner.stop(`Translations ready — cached in ${duration}s`);
 			writeTranslateResult(
 				submitResult.jobId,
 				submitResult.apps.map((a) => ({
@@ -330,6 +334,12 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 					...(a.commitConfig ? { commitConfig: a.commitConfig } : {}),
 				})),
 			);
+			for (const app of submitResult.apps) {
+				if (app.localeFileTree) writeLocaleFileTree(app.localeFileTree, gitRoot);
+				if (submitResult.apps.length > 1 || !!app.appDir) {
+					p.log.success(`${highlight(app.appDir)}: translated`);
+				}
+			}
 			p.outro("Up to date.");
 			return 0;
 		}
@@ -376,7 +386,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
 		if (finalStatus.status === "complete") {
-			spinner.stop(`Bundle ready — ${elapsedSec}s`);
+			spinner.stop(`Translations ready — ${elapsedSec}s`);
 			writeTranslateResult(
 				finalStatus.jobId,
 				finalStatus.apps.map((a) => ({
@@ -385,10 +395,11 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 					...(a.commitConfig ? { commitConfig: a.commitConfig } : {}),
 				})),
 			);
-			// Per-app lines only for monorepo (multiple apps or named appDir)
+			// Write locale files then per-app summary
 			for (const app of finalStatus.apps) {
+				if (app.localeFileTree) writeLocaleFileTree(app.localeFileTree, gitRoot);
 				if (finalStatus.apps.length > 1 || !!app.appDir) {
-					p.log.info(`${app.appDir}: done`);
+					p.log.success(`${highlight(app.appDir)}: translated`);
 				}
 			}
 			p.outro("Up to date.");

@@ -52,7 +52,7 @@ program
 
 program
 	.command("translate")
-	.description("Extract strings and translate via Vocoder (called by the GitHub Action)")
+	.description("Extract strings and sync translations via Vocoder (called by the GitHub Action)")
 	.option("--branch <branch>", "Override detected branch")
 	.option("--commit-sha <sha>", "Override detected commit SHA")
 	.option("--dry-run", "Extract strings and compute hash without submitting")

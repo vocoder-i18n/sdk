@@ -1,5 +1,6 @@
 import * as p from "@clack/prompts";
 import chalk from "chalk";
+import { highlight } from "./theme.js";
 import type { VocoderAPI } from "./api.js";
 import { promptTextInput } from "./prompt-text.js";
 import { collectAppDirs } from "./app-dir-select.js";
@@ -184,7 +185,7 @@ export async function runProjectCreate(
 		appDirs: appDirs.length > 0 ? appDirs : undefined,
 	});
 
-	p.log.success(`Project ${chalk.bold(result.projectName)} created!`);
+	p.log.success(`Project ${highlight(result.projectName)} created`);
 	return {
 		projectId: result.projectId,
 		projectName: result.projectName,

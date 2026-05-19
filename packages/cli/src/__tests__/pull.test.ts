@@ -1,260 +1,151 @@
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { filterByLocale, isBundleEmpty, pullAppBundle } from "../commands/pull.js";
-import type { VocoderTranslationData } from "@vocoder/core";
+import { writeLocaleFileTree } from "../commands/pull.js";
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────
+// ── writeLocaleFileTree ───────────────────────────────────────────────────────
 
-function makeBundle(overrides: Partial<VocoderTranslationData> = {}): VocoderTranslationData {
-	return {
-		config: {
-			sourceLocale: "en",
-			targetLocales: ["es", "fr"],
-			locales: {
-				en: { nativeName: "English" },
-				es: { nativeName: "Español" },
-				fr: { nativeName: "Français" },
-			},
-		},
-		translations: {
-			es: { abc123: "Hola mundo", def456: "Guardar" },
-			fr: { abc123: "Bonjour monde", def456: "Enregistrer" },
-		},
-		updatedAt: "2026-05-13T00:00:00.000Z",
-		...overrides,
-	};
-}
+describe("writeLocaleFileTree", () => {
+	let tmpDir: string;
 
-function emptyBundle(): VocoderTranslationData {
-	return {
-		config: { sourceLocale: "", targetLocales: [], locales: {} },
-		translations: {},
-		updatedAt: null,
-	};
-}
-
-// ── isBundleEmpty ─────────────────────────────────────────────────────────────
-
-describe("isBundleEmpty", () => {
-	it("returns true when sourceLocale is empty string", () => {
-		expect(isBundleEmpty(emptyBundle())).toBe(true);
-	});
-
-	it("returns false when sourceLocale is set", () => {
-		expect(isBundleEmpty(makeBundle())).toBe(false);
-	});
-});
-
-// ── filterByLocale ────────────────────────────────────────────────────────────
-
-describe("filterByLocale", () => {
-	it("keeps only the requested locale", () => {
-		const result = filterByLocale(makeBundle(), "es");
-		expect(result.translations).toEqual({ es: { abc123: "Hola mundo", def456: "Guardar" } });
-		expect(result.config).toEqual(makeBundle().config);
-		expect(result.updatedAt).toBe(makeBundle().updatedAt);
-	});
-
-	it("returns empty translations when locale not in bundle", () => {
-		// Missing locale → no key in output (not a { de: {} } placeholder)
-		const result = filterByLocale(makeBundle(), "de");
-		expect(result.translations).toEqual({});
-	});
-
-	it("preserves config and updatedAt unchanged", () => {
-		const bundle = makeBundle();
-		const result = filterByLocale(bundle, "fr");
-		expect(result.config).toBe(bundle.config);
-		expect(result.updatedAt).toBe(bundle.updatedAt);
-	});
-});
-
-// ── pullAppBundle ─────────────────────────────────────────────────────────────
-
-describe("pullAppBundle (mocked fetch)", () => {
-	const originalFetch = globalThis.fetch;
 	afterEach(() => {
-		vi.restoreAllMocks();
-		globalThis.fetch = originalFetch;
+		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	function makeApi(bundleOrNull: VocoderTranslationData | null) {
-		return {
-			fetchBundle: vi.fn().mockResolvedValue(bundleOrNull),
-		} as any;
+	function makeTmpDir(): string {
+		const dir = join(tmpdir(), `pull-test-${Date.now()}`);
+		mkdirSync(dir, { recursive: true });
+		tmpDir = dir;
+		return dir;
 	}
 
-	it("calls fetchBundle with the correct fingerprint for root-level app", async () => {
-		const api = makeApi(makeBundle());
+	it("writes each file from the tree to disk", () => {
+		const root = makeTmpDir();
+		const tree: Record<string, string> = {
+			"locales/manifest.json": '{"version":1}\n',
+			"locales/en.json": '{"1abc":"Hello"}\n',
+			"locales/es.json": '{"1abc":"Hola"}\n',
+		};
 
-		// We can't fully run extraction without a real project, so mock the extractor
-		// by running against an empty temp dir (zero strings extracted).
-		// The fingerprint for zero keys should be deterministic and stable.
-		const result = await pullAppBundle({
-			projectShortId: "abc123",
-			appDir: "",
-			projectRoot: "/tmp/nonexistent-project-test",
-			api,
-			fileConfig: null,
-		});
+		writeLocaleFileTree(tree, root);
 
-		// fetchBundle must have been called exactly once
-		expect(api.fetchBundle).toHaveBeenCalledTimes(1);
-
-		// Fingerprint must be a 12-char hex string
-		const [calledFingerprint] = api.fetchBundle.mock.calls[0] as [string];
-		expect(calledFingerprint).toMatch(/^[0-9a-f]{12}$/);
-
-		// Returned fingerprint matches what was passed to fetchBundle
-		expect(result.fingerprint).toBe(calledFingerprint);
-		expect(result.appDir).toBe("");
+		for (const [relativePath, content] of Object.entries(tree)) {
+			const filePath = join(root, relativePath);
+			expect(readFileSync(filePath, "utf-8")).toBe(content);
+		}
 	});
 
-	it("uses appDir in scope — different appDirs produce different fingerprints", async () => {
-		const api1 = makeApi(null);
-		const api2 = makeApi(null);
-
-		const [r1, r2] = await Promise.all([
-			pullAppBundle({
-				projectShortId: "abc123",
-				appDir: "",
-				projectRoot: "/tmp/nonexistent-project-test",
-				api: api1,
-				fileConfig: null,
-			}),
-			pullAppBundle({
-				projectShortId: "abc123",
-				appDir: "apps/web",
-				projectRoot: "/tmp/nonexistent-project-test",
-				api: api2,
-				fileConfig: null,
-			}),
-		]);
-
-		// Same project, same strings (both empty), but different appDir → different fingerprint
-		expect(r1.fingerprint).not.toBe(r2.fingerprint);
+	it("creates nested directories recursively", () => {
+		const root = makeTmpDir();
+		writeLocaleFileTree({ "locales/deep/nested/en.json": '{"k":"v"}\n' }, root);
+		expect(readFileSync(join(root, "locales/deep/nested/en.json"), "utf-8")).toBe('{"k":"v"}\n');
 	});
 
-	it("returns empty bundle when fetchBundle returns null", async () => {
-		const api = makeApi(null);
+	it("overwrites existing files", () => {
+		const root = makeTmpDir();
+		mkdirSync(join(root, "locales"), { recursive: true });
+		const filePath = join(root, "locales/en.json");
+		writeFileSync(filePath, '{"old":"value"}\n', "utf-8");
 
-		const result = await pullAppBundle({
-			projectShortId: "abc123",
-			appDir: "",
-			projectRoot: "/tmp/nonexistent-project-test",
-			api,
-			fileConfig: null,
-		});
+		writeLocaleFileTree({ "locales/en.json": '{"new":"value"}\n' }, root);
 
-		expect(isBundleEmpty(result.data)).toBe(true);
-		expect(result.data.translations).toEqual({});
+		expect(readFileSync(filePath, "utf-8")).toBe('{"new":"value"}\n');
 	});
 
-	it("returns bundle data when fetchBundle succeeds", async () => {
-		const bundle = makeBundle();
-		const api = makeApi(bundle);
+	it("writes multiple locale files and manifest", () => {
+		const root = makeTmpDir();
+		const tree: Record<string, string> = {
+			"locales/manifest.json": '{"version":1,"sourceLocale":"en","targetLocales":["es","fr"]}\n',
+			"locales/en.json": '{"key1":"Source text"}\n',
+			"locales/es.json": '{"key1":"Texto fuente"}\n',
+			"locales/fr.json": '{"key1":"Texte source"}\n',
+		};
 
-		const result = await pullAppBundle({
-			projectShortId: "abc123",
-			appDir: "",
-			projectRoot: "/tmp/nonexistent-project-test",
-			api,
-			fileConfig: null,
-		});
+		writeLocaleFileTree(tree, root);
 
-		expect(result.data).toBe(bundle);
-		expect(isBundleEmpty(result.data)).toBe(false);
-	});
-
-	it("fingerprint is stable across multiple calls with same inputs", async () => {
-		const api1 = makeApi(null);
-		const api2 = makeApi(null);
-
-		const [r1, r2] = await Promise.all([
-			pullAppBundle({
-				projectShortId: "prj1",
-				appDir: "apps/web",
-				projectRoot: "/tmp/nonexistent-project-test",
-				api: api1,
-				fileConfig: null,
-			}),
-			pullAppBundle({
-				projectShortId: "prj1",
-				appDir: "apps/web",
-				projectRoot: "/tmp/nonexistent-project-test",
-				api: api2,
-				fileConfig: null,
-			}),
-		]);
-
-		expect(r1.fingerprint).toBe(r2.fingerprint);
+		const localesDir = join(root, "locales");
+		const files = readdirSync(localesDir).sort();
+		expect(files).toEqual(["en.json", "es.json", "fr.json", "manifest.json"]);
 	});
 });
 
-// ── fetchBundle API integration (mocked) ─────────────────────────────────────
+// ── VocoderAPI.getLocaleFiles (mocked fetch) ──────────────────────────────────
 
-describe("VocoderAPI.fetchBundle (mocked fetch)", () => {
+describe("VocoderAPI.getLocaleFiles", () => {
 	const originalFetch = globalThis.fetch;
+
 	afterEach(() => {
 		vi.restoreAllMocks();
 		globalThis.fetch = originalFetch;
 	});
 
-	it("returns bundle data on 200", async () => {
-		const bundle = makeBundle();
+	it("returns FOUND with apps array on success", async () => {
+		const localeFileTree = {
+			"locales/manifest.json": '{"version":1}\n',
+			"locales/en.json": '{"k":"v"}\n',
+		};
 		globalThis.fetch = vi.fn().mockResolvedValue({
 			ok: true,
 			status: 200,
-			text: async () => JSON.stringify(bundle),
+			text: async () =>
+				JSON.stringify({
+					status: "FOUND",
+					branch: "main",
+					apps: [{ appDir: "", localeFileTree }],
+				}),
 		} as Response);
 
 		const { VocoderAPI } = await import("../utils/api.js");
-		const api = new VocoderAPI({ apiKey: "vcp_aB3xY9Zk_testrandombytes123456", apiUrl: "https://vocoder.app" });
-		const result = await api.fetchBundle("abc123def456");
+		const api = new VocoderAPI({
+			apiKey: "vcp_aB3xY9Zk_testrandombytes123456",
+			apiUrl: "https://vocoder.app",
+		});
+		const result = await api.getLocaleFiles({ branch: "main" });
 
-		expect(result).toEqual(bundle);
+		expect(result.status).toBe("FOUND");
+		expect(result.apps).toHaveLength(1);
+		expect(result.apps[0].localeFileTree).toEqual(localeFileTree);
 	});
 
-	it("returns null on 404", async () => {
+	it("returns NOT_FOUND when no translations exist", async () => {
 		globalThis.fetch = vi.fn().mockResolvedValue({
-			ok: false,
-			status: 404,
-			text: async () => "",
+			ok: true,
+			status: 200,
+			text: async () =>
+				JSON.stringify({ status: "NOT_FOUND", branch: "main", apps: [] }),
 		} as Response);
 
 		const { VocoderAPI } = await import("../utils/api.js");
-		const api = new VocoderAPI({ apiKey: "vcp_aB3xY9Zk_testrandombytes123456", apiUrl: "https://vocoder.app" });
-		const result = await api.fetchBundle("notfound0000");
+		const api = new VocoderAPI({
+			apiKey: "vcp_aB3xY9Zk_testrandombytes123456",
+			apiUrl: "https://vocoder.app",
+		});
+		const result = await api.getLocaleFiles({ branch: "main" });
 
-		expect(result).toBeNull();
+		expect(result.status).toBe("NOT_FOUND");
+		expect(result.apps).toHaveLength(0);
 	});
 
-	it("returns null on network error", async () => {
-		globalThis.fetch = vi.fn().mockRejectedValue(new Error("network error"));
-
-		const { VocoderAPI } = await import("../utils/api.js");
-		const api = new VocoderAPI({ apiKey: "vcp_aB3xY9Zk_testrandombytes123456", apiUrl: "https://vocoder.app" });
-		const result = await api.fetchBundle("networkfail0");
-
-		expect(result).toBeNull();
-	});
-
-	it("hits /api/t/{fingerprint} without Authorization header", async () => {
-		const bundle = makeBundle();
+	it("sends only branch in query params", async () => {
 		const mockFetch = vi.fn().mockResolvedValue({
 			ok: true,
 			status: 200,
-			text: async () => JSON.stringify(bundle),
+			text: async () =>
+				JSON.stringify({ status: "NOT_FOUND", branch: "feat/x", apps: [] }),
 		} as Response);
 		globalThis.fetch = mockFetch;
 
 		const { VocoderAPI } = await import("../utils/api.js");
-		const api = new VocoderAPI({ apiKey: "vcp_aB3xY9Zk_testrandombytes123456", apiUrl: "https://vocoder.app" });
-		await api.fetchBundle("myfp12345678");
+		const api = new VocoderAPI({
+			apiKey: "vcp_aB3xY9Zk_testrandombytes123456",
+			apiUrl: "https://vocoder.app",
+		});
+		await api.getLocaleFiles({ branch: "feat/x" });
 
-		const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-		expect(url).toBe("https://vocoder.app/api/t/myfp12345678");
-		// Public endpoint — no Authorization header
-		const headers = init?.headers as Record<string, string> | undefined;
-		expect(headers?.Authorization).toBeUndefined();
+		const [url] = mockFetch.mock.calls[0] as [string];
+		expect(url).toContain("/api/project/translations/pull");
+		expect(url).toContain("branch=feat%2Fx");
+		expect(url).not.toContain("appDir");
 	});
 });

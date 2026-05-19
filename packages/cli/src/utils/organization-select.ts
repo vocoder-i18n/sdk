@@ -10,8 +10,8 @@
  */
 
 import * as p from "@clack/prompts";
-import chalk from "chalk";
 import type { VocoderAPI } from "./api.js";
+import { highlight } from "./theme.js";
 import { promptTextInput } from "./prompt-text.js";
 
 export interface SelectOrganizationParams {
@@ -61,7 +61,7 @@ export async function selectOrganizationForInit(
 
 	if (organizations.length === 1) {
 		const organization = organizations[0]!;
-		p.log.success(`Workspace: ${chalk.bold(organization.name)}`);
+		p.log.success(`Workspace: ${highlight(organization.name)}`);
 		return { organizationId: organization.id, organizationName: organization.name };
 	}
 
@@ -80,6 +80,6 @@ export async function selectOrganizationForInit(
 	}
 
 	const organization = organizations.find((o) => o.id === choice)!;
-	p.log.success(`Workspace: ${chalk.bold(organization.name)}`);
+	p.log.success(`Workspace: ${highlight(organization.name)}`);
 	return { organizationId: organization.id, organizationName: organization.name };
 }

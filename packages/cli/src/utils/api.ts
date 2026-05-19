@@ -4,6 +4,7 @@ import type {
 	BatchTranslateStatusResponse,
 	LimitErrorResponse,
 	LocalConfig,
+	LocaleFilesResponse,
 	SyncPolicyErrorResponse,
 	TranslationSnapshotResponse,
 } from "../types.js";
@@ -340,6 +341,16 @@ export class VocoderAPI {
 			`/api/project/translations?${search.toString()}`,
 			{},
 			"Failed to fetch translation snapshot",
+		);
+	}
+
+	async getLocaleFiles(params: { branch: string }): Promise<LocaleFilesResponse> {
+		const search = new URLSearchParams();
+		search.set("branch", params.branch);
+		return this.request<LocaleFilesResponse>(
+			`/api/project/translations/pull?${search.toString()}`,
+			{},
+			"Failed to fetch locale files",
 		);
 	}
 

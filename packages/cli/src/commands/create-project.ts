@@ -45,9 +45,8 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 
 	const authData = readAuthData();
 	if (!authData) {
-		p.log.error(
-			"Not logged in. Run `npx @vocoder/cli init` to authenticate first.",
-		);
+		p.log.error("Not logged in.");
+		p.log.info(`  Run ${highlight("vocoder init")} to authenticate first.`);
 		p.outro("");
 		return 1;
 	}
@@ -94,18 +93,16 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 
 		spinner.stop(`Created project ${highlight(result.projectName)}`);
 
-		const lines = [
-			`Project ID:     ${highlight(result.projectId)}`,
-			`Source locale:  ${highlight(result.sourceLocale)}`,
-			`Target locales: ${result.targetLocales.length > 0 ? result.targetLocales.map((l) => highlight(l)).join(", ") : chalk.dim("(none)")}`,
-			`Branches:       ${result.targetBranches.map((b) => highlight(b)).join(", ")}`,
-			...(repoCanonical ? [`Repository:     ${highlight(repoCanonical)}`] : []),
-			"",
-			`Add this to your .env.local file:`,
-			`  ${chalk.bold("VOCODER_API_KEY")}=${highlight(result.apiKey)}`,
-		];
-
-		p.note(lines.join("\n"), "Project created");
+		p.log.info(`Project ID:     ${highlight(result.projectId)}`);
+		p.log.info(`Source locale:  ${highlight(result.sourceLocale)}`);
+		p.log.info(`Target locales: ${result.targetLocales.length > 0 ? result.targetLocales.map((l) => highlight(l)).join(", ") : chalk.dim("(none)")}`);
+		p.log.info(`Branches:       ${result.targetBranches.map((b) => highlight(b)).join(", ")}`);
+		if (repoCanonical) {
+			p.log.info(`Repository:     ${highlight(repoCanonical)}`);
+		}
+		p.log.info("");
+		p.log.message(chalk.bold("Add to your .env.local:"));
+		p.log.info(`  ${highlight("VOCODER_API_KEY")}=${highlight(result.apiKey)}`);
 
 		if (!result.repositoryBound && repoCanonical) {
 			p.log.info(
@@ -116,11 +113,9 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 		p.outro("");
 		return 0;
 	} catch (error) {
-		spinner.stop("Failed to create project.", 1);
-
 		if (error instanceof VocoderAPIError && error.limitError) {
 			const { limitError } = error;
-			p.log.error(limitError.message);
+			spinner.stop(limitError.message, 1);
 			for (const line of getLimitErrorGuidance(limitError)) {
 				p.log.info(line);
 			}
@@ -128,8 +123,9 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 			return 1;
 		}
 
-		p.log.error(
-			error instanceof Error ? error.message : "Unknown error.",
+		spinner.stop(
+			error instanceof Error ? error.message : "Failed to create project",
+			1,
 		);
 		p.outro("");
 		return 1;

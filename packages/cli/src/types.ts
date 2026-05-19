@@ -8,25 +8,24 @@ export type LocalesMap = Record<string, LocaleInfo>;
 export interface PullOptions {
 	/**
 	 * Comma-separated app directories for monorepos (e.g. "apps/web,apps/admin").
-	 * When omitted, the app directory is auto-detected from cwd relative to the git root.
-	 * Mirrors the --app-dirs convention used by `vocoder translate`.
+	 * When omitted, defaults to single-app root ("").
 	 */
 	appDirs?: string;
-	/** Filter output to a single locale (e.g. "fr"). Returns all locales when omitted. */
-	locale?: string;
-	/** Write one <locale>.json per locale to this directory instead of printing to stdout. */
+	/** Write locale files to this root instead of the git root. */
 	output?: string;
 	/** Override Vocoder API URL. */
 	apiUrl?: string;
-	/**
-	 * Audit / snapshot mode. Reads from raw Translation rows by branch instead of
-	 * the compiled TranslationBundle. Does NOT include TranslationOverride wins.
-	 * Useful for auditing what was translated for a branch; not for inspecting
-	 * the live runtime bundle.
-	 */
-	snapshot?: boolean;
-	/** Branch for --snapshot mode. Auto-detected from git when omitted. */
+	/** Branch to pull translations for. Auto-detected from git when omitted. */
 	branch?: string;
+}
+
+export interface LocaleFilesResponse {
+	status: "FOUND" | "NOT_FOUND";
+	branch: string;
+	apps: Array<{
+		appDir: string;
+		localeFileTree?: Record<string, string>;
+	}>;
 }
 
 export interface TranslateCommandOptions {

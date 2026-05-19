@@ -1,6 +1,7 @@
 import * as p from "@clack/prompts";
 
 import { checkPlanLimits, isPlanLimitFailure, printPlanLimitMessage } from "../utils/plan-check.js";
+import { promptConfirm, promptSelect } from "../utils/prompt-select.js";
 import {
 	verifyStoredAuth,
 	writeAuthData,
@@ -16,7 +17,6 @@ import { resolveGitContext } from "../utils/git-identity.js";
 import { runAuthFlow } from "../utils/auth-flow.js";
 import { runProjectCreate } from "../utils/project-create.js";
 import { selectOrganizationForInit } from "../utils/organization-select.js";
-import { promptConfirm, promptSelect } from "../utils/prompt-select.js";
 import { writeApiKeyToEnv } from "../utils/output.js";
 import { writeGitHubActionsWorkflow } from "../utils/workflow-write.js";
 
@@ -60,14 +60,14 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				const firstApp = allApps[0]!;
 				const isMonorepo = allApps.every(app => app.appDir !== '');
 
-				p.log.success(`Project ${chalk.bold(firstApp.projectName)} already exists`);
+				p.log.success(`Project ${highlight(firstApp.projectName)} already configured`);
 				if (isMonorepo) {
 					p.log.info(
 						`Configured apps: ${allApps.map((a) => highlight(a.appDir)).join(", ")}`,
 					);
 				}
 				p.log.info(`Need a new API key? Run ${highlight("vocoder regenerate-key")}`);
-				p.outro("Already set up.");
+				p.outro("");
 				return 0;
 			}
 		}
@@ -80,7 +80,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		const storedAuth = await verifyStoredAuth(api);
 
 		if (storedAuth.status === "valid") {
-			p.log.success(`Authenticated as: ${chalk.bold(storedAuth.email)}`);
+			p.log.success(`Authenticated as: ${highlight(storedAuth.email)}`);
 			userToken = storedAuth.token;
 			userName = storedAuth.name;
 		} else {
@@ -213,10 +213,10 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		}
 
 		p.log.message(chalk.bold("Next steps:"));
-		p.log.message(`  1. Add ${highlight("VOCODER_API_KEY")} as a repository secret: ${url("https://vocoder.app/docs/secrets")}`);
-		p.log.message(`  2. Set up ${highlight("@vocoder/react")}: install, configure ${highlight("VocoderProvider")}, and wrap strings with ${highlight("<T>")}: ${url("https://vocoder.app/docs/setup")}`);
-		p.log.message(`  3. Push to ${highlight(triggerBranch)} — translations will commit to your repo automatically.`);
-		p.log.message(`  4. Run ${highlight("vocoder pull")} to sync locale files locally.`);
+		p.log.message(`1. Add ${highlight("VOCODER_API_KEY")} as a repository secret: ${url("https://vocoder.app/docs/secrets")}`);
+		p.log.message(`2. Set up ${highlight("@vocoder/react")}: install, configure ${highlight("VocoderProvider")}, and wrap strings with ${highlight("<T>")}: ${url("https://vocoder.app/docs/setup")}`);
+		p.log.message(`3. Push to ${highlight(triggerBranch)} — translations will commit to your repo automatically.`);
+		p.log.message(`4. Run ${highlight("vocoder pull")} to sync locale files locally.`);
 
 		p.outro("You're all set.");
 		return 0;
@@ -227,6 +227,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		} else {
 			p.log.error(message);
 		}
+		p.outro("");
 		return 1;
 	}
 }

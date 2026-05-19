@@ -50,17 +50,13 @@ export async function listProjectLocales(options: LocaleCommandOptions = {}): Pr
 	try {
 		const projectConfig = await api.getAppConfig();
 
-		p.log.info(
-			`Source locale:  ${highlight(projectConfig.sourceLocale)}`,
-		);
+		const targetDisplay =
+			projectConfig.targetLocales.length > 0
+				? projectConfig.targetLocales.map((l) => highlight(l)).join(", ")
+				: chalk.dim("(none configured)");
 
-		if (projectConfig.targetLocales.length === 0) {
-			p.log.info("Target locales: (none configured)");
-		} else {
-			p.log.info(
-				`Target locales: ${projectConfig.targetLocales.map((l) => highlight(l)).join(", ")}`,
-			);
-		}
+		p.log.info(`Source locale:  ${highlight(projectConfig.sourceLocale)}`);
+		p.log.info(`Target locales: ${targetDisplay}`);
 
 		p.outro("");
 		return 0;
@@ -115,12 +111,11 @@ export async function addLocales(
 			lastTargetLocales = result.targetLocales;
 			spinner.stop(`Added ${highlight(locale)}`);
 		} catch (error) {
-			spinner.stop(`Failed to add ${highlight(locale)}`, 1);
 			hadError = true;
 
 			if (error instanceof VocoderAPIError && error.limitError) {
 				const { limitError } = error;
-				p.log.error(limitError.message);
+				spinner.stop(limitError.message, 1);
 				for (const line of getLimitErrorGuidance(limitError)) {
 					p.log.info(line);
 				}
@@ -128,8 +123,9 @@ export async function addLocales(
 				break;
 			}
 
-			p.log.error(
-				error instanceof Error ? error.message : "Unknown error",
+			spinner.stop(
+				error instanceof Error ? error.message : `Failed to add ${highlight(locale)}`,
+				1,
 			);
 		}
 	}
@@ -184,10 +180,10 @@ export async function removeLocales(
 			lastTargetLocales = result.targetLocales;
 			spinner.stop(`Removed ${highlight(locale)}`);
 		} catch (error) {
-			spinner.stop(`Failed to remove ${highlight(locale)}`, 1);
 			hadError = true;
-			p.log.error(
-				error instanceof Error ? error.message : "Unknown error",
+			spinner.stop(
+				error instanceof Error ? error.message : `Failed to remove ${highlight(locale)}`,
+				1,
 			);
 		}
 	}

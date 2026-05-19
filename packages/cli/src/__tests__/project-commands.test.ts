@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addLocales, listProjectLocales, removeLocales } from "../commands/locales.js";
 import { pull } from "../commands/pull.js";
-import type { APIAppConfig, TranslationSnapshotResponse } from "../types.js";
+import type { APIAppConfig, LocaleFilesResponse } from "../types.js";
 import { VocoderAPI } from "../utils/api.js";
 
 const originalFetch = globalThis.fetch;
@@ -223,88 +223,52 @@ describe("listProjectLocales command", () => {
 
 describe("pull command", () => {
 	beforeEach(() => {
-		process.env.VOCODER_API_KEY = "vca_test";
+		process.env.VOCODER_API_KEY = "vcp_aB3xY9Zk_testrandombytes123456";
 	});
 
-	it("writes one file per locale when --output is set", async () => {
-		const config: APIAppConfig = {
-			projectName: "Test",
-			organizationName: "Acme",
-			shortCode: "test123",
-			sourceLocale: "en",
-			targetLocales: ["fr", "de"],
-			targetBranches: ["main"],
-			syncPolicy: {
-				blockingBranches: ["main"],
-				blockingMode: "required",
-				nonBlockingMode: "best-effort",
-				defaultMaxWaitMs: 60000,
-			},
+	it("writes locale files to output dir when FOUND", async () => {
+		const localeFileTree: Record<string, string> = {
+			"locales/manifest.json": '{"version":1,"sourceLocale":"en"}\n',
+			"locales/en.json": '{"Hello":"Hello"}\n',
+			"locales/fr.json": '{"Hello":"Bonjour"}\n',
 		};
-
-		const snapshot: TranslationSnapshotResponse = {
+		const response: LocaleFilesResponse = {
 			status: "FOUND",
 			branch: "main",
-			translations: {
-				fr: { Hello: "Bonjour", Goodbye: "Au revoir" },
-				de: { Hello: "Hallo", Goodbye: "Auf Wiedersehen" },
-			},
+			apps: [{ appDir: "", localeFileTree }],
 		};
 
-		globalThis.fetch = vi
-			.fn()
-			// First call: getProjectConfig
-			.mockResolvedValueOnce({
-				ok: true,
-				text: async () => JSON.stringify(config),
-			})
-			// Second call: getTranslationSnapshot
-			.mockResolvedValueOnce({
-				ok: true,
-				text: async () => JSON.stringify(snapshot),
-			}) as typeof globalThis.fetch;
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			text: async () => JSON.stringify(response),
+		}) as typeof globalThis.fetch;
 
-		const outputDir = join(tmpdir(), `vocoder-test-${Date.now()}`);
+		const outputDir = join(tmpdir(), `vocoder-pull-test-${Date.now()}`);
 		mkdirSync(outputDir, { recursive: true });
 
-		const code = await pull({ snapshot: true, branch: "main", output: outputDir });
+		const code = await pull({ branch: "main", output: outputDir });
 		expect(code).toBe(0);
 
-		const frContents = JSON.parse(readFileSync(join(outputDir, "fr.json"), "utf-8"));
-		expect(frContents).toEqual({ Hello: "Bonjour", Goodbye: "Au revoir" });
-
-		const deContents = JSON.parse(readFileSync(join(outputDir, "de.json"), "utf-8"));
-		expect(deContents).toEqual({ Hello: "Hallo", Goodbye: "Auf Wiedersehen" });
+		expect(JSON.parse(readFileSync(join(outputDir, "locales/fr.json"), "utf-8"))).toEqual({
+			Hello: "Bonjour",
+		});
+		expect(JSON.parse(readFileSync(join(outputDir, "locales/manifest.json"), "utf-8"))).toEqual({
+			version: 1,
+			sourceLocale: "en",
+		});
 	});
 
-	it("returns 1 when snapshot is NOT_FOUND", async () => {
-		const config: APIAppConfig = {
-			projectName: "Test",
-			organizationName: "Acme",
-			shortCode: "test123",
-			sourceLocale: "en",
-			targetLocales: ["fr"],
-			targetBranches: ["main"],
-			syncPolicy: {
-				blockingBranches: ["main"],
-				blockingMode: "required",
-				nonBlockingMode: "best-effort",
-				defaultMaxWaitMs: 60000,
-			},
-		};
-
-		const snapshot: TranslationSnapshotResponse = {
+	it("returns 1 when NOT_FOUND", async () => {
+		const response: LocaleFilesResponse = {
 			status: "NOT_FOUND",
 			branch: "main",
+			apps: [],
 		};
 
-		globalThis.fetch = vi
-			.fn()
-			.mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify(config) })
-			.mockResolvedValueOnce({
-				ok: true,
-				text: async () => JSON.stringify(snapshot),
-			}) as typeof globalThis.fetch;
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			text: async () => JSON.stringify(response),
+		}) as typeof globalThis.fetch;
 
 		const code = await pull({ branch: "main" });
 		expect(code).toBe(1);

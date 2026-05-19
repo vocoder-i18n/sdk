@@ -22,6 +22,7 @@ import * as p from "@clack/prompts";
 import type { InitOptions } from "../types.js";
 import type { VocoderAPI } from "./api.js";
 import chalk from "chalk";
+import { highlight } from "./theme.js";
 import { startCallbackServer } from "./local-server.js";
 import { tryOpenBrowser } from "./browser.js";
 
@@ -184,12 +185,13 @@ export async function runAuthFlow(
 
 	if (!rawToken) {
 		authSpinner.stop();
-		p.log.error("The authentication link expired. Run `vocoder init` again.");
+		p.log.error("Authentication link expired.");
+		p.log.info(`  Run ${highlight("vocoder init")} to try again.`);
 		return null;
 	}
 
 	const userInfo = await api.getCliUserInfo(rawToken);
-	authSpinner.stop(`Authenticated as: ${chalk.bold(userInfo.email)}`);
+	authSpinner.stop(`Authenticated as ${highlight(userInfo.email)}`);
 
 	return {
 		token: rawToken,

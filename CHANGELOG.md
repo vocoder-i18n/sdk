@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive TypeScript types with strict mode support
 
 #### @vocoder/cli
-- `vocoder sync` command for extracting strings and generating translations
+- `vocoder translate` command for extracting strings and generating translations
 - AST-based extraction using Babel parser
 - Glob pattern support for file scanning
 - Automatic locale file generation (JSON format)

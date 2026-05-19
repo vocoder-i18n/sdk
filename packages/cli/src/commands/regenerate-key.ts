@@ -2,9 +2,10 @@ import * as p from "@clack/prompts";
 
 import { VocoderAPI } from "../utils/api.js";
 import chalk from "chalk";
+import { highlight } from "../utils/theme.js";
 import { detectRepoIdentity } from "@vocoder/plugin";
 import { loadEnvFiles } from "../utils/load-env.js";
-import { printApiKey } from "../utils/output.js";
+import { writeApiKeyToEnv } from "../utils/output.js";
 import { runAuthFlow } from "../utils/auth-flow.js";
 import { verifyStoredAuth } from "../utils/auth-store.js";
 
@@ -21,7 +22,9 @@ export async function regenerateKey(options: RegenerateKeyOptions = {}): Promise
 
 	const identity = detectRepoIdentity();
 	if (!identity) {
-		p.log.error("Not inside a git repository. Run this command from your project root.");
+		p.log.error("Not inside a git repository.");
+		p.log.info("  Run this command from your project root.");
+		p.outro("");
 		return 1;
 	}
 
@@ -34,17 +37,21 @@ export async function regenerateKey(options: RegenerateKeyOptions = {}): Promise
 			appDir: identity.appDir ?? "",
 		});
 	} catch {
-		p.log.error("Could not reach Vocoder. Check your internet connection and try again.");
+		p.log.error("Could not reach Vocoder.");
+		p.log.info("  Check your internet connection and try again.");
+		p.outro("");
 		return 1;
 	}
 
 	if (lookup.existingApps.length === 0) {
-		p.log.error("No Vocoder app found for this repository. Run `vocoder init` to set one up.");
+		p.log.error("No Vocoder project found for this repository.");
+		p.log.info(`  Run ${highlight("vocoder init")} to set one up.`);
+		p.outro("");
 		return 1;
 	}
 
 	const firstApp = lookup.existingApps[0]!;
-	p.log.info(`App: ${chalk.bold(firstApp.projectName)}`);
+	p.log.success(`Project ${highlight(firstApp.projectName)} found`);
 
 	// Auth — use stored token or browser flow
 	const api = new VocoderAPI({ apiUrl, apiKey: "" });
@@ -52,7 +59,7 @@ export async function regenerateKey(options: RegenerateKeyOptions = {}): Promise
 
 	let userToken: string;
 	if (storedAuth.status === "valid") {
-		p.log.success(`Authenticated as: ${chalk.bold(storedAuth.email)}`);
+		p.log.success(`Authenticated as ${highlight(storedAuth.email)}`);
 		userToken = storedAuth.token;
 	} else {
 		const authResult = await runAuthFlow(api, options, storedAuth.status === "expired");
@@ -60,21 +67,30 @@ export async function regenerateKey(options: RegenerateKeyOptions = {}): Promise
 		userToken = authResult.token;
 	}
 
-	// Regenerate
+	// Regenerate and save
 	const spinner = p.spinner();
-	spinner.start("Generating API key...");
-	let apiKey: string;
+	spinner.start("Generating API key…");
 	try {
-		({ apiKey } = await api.regenerateProjectApiKey(userToken, firstApp.projectId));
-		spinner.stop("API key ready");
+		const { apiKey } = await api.regenerateProjectApiKey(userToken, firstApp.projectId);
+		const file = writeApiKeyToEnv(apiKey, identity.repoRoot);
+		spinner.stop(file ? `API key saved to ${highlight(file)}` : "API key generated");
+		if (!file) {
+			p.log.warn(`Could not write to .env.local — find your API key at ${highlight("https://vocoder.app/settings")}`);
+		}
 	} catch (err) {
-		spinner.stop("Failed");
 		const msg = err instanceof Error ? err.message : String(err);
-		p.log.error(msg.includes("403") ? "You must be an admin or owner to generate API keys." : `Could not generate API key: ${msg}`);
+		spinner.stop(
+			msg.includes("403") ? "Permission denied" : "Failed to generate key",
+			1,
+		);
+		p.log.info(
+			msg.includes("403")
+				? "  You must be an admin or owner to regenerate API keys."
+				: `  ${msg}`,
+		);
+		p.outro("");
 		return 1;
 	}
-
-	printApiKey(apiKey, identity.repoRoot);
 
 	p.outro("Done.");
 	return 0;
