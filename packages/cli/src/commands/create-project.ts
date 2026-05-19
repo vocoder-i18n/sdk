@@ -2,7 +2,7 @@ import { CommandSession, joinHighlighted } from "../utils/command-session.js";
 import { highlight } from "../utils/theme.js";
 import { loadEnvFiles } from "../utils/load-env.js";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
-import { readAuthData } from "../utils/auth-store.js";
+import { ensureAccountAuth } from "../utils/account-auth.js";
 import { resolveGitRepositoryIdentity } from "../utils/git-identity.js";
 import { getLimitErrorGuidance } from "./translate.js";
 
@@ -30,7 +30,7 @@ export interface CreateProjectOptions {
 /**
  * Creates a new Vocoder project without the interactive init flow.
  *
- * Requires a valid user token in the local auth store (run `vocoder init` first).
+ * Auto-starts browser sign-in in interactive shells when needed.
  * Prints the generated VOCODER_API_KEY to stdout on success.
  *
  * Git identity is auto-detected from the git remote. Use --repo to override.
@@ -42,15 +42,34 @@ export interface CreateProjectOptions {
 export async function createProject(options: CreateProjectOptions): Promise<number> {
 	const session = new CommandSession("Vocoder Create Project");
 
-	const authData = readAuthData();
-	if (!authData) {
-		return session.fail("Not logged in.", [
-			"Run vocoder init to authenticate first.",
-		]);
-	}
-
 	const apiUrl = options.apiUrl ?? process.env.VOCODER_API_URL ?? "https://vocoder.app";
 	const api = new VocoderAPI({ apiKey: "", apiUrl });
+	const authResult = await ensureAccountAuth({
+		api,
+		session,
+		options: { apiUrl: options.apiUrl },
+		loginIfNeeded: "interactive",
+	});
+
+	if (authResult.status === "required") {
+		return session.fail("Account sign-in required.", [
+			`Run ${highlight(authResult.command)}.`,
+		]);
+	}
+	if (authResult.status === "unreachable") {
+		session.step("Account", highlight(authResult.stored.email), "info");
+		return session.fail("Could not verify stored credentials.", [
+			authResult.message,
+			`Run ${highlight("vocoder auth status")} once your connection is back.`,
+		]);
+	}
+	if (authResult.status === "cancelled") {
+		return session.cancelled();
+	}
+
+	if (authResult.source === "stored") {
+		session.step("Authenticated as", highlight(authResult.auth.email));
+	}
 
 	let repoCanonical: string | undefined;
 
@@ -79,7 +98,7 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 	const step = session.startStep(`Creating project ${highlight(options.name)}`);
 
 	try {
-		const result = await api.createProject(authData.token, {
+		const result = await api.createProject(authResult.auth.token, {
 			organizationId: options.organization,
 			name: options.name,
 			sourceLocale: options.sourceLocale,

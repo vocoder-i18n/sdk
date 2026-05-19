@@ -1,12 +1,14 @@
 import { VocoderAPI } from "../utils/api.js";
 import { CommandSession, formatLabelValue } from "../utils/command-session.js";
+import { ensureAccountAuth } from "../utils/account-auth.js";
 import { highlight } from "../utils/theme.js";
-import { relative } from "node:path";
 import { loadEnvFiles } from "../utils/load-env.js";
 import { writeApiKeyToEnv } from "../utils/output.js";
-import { runAuthFlow } from "../utils/auth-flow.js";
-import { verifyStoredAuth } from "../utils/auth-store.js";
-import { resolveGitRepositoryIdentity } from "../utils/git-identity.js";
+import {
+	resolveCurrentAppDir,
+	resolveGitRepositoryIdentity,
+} from "../utils/git-identity.js";
+import { resolveLookupMatch } from "../utils/project-lookup.js";
 
 loadEnvFiles();
 
@@ -25,9 +27,7 @@ export async function regenerateKey(options: RegenerateKeyOptions = {}): Promise
 			"Run this command from your project root.",
 		]);
 	}
-	const appDir = relative(identity.repoRoot, process.cwd())
-		.replace(/\\/g, "/")
-		.replace(/^\.\/|\/$/g, "");
+	const appDir = resolveCurrentAppDir(identity.repoRoot);
 
 	// Anonymous lookup — find the project for this repo
 	const anonApi = new VocoderAPI({ apiUrl, apiKey: "" });
@@ -49,32 +49,50 @@ export async function regenerateKey(options: RegenerateKeyOptions = {}): Promise
 		]);
 	}
 
-	const firstApp = lookup.existingApps[0]!;
-	session.step("Project", highlight(firstApp.projectName));
+	const matchedApp = resolveLookupMatch(lookup, appDir);
+	if (!matchedApp) {
+		return session.fail("This directory is not configured as a Vocoder app.", [
+			`Known apps: ${lookup.existingApps.map((app) => app.appDir || "(root)").join(", ")}`,
+			"Run vocoder init from one of the known app directories.",
+		]);
+	}
+	session.step("Project", highlight(matchedApp.projectName));
 
-	// Auth — use stored token or browser flow
 	const api = new VocoderAPI({ apiUrl, apiKey: "" });
-	const storedAuth = await verifyStoredAuth(api);
+	const authResult = await ensureAccountAuth({
+		api,
+		session,
+		options: { apiUrl: options.apiUrl },
+		repoCanonical: identity.repoCanonical,
+		loginIfNeeded: "interactive",
+	});
 
-	let userToken: string;
-	if (storedAuth.status === "valid") {
-		session.step("Authenticated as", highlight(storedAuth.email));
-		userToken = storedAuth.token;
-	} else {
-		const authResult = await runAuthFlow(
-			api,
-			options,
-			session,
-			storedAuth.status === "expired",
-		);
-		if (!authResult) return session.cancelled();
-		userToken = authResult.token;
+	if (authResult.status === "required") {
+		return session.fail("Account sign-in required.", [
+			`Run ${highlight(authResult.command)}.`,
+		]);
+	}
+	if (authResult.status === "unreachable") {
+		session.step("Account", highlight(authResult.stored.email), "info");
+		return session.fail("Could not verify stored credentials.", [
+			authResult.message,
+			`Run ${highlight("vocoder auth status")} once your connection is back.`,
+		]);
+	}
+	if (authResult.status === "cancelled") {
+		return session.cancelled();
+	}
+	if (authResult.source === "stored") {
+		session.step("Authenticated as", highlight(authResult.auth.email));
 	}
 
 	// Regenerate and save
 	const step = session.startStep("Generating API key");
 	try {
-		const { apiKey } = await api.regenerateProjectApiKey(userToken, firstApp.projectId);
+		const { apiKey } = await api.regenerateProjectApiKey(
+			authResult.auth.token,
+			matchedApp.projectId,
+		);
 		const file = writeApiKeyToEnv(apiKey, identity.repoRoot);
 		step.done(file ? `API key saved to ${highlight(file)}` : "Generated API key");
 		if (!file) {

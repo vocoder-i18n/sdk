@@ -67,10 +67,20 @@ vi.mock("@vocoder/extractor", () => ({
 	computeFingerprint: vi.fn(() => "fp-test-123"),
 }));
 
-const mockReadAuthData = vi.hoisted(() => vi.fn(() => null as null | { token: string; email: string; apiUrl?: string }));
+const {
+	mockReadAuthData,
+	mockVerifyStoredAuth,
+	mockWriteAuthData,
+} = vi.hoisted(() => ({
+	mockReadAuthData: vi.fn(() => null as null | { token: string; email: string; apiUrl?: string }),
+	mockVerifyStoredAuth: vi.fn(async () => ({ status: "none" as const })),
+	mockWriteAuthData: vi.fn(),
+}));
 
 vi.mock("../utils/auth-store.js", () => ({
 	readAuthData: mockReadAuthData,
+	verifyStoredAuth: mockVerifyStoredAuth,
+	writeAuthData: mockWriteAuthData,
 	clearAuthData: vi.fn(),
 }));
 
@@ -194,6 +204,7 @@ describe("p.outro called on every exit path", () => {
 		delete process.env.VOCODER_API_KEY;
 		await translate({});
 		expect(mockOutro).toHaveBeenCalled();
+		expect(mockOutro.mock.calls.at(-1)?.[0]).not.toBe("");
 	});
 
 	it("translate: non-target branch (early exit, returns 0)", async () => {
@@ -208,24 +219,28 @@ describe("p.outro called on every exit path", () => {
 
 		await translate({});
 		expect(mockOutro).toHaveBeenCalled();
+		expect(mockOutro.mock.calls.at(-1)?.[0]).not.toBe("");
 	});
 
 	it("addLocales: missing API key", async () => {
 		delete process.env.VOCODER_API_KEY;
 		await addLocales(["fr"]);
 		expect(mockOutro).toHaveBeenCalled();
+		expect(mockOutro.mock.calls.at(-1)?.[0]).not.toBe("");
 	});
 
 	it("createProject: not logged in", async () => {
 		mockReadAuthData.mockReturnValue(null);
 		await createProject({ name: "my-app", sourceLocale: "en", organization: "org-1" });
 		expect(mockOutro).toHaveBeenCalled();
+		expect(mockOutro.mock.calls.at(-1)?.[0]).not.toBe("");
 	});
 
 	it("listProjectLocales: missing API key", async () => {
 		delete process.env.VOCODER_API_KEY;
 		await listProjectLocales();
 		expect(mockOutro).toHaveBeenCalled();
+		expect(mockOutro.mock.calls.at(-1)?.[0]).not.toBe("");
 	});
 
 	it("listProjectLocales: API call succeeds", async () => {
@@ -237,6 +252,7 @@ describe("p.outro called on every exit path", () => {
 
 		await listProjectLocales();
 		expect(mockOutro).toHaveBeenCalled();
+		expect(mockOutro.mock.calls.at(-1)?.[0]).not.toBe("");
 	});
 });
 

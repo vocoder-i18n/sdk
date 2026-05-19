@@ -34,11 +34,23 @@ export function displayAppDir(
 	return options.showRootLabel ? "(root)" : "";
 }
 
+export interface CommandSessionOptions {
+	successOutro?: string;
+	failureOutro?: string;
+	cancelOutro?: string;
+}
+
 export class CommandSession {
 	private activeSpinner: CommandStep | null = null;
 	private closed = false;
+	private readonly successOutro: string;
+	private readonly failureOutro: string;
+	private readonly cancelOutro: string;
 
-	constructor(title: string) {
+	constructor(title: string, options: CommandSessionOptions = {}) {
+		this.successOutro = options.successOutro ?? "Done.";
+		this.failureOutro = options.failureOutro ?? "Failed.";
+		this.cancelOutro = options.cancelOutro ?? "Cancelled.";
 		p.intro(chalk.bold(title));
 	}
 
@@ -98,22 +110,22 @@ export class CommandSession {
 		return step;
 	}
 
-	fail(message: string, guidance: string[] = [], outro = ""): number {
+	fail(message: string, guidance: string[] = [], outro?: string): number {
 		this.error(message);
 		this.printGuidance(guidance);
-		return this.finish(1, outro);
+		return this.finish(1, this.resolveOutro(outro, this.failureOutro));
 	}
 
-	cancelled(): number {
-		return this.finish(1, "");
+	cancelled(outro?: string): number {
+		return this.finish(1, this.resolveOutro(outro, this.cancelOutro));
 	}
 
-	end(message = ""): number {
-		return this.finish(0, message);
+	end(message?: string): number {
+		return this.finish(0, this.resolveOutro(message, this.successOutro));
 	}
 
-	endFailure(message = ""): number {
-		return this.finish(1, message);
+	endFailure(message?: string): number {
+		return this.finish(1, this.resolveOutro(message, this.failureOutro));
 	}
 
 	endFatal(message: string): number {
@@ -131,6 +143,13 @@ export class CommandSession {
 		for (const line of guidance) {
 			this.info(line);
 		}
+	}
+
+	private resolveOutro(message: string | undefined, fallback: string): string {
+		if (typeof message === "string" && message.trim().length > 0) {
+			return message;
+		}
+		return fallback;
 	}
 
 	private finish(code: number, message: string): number {

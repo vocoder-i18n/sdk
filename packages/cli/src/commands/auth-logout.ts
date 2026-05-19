@@ -6,17 +6,16 @@ import { highlight } from "../utils/theme.js";
 
 loadEnvFiles();
 
-export interface LogoutOptions {
+export interface AuthLogoutOptions {
 	apiUrl?: string;
 }
 
-export async function logout(options: LogoutOptions = {}): Promise<number> {
-	const session = new CommandSession("Vocoder Logout");
-
+export async function authLogout(options: AuthLogoutOptions = {}): Promise<number> {
+	const session = new CommandSession("Vocoder Auth");
 	const stored = readAuthData();
 
 	if (!stored) {
-		session.warn("Not logged in.");
+		session.step("Signed in", highlight("No"), "info");
 		return session.end();
 	}
 
@@ -26,7 +25,7 @@ export async function logout(options: LogoutOptions = {}): Promise<number> {
 	try {
 		await api.revokeCliToken(stored.token);
 	} catch {
-		// Ignore errors — we still clear local data even if the server call fails
+		// Best-effort revoke — always clear local auth.
 	}
 
 	clearAuthData();

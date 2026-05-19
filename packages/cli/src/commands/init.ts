@@ -5,19 +5,17 @@ import {
 	joinHighlighted,
 } from "../utils/command-session.js";
 import { promptConfirm } from "../utils/prompt-select.js";
-import {
-	verifyStoredAuth,
-	writeAuthData,
-} from "../utils/auth-store.js";
 
 import type { InitOptions } from "../types.js";
-import { VocoderAPI } from "../utils/api.js";
+import type { APIAppConfig } from "../types.js";
+import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
+import { ensureAccountAuth } from "../utils/account-auth.js";
 import { highlight } from "../utils/theme.js";
 import { installForProject } from "../utils/install-packages.js";
 import { loadEnvFiles } from "../utils/load-env.js";
-import { resolveGitContext } from "../utils/git-identity.js";
-import { runAuthFlow } from "../utils/auth-flow.js";
+import { resolveCurrentAppDir, resolveGitContext } from "../utils/git-identity.js";
 import { runProjectCreate } from "../utils/project-create.js";
+import { resolveLookupMatch } from "../utils/project-lookup.js";
 import { selectOrganizationForInit } from "../utils/organization-select.js";
 import { writeApiKeyToEnv } from "../utils/output.js";
 import { writeGitHubActionsWorkflow } from "../utils/workflow-write.js";
@@ -25,6 +23,160 @@ import { writeGitHubActionsWorkflow } from "../utils/workflow-write.js";
 loadEnvFiles();
 
 // ── Main command ──────────────────────────────────────────────────────────────
+
+async function confirmApiKeyRepair(
+	session: CommandSession,
+	options: InitOptions,
+	reason: "missing" | "invalid",
+): Promise<boolean | null> {
+	if (options.yes) {
+		session.step("Regenerate API key", highlight("Yes"));
+		return true;
+	}
+
+	if (!process.stdin.isTTY || !process.stdout.isTTY) {
+		return null;
+	}
+
+	const answer = await promptConfirm({
+		message:
+			reason === "missing"
+				? "Generate a project API key for this repo?"
+				: "Generate a fresh project API key for this repo?",
+		confirmLabel: "Regenerate API key",
+		initialValue: true,
+	});
+	if (answer === null) return null;
+	session.step("Regenerate API key", highlight(answer ? "Yes" : "No"));
+	return answer;
+}
+
+async function ensureRepairApiKey(params: {
+	apiUrl: string;
+	repoRoot: string;
+	projectId: string;
+	userToken: string;
+	session: CommandSession;
+	options: InitOptions;
+}): Promise<
+	| { status: "ok"; envFile: string | null; apiKey: string; projectConfig: APIAppConfig | null }
+	| { status: "cancelled" }
+	| { status: "failed" }
+> {
+	const currentApiKey = process.env.VOCODER_API_KEY;
+	const canPrompt = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+
+	if (currentApiKey) {
+		const projectApi = new VocoderAPI({ apiUrl: params.apiUrl, apiKey: currentApiKey });
+		try {
+			const projectConfig = await projectApi.getAppConfig();
+			params.session.step("API key", highlight("Configured"));
+			return {
+				status: "ok",
+				envFile: null,
+				apiKey: currentApiKey,
+				projectConfig,
+			};
+		} catch (error) {
+			if (
+				error instanceof VocoderAPIError &&
+				(error.status === 401 || error.status === 403)
+			) {
+				const confirmed = await confirmApiKeyRepair(
+					params.session,
+					params.options,
+					"invalid",
+				);
+				if (confirmed === null) {
+					if (!canPrompt) {
+						params.session.error("A valid project API key is required to finish setup.");
+						params.session.info(
+							`Run ${highlight("vocoder init --yes")} to regenerate it automatically.`,
+						);
+						params.session.info(
+							`Or run ${highlight("vocoder regenerate-key")} after signing in.`,
+						);
+						return { status: "failed" };
+					}
+					return params.options.yes
+						? { status: "failed" }
+						: { status: "cancelled" };
+				}
+				if (!confirmed) {
+					params.session.error("A valid project API key is required to finish setup.");
+					params.session.info(`Run ${highlight("vocoder regenerate-key")} when you're ready.`);
+					return { status: "failed" };
+				}
+			} else {
+				params.session.warn("Could not verify the local project API key.");
+				params.session.info(
+					error instanceof Error
+						? error.message
+						: "Check your network connection and try again.",
+				);
+				return {
+					status: "ok",
+					envFile: null,
+					apiKey: currentApiKey,
+					projectConfig: null,
+				};
+			}
+		}
+	} else {
+		const confirmed = await confirmApiKeyRepair(params.session, params.options, "missing");
+		if (confirmed === null) {
+			if (!canPrompt) {
+				params.session.error("A project API key is required to finish setup.");
+				params.session.info(
+					`Run ${highlight("vocoder init --yes")} to regenerate it automatically.`,
+				);
+				params.session.info(
+					`Or run ${highlight("vocoder regenerate-key")} after signing in.`,
+				);
+				return { status: "failed" };
+			}
+			return params.options.yes ? { status: "failed" } : { status: "cancelled" };
+		}
+		if (!confirmed) {
+			params.session.error("A project API key is required to finish setup.");
+			params.session.info(`Run ${highlight("vocoder regenerate-key")} when you're ready.`);
+			return { status: "failed" };
+		}
+	}
+
+	const regenerateStep = params.session.startStep("Generating API key");
+	try {
+		const accountApi = new VocoderAPI({ apiUrl: params.apiUrl, apiKey: "" });
+		const { apiKey } = await accountApi.regenerateProjectApiKey(
+			params.userToken,
+			params.projectId,
+		);
+		process.env.VOCODER_API_KEY = apiKey;
+		const envFile = writeApiKeyToEnv(apiKey, params.repoRoot);
+		regenerateStep.done(
+			envFile ? `API key saved to ${highlight(envFile)}` : "Generated API key",
+		);
+		if (!envFile) {
+			params.session.warn("Could not write the API key to an env file.");
+			params.session.info(`Find it at ${highlight("https://vocoder.app/settings")}.`);
+		}
+		let projectConfig: APIAppConfig | null = null;
+		try {
+			projectConfig = await new VocoderAPI({
+				apiUrl: params.apiUrl,
+				apiKey,
+			}).getAppConfig();
+		} catch {
+			projectConfig = null;
+		}
+		return { status: "ok", envFile, apiKey, projectConfig };
+	} catch (error) {
+		regenerateStep.fail(
+			error instanceof Error ? error.message : "Failed to generate a project API key.",
+		);
+		return { status: "failed" };
+	}
+}
 
 export async function init(options: InitOptions = {}): Promise<number> {
 	const apiUrl =
@@ -35,7 +187,10 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		process.stderr.write(`[vocoder] API URL: ${apiUrl}\n`);
 	}
 
-	const session = new CommandSession("Vocoder Setup");
+	const session = new CommandSession("Vocoder Setup", {
+		failureOutro: "Setup incomplete.",
+		cancelOutro: "Setup cancelled.",
+	});
 
 	try {
 		// ── 1. Detect git context ───────────────────────────────────────────────
@@ -47,73 +202,155 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		}
 
 		const repoRoot = identity?.repoRoot;
+		const currentAppDir = repoRoot ? resolveCurrentAppDir(repoRoot) : "";
+		const api = new VocoderAPI({ apiUrl, apiKey: "", debug });
 
 		// ── 2. Fast lookup: does an app already exist for this repo? ─────────
-		// No spinner — fast DB read, and we don't want a stray ◇ on a miss.
 		if (identity) {
-			const anonApi = new VocoderAPI({ apiUrl, apiKey: "", debug });
-			const lookup = await anonApi.lookupAppByRepo({
+			const lookup = await api.lookupAppByRepo({
 				repoCanonical: identity.repoCanonical,
-				appDir: "",
+				appDir: currentAppDir,
 			});
+			const matchedProject = resolveLookupMatch(lookup, currentAppDir);
 
-			if (lookup.existingApps.length > 0) {
-				const allApps = lookup.existingApps;
-				const firstApp = allApps[0]!;
-				const showRootLabel = allApps.length > 1;
+			if (matchedProject) {
+				const authResult = await ensureAccountAuth({
+					api,
+					session,
+					options,
+					repoCanonical: identity.repoCanonical,
+					loginIfNeeded: "always",
+					requiredCommand: "vocoder init --ci",
+				});
 
-				session.step("Project", highlight(firstApp.projectName));
-				if (allApps.length > 0) {
+				if (authResult.status === "required") {
+					return session.fail("Interactive sign-in is not available in this shell.", [
+						`Run ${highlight(authResult.command)}.`,
+					]);
+				}
+				if (authResult.status === "unreachable") {
+					session.step("Account", highlight(authResult.stored.email), "info");
+					return session.fail("Could not verify stored credentials.", [
+						authResult.message,
+						`Run ${highlight("vocoder auth status")} once your connection is back.`,
+					]);
+				}
+				if (authResult.status === "cancelled") {
+					return session.cancelled();
+				}
+
+				if (authResult.source === "stored") {
+					session.step("Authenticated as", highlight(authResult.auth.email));
+				}
+				session.step("Workspace", highlight(matchedProject.organizationName));
+				session.step("Project", highlight(matchedProject.projectName));
+				if (matchedProject.appDir || lookup.hasWholeRepoApp) {
 					session.step(
-						"Apps",
-						joinHighlighted(
-							allApps.map((app) =>
-								displayAppDir(app.appDir, { showRootLabel }),
-							),
+						"App",
+						highlight(
+							displayAppDir(matchedProject.appDir, { showRootLabel: true }) || "(root)",
 						),
 					);
 				}
-				session.info("Run vocoder regenerate-key to create a new API key.");
-				return session.end();
+
+				const apiKeyResult = await ensureRepairApiKey({
+					apiUrl,
+					repoRoot: identity.repoRoot,
+					projectId: matchedProject.projectId,
+					userToken: authResult.auth.token,
+					session,
+					options,
+				});
+
+				if (apiKeyResult.status === "cancelled") {
+					return session.cancelled();
+				}
+				if (apiKeyResult.status === "failed") {
+					return session.endFailure();
+				}
+
+				const repairAppDirs = matchedProject.appDir ? [matchedProject.appDir] : [];
+				const installMcpAnswer = await promptConfirm({
+					message: "Install @vocoder/mcp for AI-assisted development? (optional)",
+					confirmLabel: "Install MCP",
+					initialValue: false,
+				});
+				if (installMcpAnswer === null) return session.cancelled();
+				session.step("Install MCP", highlight(installMcpAnswer ? "Yes" : "No"));
+
+				await installForProject({
+					rootDir: identity.repoRoot,
+					appDirs: repairAppDirs,
+					installMcp: installMcpAnswer === true,
+					session,
+				});
+
+				const workflowBranches =
+					apiKeyResult.projectConfig?.targetBranches ??
+					matchedProject.targetBranches ??
+					["main"];
+				const workflow = writeGitHubActionsWorkflow(
+					identity.repoRoot,
+					workflowBranches,
+					repairAppDirs,
+				);
+				if (workflow.written) {
+					session.success(`Created ${highlight(workflow.relativePath)}`);
+				} else {
+					session.warn(
+						`${workflow.relativePath} already exists — review it to ensure it includes the Vocoder translate step.`,
+					);
+				}
+
+				return session.end("Setup repaired.");
+			}
+
+			if (lookup.existingApps.length > 0) {
+				const firstApp = lookup.existingApps[0]!;
+				session.step("Project", highlight(firstApp.projectName));
+				session.step(
+					"Known apps",
+					joinHighlighted(
+						lookup.existingApps.map((app) =>
+							displayAppDir(app.appDir, { showRootLabel: true }) || "(root)",
+						),
+					),
+					"info",
+				);
+				if (currentAppDir) {
+					session.step("Current directory", highlight(currentAppDir), "info");
+				}
+				return session.fail("This directory is not configured as a Vocoder app.", [
+					"Run vocoder init from one of the known app directories.",
+				]);
 			}
 		}
 
 		// ── 3. Auth: check stored token, prompt if missing ──────────────────────
-		const api = new VocoderAPI({ apiUrl, apiKey: "", debug });
-		let userToken: string;
-		let userName: string | null;
+		const authResult = await ensureAccountAuth({
+			api,
+			session,
+			options,
+			repoCanonical: identity?.repoCanonical,
+			loginIfNeeded: "always",
+			requiredCommand: "vocoder init --ci",
+		});
+		if (authResult.status === "required") {
+			return session.fail("Interactive sign-in is not available in this shell.", [
+				`Run ${highlight(authResult.command)}.`,
+			]);
+		}
+		if (authResult.status === "unreachable") {
+			session.step("Account", highlight(authResult.stored.email), "info");
+			return session.fail("Could not verify stored credentials.", [
+				authResult.message,
+				`Run ${highlight("vocoder auth status")} once your connection is back.`,
+			]);
+		}
+		if (authResult.status === "cancelled") return session.cancelled();
 
-		const storedAuth = await verifyStoredAuth(api);
-
-		if (storedAuth.status === "valid") {
-			session.step("Authenticated as", highlight(storedAuth.email));
-			userToken = storedAuth.token;
-			userName = storedAuth.name;
-		} else {
-			const reauth = storedAuth.status === "expired";
-			if (reauth) {
-				session.warn("Stored credentials expired — signing in again.");
-			} else if (storedAuth.status === "gone") {
-				session.warn("Account not found — starting fresh setup.");
-			}
-			const authResult = await runAuthFlow(
-				api,
-				options,
-				session,
-				reauth,
-				identity?.repoCanonical,
-			);
-			if (!authResult) return session.cancelled();
-			userToken = authResult.token;
-			userName = authResult.name;
-
-			writeAuthData({
-				token: userToken,
-				userId: authResult.userId,
-				email: authResult.email,
-				name: userName,
-				createdAt: new Date().toISOString(),
-			});
+		if (authResult.source === "stored") {
+			session.step("Authenticated as", highlight(authResult.auth.email));
 		}
 
 		// ── 4. Organization selection ────────────────────────────────────────────
@@ -122,7 +359,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		const organizationResult = await selectOrganizationForInit({
 			api,
 			session,
-			userToken,
+			userToken: authResult.auth.token,
 			options,
 			suggestedName: repoOwner,
 		});
@@ -135,7 +372,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		const planCheck = await checkPlanLimits(
 			api,
 			session,
-			userToken,
+			authResult.auth.token,
 			selectedOrganizationId,
 			apiUrl,
 		);
@@ -145,7 +382,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		const projectResult = await runProjectCreate({
 			api,
 			session,
-			userToken,
+			userToken: authResult.auth.token,
 			organizationId: selectedOrganizationId,
 			defaultName: identity?.repoCanonical
 				? identity.repoCanonical.split("/").pop()

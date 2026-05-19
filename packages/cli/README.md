@@ -18,7 +18,7 @@ npx @vocoder/cli <command>
 
 ### `vocoder init`
 
-Authenticate with Vocoder, select a workspace, create or connect a project, optionally install SDK packages, write `VOCODER_API_KEY`, and create the GitHub Actions workflow.
+Set up or repair Vocoder for the current repo/app. `init` signs you in when needed, connects or repairs the local project setup, writes `VOCODER_API_KEY`, and manages the GitHub Actions workflow.
 
 ```bash
 vocoder init
@@ -26,13 +26,20 @@ vocoder init
 
 Typical flow:
 
-- Authenticate in the browser on first run
+- Sign in in the browser when needed
 - Select or create a workspace
 - Choose app directories for monorepos
 - Choose source language, target languages, and trigger branches
 - Optionally install `@vocoder/mcp`
 - Write `.github/workflows/vocoder-translate.yml`
 - Write `VOCODER_API_KEY` into `.env.local` or `.env`
+
+If the current repo/app is already configured, `vocoder init` switches into repair mode:
+
+- Reuses the existing Vocoder project
+- Verifies local `VOCODER_API_KEY`
+- Prompts to regenerate the key only when it is missing or rejected
+- Preserves existing workflow files and warns instead of overwriting them
 
 Files written at the repository root:
 
@@ -135,7 +142,7 @@ vocoder config
 
 ### `vocoder create-project`
 
-Create a project without running the interactive `init` flow. Requires prior authentication.
+Create a project without running the full `init` wizard. In interactive shells, the CLI signs you in automatically when needed.
 
 ```bash
 vocoder create-project \
@@ -166,40 +173,52 @@ Generate a new project API key for the current repository.
 vocoder regenerate-key
 ```
 
-### `vocoder whoami`
+### `vocoder auth login`
 
-Show the currently authenticated user.
+Sign in to your Vocoder account.
 
 ```bash
-vocoder whoami
+vocoder auth login
+vocoder auth login --ci
 ```
 
-### `vocoder logout`
+If you are already signed in, the command prints the current account and exits successfully.
+
+### `vocoder auth status`
+
+Show whether this machine is currently signed in to Vocoder.
+
+```bash
+vocoder auth status
+```
+
+### `vocoder auth logout`
 
 Revoke stored credentials and clear `~/.vocoder/auth.json`.
 
 ```bash
-vocoder logout
+vocoder auth logout
 ```
 
 ## Authentication
 
-`vocoder init` opens the browser only when authentication is needed. After that, credentials are stored in:
+Account authentication is stored separately from the project `VOCODER_API_KEY`.
+
+Use `vocoder auth login` to sign in. After that, credentials are stored in:
 
 ```text
 ~/.vocoder/auth.json
 ```
 
-Use `vocoder logout` to revoke and clear them.
+Use `vocoder auth logout` to revoke and clear them.
 
 ## Environment Variables
 
 | Variable | Used by | Purpose |
 |---|---|---|
 | `VOCODER_API_KEY` | `translate`, `pull`, `locales`, `config` | Project API key |
-| `VOCODER_AUTH_TOKEN` | `init` | Override the stored user token |
-| `VOCODER_ON_FAILURE` | `translate` | Override `onTranslationFailure` with `fail` or `proceed` |
 | `VOCODER_API_URL` | All commands | Override the API base URL |
+| `VOCODER_ON_FAILURE` | `translate` | Override `onTranslationFailure` with `fail` or `proceed` |
 
 ## License
 

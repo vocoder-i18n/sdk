@@ -69,13 +69,22 @@ export function clearAuthData(): void {
  * - "none"    — no token on disk
  */
 export type StoredAuthStatus =
-	| { status: "valid"; token: string; userId: string; email: string; name: string | null }
-	| { status: "expired" }
-	| { status: "gone" }
+	| {
+			status: "valid";
+			token: string;
+			userId: string;
+			email: string;
+			name: string | null;
+			createdAt: string;
+	  }
+	| { status: "expired"; stored: AuthData }
+	| { status: "gone"; stored: AuthData }
+	| { status: "unreachable"; stored: AuthData; message: string }
 	| { status: "none" };
 
 /**
- * Verify the stored CLI auth token. Clears the token on failure.
+ * Verify the stored CLI auth token. Clears it only when the server confirms it
+ * is invalid or the account no longer exists.
  * Shared by the CLI (`commands/init.ts`) and the MCP (`tools/project-init.ts`)
  * so reauth detection stays in sync.
  */
@@ -87,13 +96,28 @@ export async function verifyStoredAuth(
 
 	try {
 		const userInfo = await api.getCliUserInfo(stored.token);
-		return { status: "valid", token: stored.token, ...userInfo };
+		return {
+			status: "valid",
+			token: stored.token,
+			createdAt: stored.createdAt,
+			...userInfo,
+		};
 	} catch (err) {
-		clearAuthData();
-		// 404 = user record deleted — treat as first-time, not reauth
-		if (err instanceof VocoderAPIError && err.status === 404) {
-			return { status: "gone" };
+		if (err instanceof VocoderAPIError) {
+			if (err.status === 401 || err.status === 403) {
+				clearAuthData();
+				return { status: "expired", stored };
+			}
+			if (err.status === 404) {
+				clearAuthData();
+				return { status: "gone", stored };
+			}
+			return { status: "unreachable", stored, message: err.message };
 		}
-		return { status: "expired" };
+		return {
+			status: "unreachable",
+			stored,
+			message: err instanceof Error ? err.message : "Could not verify stored credentials.",
+		};
 	}
 }

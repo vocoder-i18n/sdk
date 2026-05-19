@@ -19,7 +19,7 @@
 
 import * as p from "@clack/prompts";
 
-import type { InitOptions } from "../types.js";
+import type { AccountAuthOptions } from "../types.js";
 import type { VocoderAPI } from "./api.js";
 import { CommandSession, formatLabelValue } from "./command-session.js";
 import { highlight } from "./theme.js";
@@ -46,7 +46,7 @@ export interface AuthFlowResult {
  */
 export async function runAuthFlow(
 	api: VocoderAPI,
-	options: InitOptions,
+	options: AccountAuthOptions,
 	commandSession: CommandSession,
 	reauth = false,
 	repoCanonical?: string,

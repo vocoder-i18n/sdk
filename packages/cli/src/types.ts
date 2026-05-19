@@ -121,14 +121,17 @@ export interface SyncPolicyConfig {
 	defaultMaxWaitMs: number;
 }
 
-export interface InitOptions {
+export interface AccountAuthOptions {
 	apiUrl?: string;
 	yes?: boolean;
 	ci?: boolean;
+	verbose?: boolean;
+}
+
+export interface InitOptions extends AccountAuthOptions {
 	appName?: string;
 	sourceLocale?: string;
 	targetLocales?: string;
-	verbose?: boolean;
 }
 
 // Local configuration (from env vars)
@@ -224,4 +227,3 @@ export interface SyncPolicyErrorResponse {
 	boundRepoLabel?: string | null;
 	boundScopePath?: string | null;
 }
-

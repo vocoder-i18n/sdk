@@ -463,10 +463,10 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 
 		if (error instanceof VocoderAPIError) {
 			const guidance =
-				error.status === 401
+				error.status === 401 || error.status === 403
 					? [
 							"API key rejected — the project may have been deleted or the key revoked.",
-							"Run vocoder init to create a new project and key.",
+							"Run vocoder init or vocoder regenerate-key.",
 						]
 					: [];
 			if (activeStep) {

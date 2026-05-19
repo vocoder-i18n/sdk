@@ -155,7 +155,6 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	const [translations, setTranslations] = useState<TranslationsMap>(() => {
 		let initial: TranslationsMap;
 
-		debugger;
 		if (hydrationData?.translations && hydrationData?.locale) {
 			initial = { [hydrationData.locale]: hydrationData.translations };
 		} else if (manifest && manifestLocales) {
@@ -385,7 +384,6 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 
 	const setLocale = useCallback(
 		async (newLocale: string) => {
-			debugger;
 			const best = getBestMatchingLocale(
 				newLocale,
 				availableLocales,

@@ -2,6 +2,9 @@
 
 import { Command } from "commander";
 import packageJson from "../package.json";
+import { authLogin } from "./commands/auth-login.js";
+import { authLogout } from "./commands/auth-logout.js";
+import { authStatus } from "./commands/auth-status.js";
 import { init } from "./commands/init.js";
 import {
 	addLocales,
@@ -9,13 +12,11 @@ import {
 	listSupportedLocales,
 	removeLocales,
 } from "./commands/locales.js";
-import { logout } from "./commands/logout.js";
 import { config } from "./commands/config.js";
 import { translate } from "./commands/translate.js";
 import { pull } from "./commands/pull.js";
 import { createProject } from "./commands/create-project.js";
 import { regenerateKey } from "./commands/regenerate-key.js";
-import { whoami } from "./commands/whoami.js";
 
 async function runCommand<TOptions>(
 	command: (options: TOptions) => Promise<number>,
@@ -59,17 +60,33 @@ program
 	)
 	.action((options) => runCommand(translate, options));
 
-program
+const authCmd = program
+	.command("auth")
+	.description("Manage Vocoder account authentication");
+
+authCmd
+	.command("login")
+	.description("Sign in to your Vocoder account")
+	.option("--api-url <url>", "Override Vocoder API URL")
+	.option("--yes", "Skip the browser-open confirmation")
+	.option(
+		"--ci",
+		"Non-interactive mode: print auth URL to stdout, skip browser open",
+	)
+	.option("--verbose", "Log each API request URL and response status")
+	.action((options) => runCommand(authLogin, options));
+
+authCmd
+	.command("status")
+	.description("Show the current account authentication status")
+	.option("--api-url <url>", "Override Vocoder API URL")
+	.action((options) => runCommand(authStatus, options));
+
+authCmd
 	.command("logout")
 	.description("Log out and remove stored credentials")
 	.option("--api-url <url>", "Override Vocoder API URL")
-	.action((options) => runCommand(logout, options));
-
-program
-	.command("whoami")
-	.description("Show the currently authenticated user")
-	.option("--api-url <url>", "Override Vocoder API URL")
-	.action((options) => runCommand(whoami, options));
+	.action((options) => runCommand(authLogout, options));
 
 // ── App management ────────────────────────────────────────────────────────────
 
@@ -123,7 +140,7 @@ program
 
 program
 	.command("create-project")
-	.description("Create a new Vocoder project without the interactive init flow (requires prior `vocoder init`)")
+	.description("Create a new Vocoder project without running the full init wizard")
 	.requiredOption("--name <name>", "Project display name")
 	.requiredOption("--source-locale <code>", "Source language BCP 47 code (e.g. en)")
 	.requiredOption("--organization <org-id>", "Organization ID")

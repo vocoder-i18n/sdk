@@ -85,9 +85,15 @@ export async function pull(options: PullOptions = {}): Promise<number> {
 		return session.end("Up to date.");
 	} catch (error) {
 		if (error instanceof VocoderAPIError) {
-			step.fail(error.message, error.status === 401 ? [
-				"Run vocoder init to re-authenticate.",
-			] : []);
+			step.fail(
+				error.message,
+				error.status === 401 || error.status === 403
+					? [
+							"Project API key rejected — refresh VOCODER_API_KEY for this repo.",
+							"Run vocoder init or vocoder regenerate-key.",
+						]
+					: [],
+			);
 			return session.endFailure();
 		}
 		step.fail(

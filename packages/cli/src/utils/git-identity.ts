@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { relative } from "node:path";
 
 export type GitRepositoryIdentity = {
 	repoCanonical: string;
@@ -142,6 +143,11 @@ export function resolveGitRepositoryIdentity(): GitRepositoryIdentity | null {
  */
 export function resolveGitRoot(): string | null {
 	return safeExec("git rev-parse --show-toplevel");
+}
+
+export function resolveCurrentAppDir(repoRoot: string, cwd = process.cwd()): string {
+	const appDir = relative(repoRoot, cwd).replace(/\\/g, "/").replace(/^\.\/|\/$/g, "");
+	return appDir === "." ? "" : appDir;
 }
 
 export function resolveGitContext(): GitContext {

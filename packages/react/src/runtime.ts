@@ -73,7 +73,6 @@ export function getLocales(): LocalesMap {
  * @vocoder/plugin replaces at build time with a static switch over the project's locale files. */
 export async function loadLocale(locale: string): Promise<Record<string, string>> {
 	try {
-		debugger;
 		// @ts-ignore — resolved by @vocoder/plugin at build time; stub returns {} without plugin
 		const { loadLocale: load } = await import("@vocoder/react/locale-loader");
 		return await load(locale);
@@ -84,7 +83,6 @@ export async function loadLocale(locale: string): Promise<Record<string, string>
 
 /** Synchronous locale lookup for SSR. Reads from process.cwd()/locales/ via fs. */
 export function loadLocaleSync(locale: string): Record<string, string> | null {
-	debugger;
 	if (typeof window !== "undefined") return null;
 	try {
 		// eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -42,7 +42,7 @@ describe("CommandSession", () => {
 
 		expect(mockIntro).toHaveBeenCalled();
 		expect(mockLog.success).toHaveBeenCalledWith("Workspace: acme");
-		expect(mockOutro).toHaveBeenCalledWith("");
+		expect(mockOutro).toHaveBeenCalledWith("Done.");
 	});
 
 	it("adds an ellipsis to spinner start messages and strips it on stop", () => {
@@ -65,7 +65,14 @@ describe("CommandSession", () => {
 		expect(mockLog.info).toHaveBeenCalledWith(
 			"Run vocoder translate to generate them first.",
 		);
-		expect(mockOutro).toHaveBeenCalledWith("");
+		expect(mockOutro).toHaveBeenCalledWith("Failed.");
+	});
+
+	it("uses a visible default outro for cancellations", () => {
+		const session = new CommandSession("Vocoder Test");
+		session.cancelled();
+
+		expect(mockOutro).toHaveBeenCalledWith("Cancelled.");
 	});
 
 	it("renders section headers with a trailing colon", () => {
