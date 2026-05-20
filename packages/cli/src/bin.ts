@@ -14,6 +14,7 @@ import {
 } from "./commands/locales.js";
 import { config } from "./commands/config.js";
 import { translate } from "./commands/translate.js";
+import { clean } from "./commands/clean.js";
 import { pull } from "./commands/pull.js";
 import { createProject } from "./commands/create-project.js";
 import { regenerateKey } from "./commands/regenerate-key.js";
@@ -137,6 +138,17 @@ program
 	.option("--api-url <url>", "Override Vocoder API URL")
 	.option("--branch <branch>", "Branch to pull locale files for (auto-detected if omitted)")
 	.action((options) => runCommand(pull, options));
+
+program
+	.command("clean")
+	.description("Remove locale files not in the current target locales")
+	.option(
+		"--app-dirs <dirs>",
+		"Comma-separated app directories for monorepos (e.g. apps/web,apps/admin). Omit for single-app repos.",
+	)
+	.option("--yes", "Skip the confirmation prompt and delete without asking")
+	.option("--api-url <url>", "Override Vocoder API URL")
+	.action((options) => runCommand(clean, options));
 
 program
 	.command("create-project")

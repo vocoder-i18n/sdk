@@ -25,7 +25,8 @@ import {
 	formatLabelValue,
 	joinHighlighted,
 } from "../utils/command-session.js";
-import { existsSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { writeLocaleFileTree } from "./pull.js";
 import { extractProjectShortIdFromApiKey } from "@vocoder/core";
 import { highlight } from "../utils/theme.js";
@@ -120,6 +121,46 @@ function writeTranslateResult(jobId: string, apps: TranslateResultApp[]): void {
 	} catch {
 		// Non-fatal — commit step skips if file is absent
 	}
+}
+
+function warnOrphanedLocaleFiles(
+	session: CommandSession,
+	apps: TranslationOutputApp[],
+	rootDir: string,
+): void {
+	const writtenPaths = new Set<string>();
+	const localeDirs = new Set<string>();
+
+	for (const app of apps) {
+		if (!app.localeFileTree) continue;
+		for (const relativePath of Object.keys(app.localeFileTree)) {
+			writtenPaths.add(join(rootDir, relativePath));
+			localeDirs.add(join(rootDir, dirname(relativePath)));
+		}
+	}
+
+	if (localeDirs.size === 0) return;
+
+	const orphaned: string[] = [];
+	for (const dir of localeDirs) {
+		if (!existsSync(dir)) continue;
+		for (const file of readdirSync(dir)) {
+			if (!file.endsWith(".json")) continue;
+			if (!writtenPaths.has(join(dir, file))) {
+				orphaned.push(file);
+			}
+		}
+	}
+
+	if (orphaned.length === 0) return;
+
+	const count = orphaned.length;
+	session.warn(
+		`${highlight(String(count))} locale file${count === 1 ? "" : "s"} not in target locales: ${orphaned.join(", ")}`,
+	);
+	session.message(
+		`Run ${highlight("vocoder clean")} to remove ${count === 1 ? "it" : "them"}.`,
+	);
 }
 
 function renderWrittenLocaleFiles(
@@ -374,6 +415,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 				})),
 			);
 			renderWrittenLocaleFiles(session, submitResult.apps, gitRoot);
+			warnOrphanedLocaleFiles(session, submitResult.apps, gitRoot);
 			return session.end("Up to date.");
 		}
 
@@ -431,6 +473,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 				})),
 			);
 			renderWrittenLocaleFiles(session, finalStatus.apps, gitRoot);
+			warnOrphanedLocaleFiles(session, finalStatus.apps, gitRoot);
 			return session.end("Up to date.");
 		}
 

@@ -78,6 +78,26 @@ Options:
 | `--api-url <url>` | Override the Vocoder API URL |
 | `--app-dirs <dirs>` | Comma-separated app directories for monorepos |
 
+### `vocoder clean`
+
+Remove locale files in your project that are no longer in the configured target locales. Non-destructive by default — shows what would be deleted and prompts for confirmation.
+
+```bash
+vocoder clean
+vocoder clean --yes
+vocoder clean --app-dirs apps/web,apps/admin
+```
+
+Reads `VOCODER_API_KEY` from the environment or local env files.
+
+Options:
+
+| Flag | Description |
+|---|---|
+| `--yes` | Skip the confirmation prompt and delete immediately |
+| `--app-dirs <dirs>` | Comma-separated app directories for monorepos |
+| `--api-url <url>` | Override the Vocoder API URL |
+
 ### `vocoder pull`
 
 Fetch the latest compiled locale files for a branch and write them into your project.

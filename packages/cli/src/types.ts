@@ -5,6 +5,15 @@ export interface LocaleInfo {
 
 export type LocalesMap = Record<string, LocaleInfo>;
 
+export interface CleanOptions {
+	/** Comma-separated app directories for monorepos. Omit for single-app repos. */
+	appDirs?: string;
+	/** Skip the confirmation prompt and delete without asking. */
+	yes?: boolean;
+	/** Override Vocoder API URL. */
+	apiUrl?: string;
+}
+
 export interface PullOptions {
 	/**
 	 * Comma-separated app directories for monorepos (e.g. "apps/web,apps/admin").
