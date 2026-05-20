@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import { loadEnvFile } from "./env";
 import { unplugin } from "./index";
 import type { VocoderPluginOptions } from "./types";
@@ -6,8 +5,7 @@ import type { VocoderPluginOptions } from "./types";
 export type { VocoderPluginOptions };
 
 /**
- * Wrap a Next.js config to inject the Vocoder webpack plugin and resolve alias.
- * Also configures the Turbopack alias for Next.js 15+ dev mode.
+ * Wrap a Next.js config to inject the Vocoder webpack plugin.
  *
  * Usage:
  * ```ts
@@ -21,27 +19,10 @@ export function withVocoder(
 ): Record<string, unknown> {
 	loadEnvFile();
 
-	const localesDir = pluginOptions.localesDir ?? "locales";
-	const localesAbsPath = resolve(process.cwd(), localesDir);
-
 	const vocoderPlugin = unplugin.webpack(pluginOptions);
-
-	// Merge Turbopack resolveAlias without clobbering existing config.
-	// Next.js 15.2+ moved turbopack config from experimental.turbopack to top-level turbopack.
-	const existingTurbopack =
-		(nextConfig.turbopack as Record<string, unknown> | undefined) ?? {};
-	const existingResolveAlias =
-		(existingTurbopack.resolveAlias as Record<string, string> | undefined) ?? {};
 
 	return {
 		...nextConfig,
-		turbopack: {
-			...existingTurbopack,
-			resolveAlias: {
-				...existingResolveAlias,
-				"@vocoder/locales": localesAbsPath,
-			},
-		},
 		webpack(
 			config: Record<string, unknown>,
 			webpackOptions: Record<string, unknown>,
@@ -49,14 +30,6 @@ export function withVocoder(
 			const plugins = (config.plugins ?? []) as unknown[];
 			plugins.push(vocoderPlugin);
 			config.plugins = plugins;
-
-			// Add @vocoder/locales alias
-			const resolveConfig = (config.resolve ?? {}) as Record<string, unknown>;
-			resolveConfig.alias = {
-				...(resolveConfig.alias as Record<string, string | string[]> | undefined),
-				"@vocoder/locales": localesAbsPath,
-			};
-			config.resolve = resolveConfig;
 
 			const userWebpack = nextConfig.webpack as
 				| ((

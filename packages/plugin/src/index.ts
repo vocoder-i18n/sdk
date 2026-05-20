@@ -7,9 +7,11 @@ import { transformMsgProps } from "@vocoder/extractor";
 
 export type { VocoderPluginOptions };
 
-// The subpath export stub that the plugin overrides with a generated virtual module.
+// Subpath export stubs that the plugin overrides with generated virtual modules.
 const VIRTUAL_LOCALE_LOADER = "@vocoder/react/locale-loader";
 const RESOLVED_LOCALE_LOADER = "\0vocoder-locale-loader";
+const VIRTUAL_MANIFEST_LOADER = "@vocoder/react/manifest-loader";
+const RESOLVED_MANIFEST_LOADER = "\0vocoder-manifest-loader";
 
 export const unplugin = createUnplugin(
 	(options: VocoderPluginOptions = {}) => {
@@ -37,7 +39,6 @@ export const unplugin = createUnplugin(
 
 		function getDefineValues(): Record<string, string> {
 			return {
-				__VOCODER_MANIFEST__: JSON.stringify(manifest ?? null),
 				__VOCODER_PREVIEW__: JSON.stringify(options.preview ?? false),
 			};
 		}
@@ -76,12 +77,21 @@ export const unplugin = createUnplugin(
 
 			resolveId(id: string) {
 				if (id === VIRTUAL_LOCALE_LOADER) return RESOLVED_LOCALE_LOADER;
+				if (id === VIRTUAL_MANIFEST_LOADER) return RESOLVED_MANIFEST_LOADER;
 				return null;
 			},
 
+			// Restricts unplugin's webpack load rule to only the virtual modules.
+			// Without this, unplugin sets type:"javascript/auto" on every file (including
+			// locale JSON), making webpack reject valid JSON as malformed JavaScript.
+			loadInclude(id: string) {
+				return id === RESOLVED_LOCALE_LOADER || id === RESOLVED_MANIFEST_LOADER;
+			},
+
 			load(id: string) {
-				if (id !== RESOLVED_LOCALE_LOADER) return null;
-				return generateLocaleLoader();
+				if (id === RESOLVED_LOCALE_LOADER) return generateLocaleLoader();
+				if (id === RESOLVED_MANIFEST_LOADER) return `export default ${JSON.stringify(manifest ?? null)};`;
+				return null;
 			},
 
 			transformInclude(id: string) {
@@ -103,13 +113,15 @@ export const unplugin = createUnplugin(
 					loadManifest();
 					return {
 						define: getDefineValues(),
-						// Exclude only the locale-loader subpath from pre-bundling so esbuild
-						// leaves the bare specifier in the @vocoder/react pre-bundled chunk.
-						// Vite rewrites it at serve time through the module pipeline, where
-						// resolveId/load fire and return the generated locale switch.
-						// @vocoder/react itself stays pre-bundled and optimized.
+						// Exclude virtual subpath modules from pre-bundling so esbuild
+						// leaves the bare specifiers in @vocoder/react's pre-bundled chunk.
+						// Vite rewrites them at serve time through the module pipeline,
+						// where resolveId/load fire and return the generated modules.
 						optimizeDeps: {
-							exclude: ["@vocoder/react/locale-loader"],
+							exclude: [
+								"@vocoder/react/locale-loader",
+								"@vocoder/react/manifest-loader",
+							],
 						},
 					};
 				},

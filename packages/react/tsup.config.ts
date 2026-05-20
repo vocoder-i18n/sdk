@@ -6,8 +6,7 @@ const external = [
 	"react-dom",
 	"@vocoder/core",
 	"@vocoder/react/locale-loader",
-	/^virtual:/,
-	/^@vocoder\/locales/,
+	"@vocoder/react/manifest-loader",
 ];
 
 export default defineConfig([
@@ -32,9 +31,12 @@ export default defineConfig([
 			options.banner = { js: "'use client';" };
 		},
 	},
-	// Server entry — no hooks, safe to run in RSC. No 'use client' banner.
+	// Neutral entries — no React, no 'use client', safe to import from both server and client.
 	{
-		entry: { server: "src/server.ts" },
+		entry: {
+			server: "src/server.ts",
+			"manifest-loader": "src/manifest-loader.ts",
+		},
 		format: ["esm", "cjs"] as const,
 		dts: true,
 		clean: false,

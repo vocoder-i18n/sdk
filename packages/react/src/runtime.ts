@@ -1,27 +1,27 @@
 /**
  * Runtime translation loading.
  *
- * @vocoder/plugin injects __VOCODER_MANIFEST__ at build time — a LocaleManifest
- * JSON object containing locale configuration and metadata. The manifest is read
- * synchronously at module init so config is available before any React component renders.
+ * @vocoder/plugin intercepts two virtual module imports at build time:
  *
- * Locale files are loaded lazily via the @vocoder/locales alias, which the plugin
- * resolves to the project's committed locales/ directory. Each locale is a separate
- * async chunk — only the active locale is loaded.
+ * - @vocoder/react/manifest-loader — returns locales/manifest.json as a module
+ *   default export. Read once synchronously at module init so locale config is
+ *   available before any React component renders.
+ *
+ * - @vocoder/react/locale-loader — returns a generated switch statement that
+ *   lazy-loads per-locale JSON files as separate code-split chunks. Only the
+ *   active locale is fetched, on demand when the user switches locale.
  *
  * SSR: loadLocaleSync reads locale files directly from disk via fs.readFileSync,
  * anchored to process.cwd()/locales/. This runs server-side only.
  *
- * If the plugin is not installed, all translations are empty and source text is rendered.
- * Non-plugin users can pass manifest + loadLocale props to VocoderProvider directly.
+ * Without the plugin, both stubs return empty values and source text is rendered.
  */
 
 import type { LocaleManifest, LocalesMap } from "./types";
 
 import { manifestToLocalesMap } from "@vocoder/core";
-
-// Injected by @vocoder/plugin at build time via DefinePlugin / Vite define
-declare const __VOCODER_MANIFEST__: LocaleManifest | null | undefined;
+// @ts-ignore — resolved by @vocoder/plugin at build time; stub returns null without plugin
+import _injectedManifest from "@vocoder/react/manifest-loader";
 
 interface VocoderConfig {
 	sourceLocale: string;
@@ -35,17 +35,10 @@ const emptyConfig: VocoderConfig = {
 	locales: {},
 };
 
-let _manifest: LocaleManifest | null = null;
-
-try {
-	const injected =
-		typeof __VOCODER_MANIFEST__ !== "undefined" ? __VOCODER_MANIFEST__ : null;
-	if (injected?.sourceLocale) {
-		_manifest = injected;
-	}
-} catch {
-	// Plugin not installed or manifest unavailable
-}
+const _manifest: LocaleManifest | null =
+	(_injectedManifest as LocaleManifest | null)?.sourceLocale
+		? (_injectedManifest as LocaleManifest)
+		: null;
 
 // Re-export so VocoderProvider can call it; resolves immediately (no async work needed)
 export async function initializeVocoder(): Promise<void> {
