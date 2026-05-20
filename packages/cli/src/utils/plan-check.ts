@@ -34,7 +34,7 @@ export function isPlanLimitFailure(message?: string): boolean {
 /** Logs a plan limit error and the subscription settings URL for upgrading. */
 export function printPlanLimitMessage(apiUrl: string, message: string): void {
 	p.log.error(`You are over your plan limits.\n   ${message}`);
-	p.log.info(`Manage subscription: ${getSubscriptionSettingsUrl(apiUrl)}`);
+	p.log.message(`Manage subscription: ${getSubscriptionSettingsUrl(apiUrl)}`);
 }
 
 export interface PlanCheckResult {
@@ -71,7 +71,7 @@ export async function checkPlanLimits(
 				session.warn(
 					`App limit reached for the ${highlight(organization.planId)} plan.`,
 				);
-				session.info(
+				session.message(
 					formatLabelValue(
 						"Apps",
 						`${highlight(String(organization.appCount))} / ${highlight(String(organization.maxApps))}`,
@@ -92,7 +92,7 @@ export async function checkPlanLimits(
 				}
 
 				await tryOpenBrowser(getSubscriptionSettingsUrl(apiUrl));
-				session.info("Upgrade your plan in the browser, then run vocoder init again.");
+				session.message("Upgrade your plan in the browser, then run vocoder init again.");
 				return { atLimit: true };
 			}
 

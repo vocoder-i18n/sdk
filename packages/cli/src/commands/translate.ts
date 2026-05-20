@@ -197,7 +197,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 
 		if (!isTargetBranch(branch, effectiveTargetBranches)) {
 			session.warn(`Skipping translations for ${highlight(branch)}.`);
-			session.step("Target branches", joinHighlighted(effectiveTargetBranches), "info");
+			session.step("Target branches", joinHighlighted(effectiveTargetBranches));
 			return session.end();
 		}
 
@@ -306,13 +306,12 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		if (options.dryRun) {
 			const showRootLabel = appExtractions.length > 1;
 			session.section("Dry run");
-			session.step("Branch", highlight(branch), "info");
-			session.step("Target locales", joinHighlighted(apiConfig.targetLocales), "info");
+			session.step("Branch", highlight(branch));
+			session.step("Target locales", joinHighlighted(apiConfig.targetLocales));
 			for (const extraction of appExtractions) {
 				session.step(
 					displayAppDir(extraction.appDir, { showRootLabel }) || "App",
 					`${highlight(String(extraction.sourceEntriesCount))} string${extraction.sourceEntriesCount === 1 ? "" : "s"}, fingerprint ${highlight(extraction.fingerprint)}`,
-					"info",
 				);
 			}
 			return session.end("No API calls made.");

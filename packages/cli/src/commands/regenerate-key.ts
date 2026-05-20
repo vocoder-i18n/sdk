@@ -73,7 +73,7 @@ export async function regenerateKey(options: RegenerateKeyOptions = {}): Promise
 		]);
 	}
 	if (authResult.status === "unreachable") {
-		session.step("Account", highlight(authResult.stored.email), "info");
+		session.info(formatLabelValue("Account", highlight(authResult.stored.email)));
 		return session.fail("Could not verify stored credentials.", [
 			authResult.message,
 			`Run ${highlight("vocoder auth status")} once your connection is back.`,

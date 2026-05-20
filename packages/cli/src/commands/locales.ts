@@ -112,7 +112,7 @@ export async function addLocales(
 	}
 
 	if (lastTargetLocales.length > 0) {
-		session.step("Target locales", joinHighlighted(lastTargetLocales), "info");
+		session.step("Target locales", joinHighlighted(lastTargetLocales));
 	}
 
 	return session.end();
@@ -161,9 +161,9 @@ export async function removeLocales(
 	}
 
 	if (lastTargetLocales.length > 0) {
-		session.step("Target locales", joinHighlighted(lastTargetLocales), "info");
+		session.step("Target locales", joinHighlighted(lastTargetLocales));
 	} else {
-		session.step("Target locales", "(none configured)", "info");
+		session.step("Target locales", "(none configured)");
 	}
 
 	return session.end();

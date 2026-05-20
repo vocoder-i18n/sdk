@@ -11,7 +11,7 @@ vi.mock("@clack/prompts", () => ({
 	log: {
 		warn: vi.fn(),
 		error: vi.fn(),
-		info: vi.fn(),
+		message: vi.fn(),
 	},
 	select: vi.fn(),
 	cancel: vi.fn(),
@@ -32,7 +32,7 @@ function makeApi(organizations: object[]) {
 function makeSession() {
 	return {
 		warn: vi.fn(),
-		info: vi.fn(),
+		message: vi.fn(),
 	} as any;
 }
 
@@ -96,7 +96,7 @@ describe("printPlanLimitMessage", () => {
 		expect(p.log.error).toHaveBeenCalledWith(
 			expect.stringContaining("App limit reached"),
 		);
-		expect(p.log.info).toHaveBeenCalledWith(
+		expect(p.log.message).toHaveBeenCalledWith(
 			expect.stringContaining("https://vocoder.app/dashboard/workspace/settings"),
 		);
 	});
@@ -139,7 +139,7 @@ describe("checkPlanLimits", () => {
 		const session = makeSession();
 		const result = await checkPlanLimits(api, session, "token", "org-1", "https://vocoder.app");
 		expect(result).toEqual({ atLimit: true });
-		expect(session.info).toHaveBeenCalled();
+		expect(session.message).toHaveBeenCalled();
 	});
 
 	it("warns and returns atLimit=false when API throws", async () => {

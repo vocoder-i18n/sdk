@@ -83,8 +83,8 @@ describe("authLogin", () => {
 		const code = await authLogin();
 
 		expect(code).toBe(0);
-		expect(mockLog.info).toHaveBeenCalledWith("Signed in: Yes");
-		expect(mockLog.info).toHaveBeenCalledWith("Account: user@example.com");
+		expect(mockLog.success).toHaveBeenCalledWith("Signed in: Yes");
+		expect(mockLog.success).toHaveBeenCalledWith("Account: user@example.com");
 		expect(mockOutro).toHaveBeenCalled();
 	});
 });
@@ -103,8 +103,8 @@ describe("authStatus", () => {
 		const code = await authStatus();
 
 		expect(code).toBe(0);
-		expect(mockLog.info).toHaveBeenCalledWith("Signed in: Yes");
-		expect(mockLog.info).toHaveBeenCalledWith("Account: user@example.com");
+		expect(mockLog.success).toHaveBeenCalledWith("Signed in: Yes");
+		expect(mockLog.success).toHaveBeenCalledWith("Account: user@example.com");
 	});
 
 	it("returns 1 and warns when stored auth cannot be verified", async () => {
@@ -123,10 +123,11 @@ describe("authStatus", () => {
 		const code = await authStatus();
 
 		expect(code).toBe(1);
-		expect(mockLog.info).toHaveBeenCalledWith("Signed in: Yes");
+		expect(mockLog.success).toHaveBeenCalledWith("Signed in: Yes");
 		expect(mockLog.warn).toHaveBeenCalledWith(
 			"Could not verify the stored account with the server.",
 		);
+		expect(mockLog.message).toHaveBeenCalledWith("Server error");
 	});
 });
 
@@ -137,7 +138,7 @@ describe("authLogout", () => {
 		const code = await authLogout();
 
 		expect(code).toBe(0);
-		expect(mockLog.info).toHaveBeenCalledWith("Signed in: No");
+		expect(mockLog.success).toHaveBeenCalledWith("Signed in: No");
 	});
 
 	it("clears local auth even if revoke fails", async () => {

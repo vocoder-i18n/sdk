@@ -62,7 +62,7 @@ describe("CommandSession", () => {
 		session.endFailure();
 
 		expect(mockSpinner.stop).toHaveBeenCalledWith("No locale files found", 1);
-		expect(mockLog.info).toHaveBeenCalledWith(
+		expect(mockLog.message).toHaveBeenCalledWith(
 			"Run vocoder translate to generate them first.",
 		);
 		expect(mockOutro).toHaveBeenCalledWith("Failed.");

@@ -2,6 +2,7 @@ import { checkPlanLimits, isPlanLimitFailure, printPlanLimitMessage } from "../u
 import {
 	CommandSession,
 	displayAppDir,
+	formatLabelValue,
 	joinHighlighted,
 } from "../utils/command-session.js";
 import { promptConfirm } from "../utils/prompt-select.js";
@@ -229,7 +230,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 					]);
 				}
 				if (authResult.status === "unreachable") {
-					session.step("Account", highlight(authResult.stored.email), "info");
+					session.info(formatLabelValue("Account", highlight(authResult.stored.email)));
 					return session.fail("Could not verify stored credentials.", [
 						authResult.message,
 						`Run ${highlight("vocoder auth status")} once your connection is back.`,
@@ -315,10 +316,9 @@ export async function init(options: InitOptions = {}): Promise<number> {
 							displayAppDir(app.appDir, { showRootLabel: true }) || "(root)",
 						),
 					),
-					"info",
 				);
 				if (currentAppDir) {
-					session.step("Current directory", highlight(currentAppDir), "info");
+					session.step("Current directory", highlight(currentAppDir));
 				}
 				return session.fail("This directory is not configured as a Vocoder app.", [
 					"Run vocoder init from one of the known app directories.",
@@ -341,7 +341,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 			]);
 		}
 		if (authResult.status === "unreachable") {
-			session.step("Account", highlight(authResult.stored.email), "info");
+			session.info(formatLabelValue("Account", highlight(authResult.stored.email)));
 			return session.fail("Could not verify stored credentials.", [
 				authResult.message,
 				`Run ${highlight("vocoder auth status")} once your connection is back.`,

@@ -103,10 +103,11 @@ All CLI command output must follow these conventions. Apply them without prompti
 | `p.log.success(msg)` | ✓ green | Primary completed step or result line. Prefer simple output such as `Label: value` or a short completed sentence. |
 | `p.log.warn(msg)` | ▲ yellow | Non-fatal condition — operation continues. What happened and why it matters. |
 | `p.log.error(msg)` | ✗ red | Fatal condition — `return 1` follows within a few lines. Never used for warnings. |
-| `p.log.info(msg)` | ℹ dim | Supplementary detail only: list items, recovery steps after an error, `""` for blank spacing. Never the primary message. |
-| `p.log.message(msg)` | (none) | Undecorated text: `chalk.bold("Section:")` headers, numbered/bulleted lists. |
+| `p.log.message(msg)` | (none) | Undecorated supporting text only: section headers, numbered/bulleted lists, recovery steps after an error, one-line guidance, blank spacing. |
 
 **Rule:** never use `p.note()`.
+
+**Rule:** never use `p.log.info()` in `packages/cli`. There is no blue-dot state in the CLI. Supplementary text is plain `p.log.message()`.
 
 **Rule:** when working in `packages/cli`, use the shared `CommandSession` helper instead of calling `@clack/prompts` primitives ad hoc from top-level commands.
 
@@ -124,7 +125,7 @@ All CLI command output must follow these conventions. Apply them without prompti
 
 **Rule:** never call `chalk.bold()` inside `p.log.success/warn/error/info()` — use `highlight()` instead.
 
-**Rule:** prefer `Label: value` rows for summaries and steady-state output. Keep labels plain text and highlight only the dynamic values that users need to scan.
+**Rule:** prefer `Label: value` rows for summaries and steady-state output. These render as green primary rows through `CommandSession.step()`. Keep labels plain text and highlight only the dynamic values that users need to scan.
 
 ### Spinners
 
@@ -137,7 +138,7 @@ All CLI command output must follow these conventions. Apply them without prompti
 
 - Every top-level command must start through `CommandSession("Command Title")`
 - Every exit path must call `p.outro()` immediately before returning — no silent returns
-- `p.outro("")` — clean exit requiring no message
+- `p.outro("Done.")` — clean exit default
 - `p.outro(chalk.red("Fatal: reason"))` — fatal build-blocking exit that must stand out
 - `p.cancel("message")` — user-initiated cancellation only
 
@@ -146,24 +147,24 @@ All CLI command output must follow these conventions. Apply them without prompti
 ```ts
 // Fatal — no spinner running
 p.log.error("What failed.");
-p.log.info("  Run `vocoder command` to recover.");
-p.outro("");
+p.log.message("Run `vocoder command` to recover.");
+p.outro("Failed.");
 return 1;
 
 // Fatal — spinner was running
 spinner.stop("Terse failure noun", 1);
-for (const line of getGuidanceLines()) p.log.info(line);
-p.outro("");
+for (const line of getGuidanceLines()) p.log.message(line);
+p.outro("Failed.");
 return 1;
 
 // Limit error (structured guidance)
 spinner.stop(limitError.message, 1);
-for (const line of getLimitErrorGuidance(limitError)) p.log.info(line);
-p.outro("");
+for (const line of getLimitErrorGuidance(limitError)) p.log.message(line);
+p.outro("Failed.");
 return 1;
 ```
 
-Guidance / recovery lines always use `p.log.info()`. Never `p.log.warn()` after a fatal signal.
+Guidance / recovery lines always use plain `p.log.message()`. Never `p.log.warn()` after a fatal signal.
 
 ### Information Density
 
@@ -174,14 +175,14 @@ One concept, one line. Never state the same fact in multiple places.
 **Combine related quantities on one line:**
 ```ts
 // ✗ — two info lines for one comparison
-p.log.info(`Used this month: ${current.toLocaleString()} chars`);
-p.log.info(`Required for this sync: ${required.toLocaleString()} chars`);
+p.log.message(`Used this month: ${current.toLocaleString()} chars`);
+p.log.message(`Required for this sync: ${required.toLocaleString()} chars`);
 
 // ✓ — one line, same information
-p.log.info(`Used: ${current.toLocaleString()} / Needed: ${required.toLocaleString()} chars`);
+p.log.message(`Used: ${current.toLocaleString()} / Needed: ${required.toLocaleString()} chars`);
 ```
 
-**Guidance cap:** maximum 2 `p.log.info()` lines after any single error.
+**Guidance cap:** maximum 2 plain guidance lines after any single error.
 
 **Outro scope:** `p.outro()` is forward-looking ("what to do next") or empty. Never use it to repeat an error reason or recovery command already shown by a log line.
 

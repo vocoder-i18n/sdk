@@ -1,4 +1,8 @@
-import { CommandSession, joinHighlighted } from "../utils/command-session.js";
+import {
+	CommandSession,
+	formatLabelValue,
+	joinHighlighted,
+} from "../utils/command-session.js";
 import { highlight } from "../utils/theme.js";
 import { loadEnvFiles } from "../utils/load-env.js";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
@@ -57,7 +61,7 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 		]);
 	}
 	if (authResult.status === "unreachable") {
-		session.step("Account", highlight(authResult.stored.email), "info");
+		session.info(formatLabelValue("Account", highlight(authResult.stored.email)));
 		return session.fail("Could not verify stored credentials.", [
 			authResult.message,
 			`Run ${highlight("vocoder auth status")} once your connection is back.`,
@@ -108,16 +112,15 @@ export async function createProject(options: CreateProjectOptions): Promise<numb
 		});
 
 		step.done(`Created project ${highlight(result.projectName)}`);
-		session.step("Project ID", highlight(result.projectId), "info");
-		session.step("Source locale", highlight(result.sourceLocale), "info");
+		session.step("Project ID", highlight(result.projectId));
+		session.step("Source locale", highlight(result.sourceLocale));
 		session.step(
 			"Target locales",
 			result.targetLocales.length > 0 ? joinHighlighted(result.targetLocales) : "(none)",
-			"info",
 		);
-		session.step("Branches", joinHighlighted(result.targetBranches), "info");
+		session.step("Branches", joinHighlighted(result.targetBranches));
 		if (repoCanonical) {
-			session.step("Repository", highlight(repoCanonical), "info");
+			session.step("Repository", highlight(repoCanonical));
 		}
 		session.blank();
 		session.section("Add to your .env.local");

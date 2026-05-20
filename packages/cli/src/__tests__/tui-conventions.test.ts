@@ -6,7 +6,7 @@
  *   2. Non-fatal conditions (return 0 after warning) use p.log.warn — never p.log.error
  *   3. p.outro() is called on every exit path
  *   4. Spinner failures call spinner.stop with exit code 1
- *   5. Guidance / recovery lines use p.log.info — not p.log.error or p.log.warn
+ *   5. Guidance / recovery lines use plain text — not p.log.error or p.log.warn
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -297,10 +297,10 @@ describe("spinner.stop exit code 1 on failure", () => {
 	});
 });
 
-// ── 5. Guidance lines use p.log.info — not p.log.error or p.log.warn ──────────
+// ── 5. Guidance lines use plain text — not p.log.error or p.log.warn ──────────
 
-describe("guidance lines use p.log.info after errors", () => {
-	it("addLocales: limit error guidance appears as p.log.info", async () => {
+describe("guidance lines use plain text after errors", () => {
+	it("addLocales: limit error guidance appears as plain text", async () => {
 		process.env.VOCODER_API_KEY = validApiKey;
 		globalThis.fetch = vi.fn().mockResolvedValue({
 			ok: false,
@@ -324,15 +324,15 @@ describe("guidance lines use p.log.info after errors", () => {
 			expect.stringContaining("Free plan"),
 			1,
 		);
-		// Guidance: p.log.info used for upgrade URL and context lines
-		expect(mockLog.info).toHaveBeenCalled();
+		// Guidance: plain text is used for upgrade URL and context lines
+		expect(mockLog.message).toHaveBeenCalled();
 		// No p.log.error — message is in spinner.stop
 		expect(mockLog.error).not.toHaveBeenCalled();
 		// No secondary warn after the error
 		expect(mockLog.warn).not.toHaveBeenCalled();
 	});
 
-	it("translate: non-target branch guidance appears as p.log.info", async () => {
+	it("translate: non-target branch details do not use blue info dots", async () => {
 		process.env.VOCODER_API_KEY = validApiKey;
 		mockDetectBranch.mockReturnValue("feat/skip-me");
 
@@ -344,9 +344,10 @@ describe("guidance lines use p.log.info after errors", () => {
 
 		await translate({});
 
-		// Branch list context is info, not warn/error
-		const infoCalls = mockLog.info.mock.calls.map(([msg]) => String(msg));
-		expect(infoCalls.some((m) => m.includes("Target branches"))).toBe(true);
+		// Branch metadata is a primary green row, not a blue info dot
+		const successCalls = mockLog.success.mock.calls.map(([msg]) => String(msg));
+		expect(successCalls.some((m) => m.includes("Target branches"))).toBe(true);
+		expect(mockLog.info).not.toHaveBeenCalled();
 	});
 });
 
@@ -371,6 +372,7 @@ describe("style bans", () => {
 		for (const file of walk(sourceRoot)) {
 			const contents = readFileSync(file, "utf-8");
 			expect(contents).not.toMatch(/\bp\.note\(/);
+			expect(contents).not.toMatch(/\bp\.log\.info\(/);
 		}
 	});
 });

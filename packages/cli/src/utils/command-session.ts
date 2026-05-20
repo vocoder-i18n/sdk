@@ -4,8 +4,6 @@ import { highlight } from "./theme.js";
 
 type SpinnerInstance = ReturnType<typeof p.spinner>;
 
-type StepLevel = "success" | "info";
-
 function ensureEllipsis(message: string): string {
 	return message.endsWith("…") ? message : `${message}…`;
 }
@@ -54,14 +52,10 @@ export class CommandSession {
 		p.intro(chalk.bold(title));
 	}
 
-	step(label: string, value: string, level: StepLevel = "success"): void {
+	step(label: string, value: string): void {
 		this.assertReady();
 		const message = formatLabelValue(label, value);
-		if (level === "success") {
-			p.log.success(message);
-			return;
-		}
-		p.log.info(message);
+		p.log.success(message);
 	}
 
 	success(message: string): void {
@@ -81,11 +75,11 @@ export class CommandSession {
 
 	info(message: string): void {
 		this.assertReady();
-		p.log.info(message);
+		p.log.message(message);
 	}
 
 	blank(): void {
-		this.info("");
+		this.message("");
 	}
 
 	section(title: string): void {

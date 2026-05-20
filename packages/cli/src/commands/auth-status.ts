@@ -17,23 +17,23 @@ export async function authStatus(options: AuthStatusOptions = {}): Promise<numbe
 	const storedAuth = await verifyStoredAuth(api);
 
 	if (storedAuth.status === "valid") {
-		session.step("Signed in", highlight("Yes"), "info");
-		session.step("Account", highlight(storedAuth.email), "info");
+		session.step("Signed in", highlight("Yes"));
+		session.step("Account", highlight(storedAuth.email));
 		if (storedAuth.name) {
-			session.step("Name", highlight(storedAuth.name), "info");
+			session.step("Name", highlight(storedAuth.name));
 		}
 		return session.end();
 	}
 
 	if (storedAuth.status === "unreachable") {
-		session.step("Signed in", highlight("Yes"), "info");
-		session.step("Account", highlight(storedAuth.stored.email), "info");
+		session.step("Signed in", highlight("Yes"));
+		session.step("Account", highlight(storedAuth.stored.email));
 		session.warn("Could not verify the stored account with the server.");
 		session.info(storedAuth.message);
 		return session.endFailure();
 	}
 
-	session.step("Signed in", highlight("No"), "info");
+	session.step("Signed in", highlight("No"));
 	session.info(`Run ${highlight("vocoder auth login")} to sign in.`);
 	return session.endFailure();
 }

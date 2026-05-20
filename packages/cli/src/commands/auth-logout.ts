@@ -15,7 +15,7 @@ export async function authLogout(options: AuthLogoutOptions = {}): Promise<numbe
 	const stored = readAuthData();
 
 	if (!stored) {
-		session.step("Signed in", highlight("No"), "info");
+		session.step("Signed in", highlight("No"));
 		return session.end();
 	}
 

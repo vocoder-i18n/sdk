@@ -1,4 +1,4 @@
-import { CommandSession } from "../utils/command-session.js";
+import { CommandSession, formatLabelValue } from "../utils/command-session.js";
 import type { AccountAuthOptions } from "../types.js";
 import { VocoderAPI } from "../utils/api.js";
 import { highlight } from "../utils/theme.js";
@@ -24,17 +24,17 @@ export async function authLogin(options: AuthLoginOptions = {}): Promise<number>
 
 	if (authResult.status === "authenticated") {
 		if (authResult.source === "stored") {
-			session.step("Signed in", highlight("Yes"), "info");
-			session.step("Account", highlight(authResult.auth.email), "info");
+			session.step("Signed in", highlight("Yes"));
+			session.step("Account", highlight(authResult.auth.email));
 			if (authResult.auth.name) {
-				session.step("Name", highlight(authResult.auth.name), "info");
+				session.step("Name", highlight(authResult.auth.name));
 			}
 		}
 		return session.end();
 	}
 
 	if (authResult.status === "unreachable") {
-		session.step("Account", highlight(authResult.stored.email), "info");
+		session.info(formatLabelValue("Account", highlight(authResult.stored.email)));
 		return session.fail("Could not verify stored credentials.", [
 			authResult.message,
 			"Check your connection and try vocoder auth status or vocoder auth login again.",
