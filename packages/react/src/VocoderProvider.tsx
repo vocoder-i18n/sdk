@@ -338,7 +338,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	const t = useCallback(
 		(text: string, values?: Record<string, unknown>, options?: TOptions): string => {
 			const hash = options?.id
-				? options.id + (options.formality === "formal" || options.formality === "informal" ? `\x05${options.formality}` : "")
+				? options.id
 				: generateMessageHash(text, options?.context, options?.formality);
 			const translated = translations[locale]?.[hash] ?? text;
 			if (values && Object.keys(values).length > 0) {

@@ -136,10 +136,8 @@ export const T: React.FC<TProps> = ({
 		// Build transform injects id="hash" automatically for <T> with children.
 		// For plural/select ICU built from props, we hash the ICU string.
 		// Using hash keys keeps the wire payload small (7 chars vs full source string).
-		// When a custom id is paired with formality, bake formality into the key so the
-		// same id with different formality resolves to different bundle entries.
 		const lookupKey = id
-			? id + (_formality === "formal" || _formality === "informal" ? `\x05${_formality}` : "")
+			? id
 			: generateMessageHash(sourceText, _context, _formality);
 
 		// Get translated text or fall back to source

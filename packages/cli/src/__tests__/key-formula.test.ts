@@ -2,9 +2,9 @@
  * Key-centric extraction tests.
  *
  * Verifies that:
- * 1. Keys are computed correctly (text + context + formality → hash, or custom id ± formality)
+ * 1. Keys are computed correctly (text + context + formality → hash, or custom id as-is)
  * 2. id-only entries (<T id="x" />) are emitted with text = null and key = id
- * 3. id + formality produces a distinct key from id alone
+ * 3. id + formality → key is id (formality is a translation hint, not a key modifier)
  * 4. Same text with different formality produces different keys and different fingerprints
  * 5. buildStringEntries deduplicates by key (not text)
  */
@@ -96,7 +96,7 @@ describe("Key formula", () => {
 			expect(results[0]!.text).toBe("Save");
 		});
 
-		it("custom id + formal → id + \\x05formal", async () => {
+		it("custom id + formal → key = id (formality is hint, not key modifier)", async () => {
 			const file = createTestFile(
 				"test.tsx",
 				`
@@ -106,10 +106,11 @@ describe("Key formula", () => {
 			);
 			const results = await extractor.extractFromProject(file);
 			expect(results).toHaveLength(1);
-			expect(results[0]!.key).toBe("save_btn\x05formal");
+			expect(results[0]!.key).toBe("save_btn");
+			expect(results[0]!.formality).toBe("formal");
 		});
 
-		it("custom id + informal → id + \\x05informal", async () => {
+		it("custom id + informal → key = id (formality is hint, not key modifier)", async () => {
 			const file = createTestFile(
 				"test.tsx",
 				`
@@ -119,7 +120,8 @@ describe("Key formula", () => {
 			);
 			const results = await extractor.extractFromProject(file);
 			expect(results).toHaveLength(1);
-			expect(results[0]!.key).toBe("save_btn\x05informal");
+			expect(results[0]!.key).toBe("save_btn");
+			expect(results[0]!.formality).toBe("informal");
 		});
 
 		it("custom id + unrecognized formality → key = id (falls through, no suffix)", async () => {
@@ -149,7 +151,7 @@ describe("Key formula", () => {
 			expect(results[0]!.text).toBeNull();
 		});
 
-		it("id-only + formality (<T id='x' formality='formal' />) → key = id + \\x05formal", async () => {
+		it("id-only + formality (<T id='x' formality='formal' />) → key = id (formality is hint)", async () => {
 			const file = createTestFile(
 				"test.tsx",
 				`
@@ -159,8 +161,9 @@ describe("Key formula", () => {
 			);
 			const results = await extractor.extractFromProject(file);
 			expect(results).toHaveLength(1);
-			expect(results[0]!.key).toBe("save_btn\x05formal");
+			expect(results[0]!.key).toBe("save_btn");
 			expect(results[0]!.text).toBeNull();
+			expect(results[0]!.formality).toBe("formal");
 		});
 
 		it("same text + different formality → different keys", async () => {
@@ -211,7 +214,7 @@ describe("Key formula", () => {
 			expect(results[0]!.key).toBe("save_btn");
 		});
 
-		it("explicit id + formality → key = id + \\x05formality", async () => {
+		it("explicit id + formality → key = id (formality is hint, not key modifier)", async () => {
 			const file = createTestFile(
 				"test.ts",
 				`
@@ -221,7 +224,8 @@ describe("Key formula", () => {
 			);
 			const results = await extractor.extractFromProject(file);
 			expect(results).toHaveLength(1);
-			expect(results[0]!.key).toBe("save_btn\x05formal");
+			expect(results[0]!.key).toBe("save_btn");
+			expect(results[0]!.formality).toBe("formal");
 		});
 	});
 

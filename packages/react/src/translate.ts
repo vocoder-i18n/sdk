@@ -97,10 +97,8 @@ export function ordinal(value: number, gender?: string): string {
  */
 export function t(text: string, values?: Record<string, any>, options?: TOptions): string {
 	const { context, id, formality } = options ?? {};
-	// When a custom id is paired with formality, bake formality into the key so the
-	// same id with different formality resolves to different bundle entries.
 	const hash = id
-		? id + (formality === "formal" || formality === "informal" ? `\x05${formality}` : "")
+		? id
 		: generateMessageHash(text, context, formality);
 	const localeTranslations = globalTranslations[globalLocale];
 	const hasTranslation =

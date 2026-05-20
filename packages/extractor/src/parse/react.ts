@@ -210,11 +210,9 @@ export function extractFromContent(
 				}
 
 				const line = path.node.loc?.start.line || 0;
-				// When a custom id is paired with formality, bake formality into the key
-				// so the same id with different formality resolves to different translations.
 				const key =
 					explicitKey && explicitKey.length > 0
-						? explicitKey + (formality === "formal" || formality === "informal" ? `\x05${formality}` : "")
+						? explicitKey
 						: generateMessageHash(text.trim(), context, formality);
 				const uiRole = detectUiRole(path);
 
@@ -275,7 +273,7 @@ export function extractFromContent(
 
 				const line = path.node.loc?.start.line || 0;
 				const key = trimmedId
-					? trimmedId + (formality === "formal" || formality === "informal" ? `\x05${formality}` : "")
+					? trimmedId
 					: generateMessageHash(trimmedText!, context, formality);
 				const uiRole = detectUiRole(path);
 

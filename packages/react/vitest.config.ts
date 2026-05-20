@@ -7,6 +7,7 @@ export default defineConfig({
 		alias: {
 			"@vocoder/locales": resolve(__dirname, "test/fixtures/locales"),
 			"@vocoder/react/locale-loader": resolve(__dirname, "test/fixtures/locale-loader.ts"),
+			"@vocoder/react/manifest-loader": resolve(__dirname, "test/fixtures/manifest.ts"),
 		},
 	},
 	define: {
