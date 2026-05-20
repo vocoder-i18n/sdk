@@ -566,7 +566,7 @@ plugins: [vocoderPlugin()]
 import { defineConfig } from '@vocoder/config'
 
 export default defineConfig({
-  localesPath: 'src/locales',    // where locale JSON files live
+  localesDir: 'src/locales',    // where locale JSON files live
   include: ['src/**/*.{ts,tsx}'], // files to scan (defaults to all source)
   exclude: ['**/*.test.*'],       // files to skip
   targetBranches: ['main'],       // branches that trigger translation

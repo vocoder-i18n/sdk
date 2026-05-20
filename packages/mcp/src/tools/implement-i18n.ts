@@ -1,11 +1,11 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
 import {
 	buildInstallCommand,
 	detectLocalEcosystem,
 	getPackagesToInstall,
 	getSetupSnippets,
 } from "@vocoder/cli/lib";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 
 export interface ImplementI18nInput {
 	sourceLocale?: string;
@@ -212,12 +212,12 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 			? buildInstallCommand(detection.packageManager, runtimePackages)
 			: null;
 
-	const localesPath = "src/locales";
+	const localesDir = "src/locales";
 	const configContent = [
 		"import { defineConfig } from '@vocoder/config';",
 		"",
 		"export default defineConfig({",
-		`  localesPath: '${localesPath}',`,
+		`  localesDir: '${localesDir}',`,
 		...(targetLocales.length > 0
 			? []
 			: ["  // targetBranches: ['main'],  // branches that trigger translation"]),

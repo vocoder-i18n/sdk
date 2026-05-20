@@ -59,7 +59,7 @@ export async function runTranslate(input: TranslateInput, api: VocoderAPI): Prom
 	);
 
 	if (submittable.length === 0) {
-		return "No submittable strings found (all strings are id-only and require a localesPath source file).";
+		return "No submittable strings found (all strings are id-only and require a localesDir source file).";
 	}
 
 	const sourceEntriesHash = input.force

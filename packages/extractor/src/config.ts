@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
+
+import type { VocoderConfig } from "@vocoder/config";
+import babelTraverse from "@babel/traverse";
 import { join } from "node:path";
 import { parse } from "@babel/parser";
-import babelTraverse from "@babel/traverse";
-import type { VocoderConfig } from "@vocoder/config";
 
 export type { VocoderConfig };
 
@@ -114,8 +115,8 @@ function extractFromObject(obj: any): VocoderConfig {
 			if (key === "targetBranches") config.targetBranches = values;
 		}
 
-		if (key === "localesPath" && prop.value.type === "StringLiteral") {
-			config.localesPath = prop.value.value as string;
+		if (key === "localesDir" && prop.value.type === "StringLiteral") {
+			config.localesDir = prop.value.value as string;
 		}
 
 		if (key === "industry" && prop.value.type === "StringLiteral") {

@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadVocoderConfig, parseVocoderConfig } from "../index";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 describe("parseVocoderConfig", () => {
 	it("parses export default object literal", () => {
@@ -16,12 +17,12 @@ describe("parseVocoderConfig", () => {
 	it("parses export default defineConfig(...)", () => {
 		const source = `
       import { defineConfig } from '@vocoder/config';
-      export default defineConfig({ include: ["app/**/*.tsx"], localesPath: "public/locales" });
+      export default defineConfig({ include: ["app/**/*.tsx"], localesDir: "public/locales" });
     `;
 		const config = parseVocoderConfig(source);
 		expect(config).not.toBeNull();
 		expect(config!.include).toEqual(["app/**/*.tsx"]);
-		expect(config!.localesPath).toBe("public/locales");
+		expect(config!.localesDir).toBe("public/locales");
 	});
 
 	it("parses TypeScript source", () => {
@@ -102,12 +103,12 @@ describe("loadVocoderConfig", () => {
 	it("loads vocoder.config.json", () => {
 		writeFileSync(
 			join(tempDir, "vocoder.config.json"),
-			JSON.stringify({ include: ["app/**/*.tsx"], localesPath: "public/locales" }),
+			JSON.stringify({ include: ["app/**/*.tsx"], localesDir: "public/locales" }),
 		);
 		const config = loadVocoderConfig(tempDir);
 		expect(config).not.toBeNull();
 		expect(config!.include).toEqual(["app/**/*.tsx"]);
-		expect(config!.localesPath).toBe("public/locales");
+		expect(config!.localesDir).toBe("public/locales");
 	});
 
 	it("prefers .ts over .json when both exist", () => {

@@ -43,7 +43,7 @@ export interface VocoderConfig {
 	 * Directory to write translated locale files after sync (optional).
 	 * If set, `vocoder translate` writes {locale}.json files to this path.
 	 */
-	localesPath?: string;
+	localesDir?: string;
 	/**
 	 * The industry or domain of this application.
 	 * Used to improve translation quality for domain-specific terminology

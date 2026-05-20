@@ -1,5 +1,6 @@
-import { detectRepoIdentity } from "@vocoder/plugin";
 import { VocoderAPI, verifyStoredAuth } from "@vocoder/cli/lib";
+
+import { detectRepoIdentity } from "@vocoder/plugin";
 
 export interface RegenerateKeyResult {
 	apiKey: string;
@@ -59,7 +60,7 @@ export async function runRegenerateKey(): Promise<RegenerateKeyResult> {
 			`import { defineConfig } from '@vocoder/config';`,
 			`export default defineConfig({`,
 			`  appId: '${app.appId}',`,
-			`  localesPath: 'src/locales',`,
+			`  localesDir: 'src/locales',`,
 			`});`,
 		].join("\n"),
 	);

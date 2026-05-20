@@ -172,7 +172,7 @@ import { loadVocoderConfig, parseVocoderConfig } from "@vocoder/extractor";
 
 // Read from disk — tries ts, js, mjs, cjs, json in that order
 const config = loadVocoderConfig("/absolute/path/to/project");
-// { include: ["src/**/*.tsx"], exclude: ["**/*.test.tsx"], localesPath: "public/locales" }
+// { include: ["src/**/*.tsx"], exclude: ["**/*.test.tsx"], localesDir: "public/locales" }
 
 // Parse from a string — use this when content comes from a GitHub API response
 const config2 = parseVocoderConfig(fileContentFromGitHub);
@@ -187,7 +187,7 @@ Both functions return `VocoderConfig | null`. They use Babel AST parsing and sup
 | `include`        | `string[]` | Glob patterns for files to extract from.     |
 | `exclude`        | `string[]` | Glob patterns for files to skip.             |
 | `targetBranches` | `string[]` | Git branches that trigger translation sync.  |
-| `localesPath`    | `string`   | Path where locale JSON files are written.    |
+| `localesDir`    | `string`   | Path where locale JSON files are written.    |
 | `appIndustry`    | `string`   | Industry hint for translation engine.        |
 | `formality`      | `string`   | Default formality for the project.           |
 

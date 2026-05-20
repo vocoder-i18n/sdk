@@ -1,1 +1,1 @@
-export const DEFAULT_LOCALES_PATH = "locales";
+export const DEFAULT_LOCALES_DIR = "locales";

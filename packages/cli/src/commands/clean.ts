@@ -1,14 +1,16 @@
-import type { CleanOptions } from "../types.js";
+import * as p from "@clack/prompts";
+
+import { CommandSession, formatLabelValue } from "../utils/command-session.js";
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
 import { basename, join } from "node:path";
 import { existsSync, readdirSync, rmSync } from "node:fs";
-import { loadVocoderConfig } from "@vocoder/extractor";
-import * as p from "@clack/prompts";
-import { CommandSession, formatLabelValue } from "../utils/command-session.js";
+
+import type { CleanOptions } from "../types.js";
 import { highlight } from "../utils/theme.js";
 import { loadEnvFiles } from "../utils/load-env.js";
-import { resolveGitRoot } from "../utils/git-identity.js";
+import { loadVocoderConfig } from "@vocoder/extractor";
 import { readWorkflowAppDirs } from "../utils/workflow-read.js";
+import { resolveGitRoot } from "../utils/git-identity.js";
 import { validateLocalConfig } from "../utils/config.js";
 
 loadEnvFiles();
@@ -78,10 +80,10 @@ export async function clean(options: CleanOptions = {}): Promise<number> {
 		for (const appDir of effectiveAppDirs) {
 			const extractRoot = appDir ? `${gitRoot}/${appDir}` : gitRoot;
 			const appConfig = loadVocoderConfig(extractRoot);
-			const localesPath = appConfig?.localesPath ?? "locales";
+			const localesDir = appConfig?.localesDir ?? "locales";
 			const localeDir = appDir
-				? join(gitRoot, appDir, localesPath)
-				: join(gitRoot, localesPath);
+				? join(gitRoot, appDir, localesDir)
+				: join(gitRoot, localesDir);
 
 			allOrphaned.push(...findOrphanedFiles(localeDir, activeLocales));
 		}

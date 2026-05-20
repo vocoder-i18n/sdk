@@ -20,7 +20,7 @@ export default defineConfig({
   include: ["src/**/*.{ts,tsx}"],
   exclude: ["src/**/*.test.{ts,tsx}", "src/**/*.stories.{ts,tsx}"],
   targetBranches: ["main"],
-  localesPath: "public/locales",
+  localesDir: "public/locales",
   appIndustry: "saas",
   formality: "auto",
 });
@@ -35,7 +35,7 @@ export default defineConfig({
 | `include` | `string[]` | — | Glob patterns for files to scan for translatable strings. |
 | `exclude` | `string[]` | — | Glob patterns to skip during extraction. |
 | `targetBranches` | `string[]` | — | Git branches that trigger extraction and translation. Synced to the Vocoder dashboard on each push — change here to update. |
-| `localesPath` | `string` | — | Directory where `vocoder translate` writes translated `{locale}.json` files. |
+| `localesDir` | `string` | — | Directory where `vocoder translate` writes translated `{locale}.json` files. |
 | `appIndustry` | `AppIndustry` | — | Industry classification for this app. Improves translation quality for domain-specific terminology and scopes the translation cache by industry. Synced to the app at extraction time. |
 | `formality` | `Formality` | — | Project-wide default formality level. Can be overridden per-string with `<T formality="...">` on the AI plan. Synced to the app at extraction time. |
 

@@ -48,7 +48,7 @@ import { defineConfig } from '@vocoder/config';
 
 export default defineConfig({
   include: ['src/**/*.{ts,tsx}'],
-  localesPath: 'src/locales',
+  localesDir: 'src/locales',
   targetBranches: ['main'],
 });
 ```
@@ -61,7 +61,7 @@ import { defineConfig } from '@vocoder/config';
 
 export default defineConfig({
   include: ['src/**/*.{ts,tsx}'],
-  localesPath: 'src/locales',
+  localesDir: 'src/locales',
   targetBranches: ['main'],
 });
 ```
@@ -72,7 +72,7 @@ import { defineConfig } from '@vocoder/config';
 
 export default defineConfig({
   include: ['src/**/*.{ts,tsx}'],
-  localesPath: 'src/locales',
+  localesDir: 'src/locales',
   targetBranches: ['main'],
 });
 ```
@@ -105,7 +105,7 @@ This means:
 | `include` | `string[]` | Glob patterns for files to scan. Default: `["**/*.{tsx,jsx,ts,js}"]` |
 | `exclude` | `string[]` | Glob patterns to skip |
 | `targetBranches` | `string[]` | Branches that trigger translation |
-| `localesPath` | `string` | Directory to write translated locale files after sync |
+| `localesDir` | `string` | Directory to write translated locale files after sync |
 | `industry` | `string` | Domain classification for translation quality hints |
 | `formality` | `"formal" \| "informal" \| "auto"` | Project-wide formality level |
 | `onTranslationFailure` | `"fail" \| "proceed"` | Exit code behavior when translation fails. Default: `"proceed"` |
