@@ -209,13 +209,17 @@ export interface LocaleSelectorProps {
 		| "br";
 	/**
 	 * Button and dropdown background color.
-	 * Defaults to light-dark(#1a1a1a, #EFEAE3) — Vocoder brand, adapts automatically
-	 * to the page color-scheme with no JS or flash.
+	 * Defaults to light-dark(#ffffff, #1a1a1a) — neutral surfaces that match the
+	 * host page color-scheme automatically with no JS or flash.
+	 * When provided without `color`, LocaleSelector automatically chooses a
+	 * readable text/icon color.
 	 */
 	background?: string;
 	/**
 	 * Button and dropdown text/icon color.
-	 * Defaults to light-dark(#EFEAE3, #1a1a1a) — Vocoder brand, adapts automatically.
+	 * Defaults to light-dark(#1a1a1a, #ffffff) — neutral foreground colors that
+	 * match the host page color-scheme automatically.
+	 * Explicit values are trusted as-is and are not auto-corrected.
 	 */
 	color?: string;
 	/** Additional CSS class name */

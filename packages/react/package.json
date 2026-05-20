@@ -77,8 +77,9 @@
     "access": "public"
   },
   "dependencies": {
+    "@radix-ui/react-dropdown-menu": "^2.0.0",
     "@vocoder/core": "workspace:*",
-    "@radix-ui/react-dropdown-menu": "^2.0.0"
+    "color2k": "^2.0.3"
   },
   "peerDependencies": {
     "react": ">=18.0.0"

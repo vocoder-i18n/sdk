@@ -212,16 +212,19 @@ importers:
 
   packages/react:
     dependencies:
+      '@radix-ui/react-dropdown-menu':
+        specifier: ^2.0.0
+        version: 2.1.16(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@vocoder/core':
         specifier: workspace:*
         version: link:../core
+      color2k:
+        specifier: ^2.0.3
+        version: 2.0.3
       react:
         specifier: '>=18.0.0'
         version: 18.3.1
     devDependencies:
-      '@radix-ui/react-dropdown-menu':
-        specifier: ^2.0.0
-        version: 2.1.16(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@testing-library/jest-dom':
         specifier: ^6.0.0
         version: 6.9.1
@@ -1509,6 +1512,9 @@ packages:
 
   color-name@1.1.4:
     resolution: {integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==}
+
+  color2k@2.0.3:
+    resolution: {integrity: sha512-zW190nQTIoXcGCaU08DvVNFTmQhUpnJfVuAKfWqUQkflXKpaDdpaYoM0iluLS9lgJNHyBF58KKA2FBEwkD7wog==}
 
   combined-stream@1.0.8:
     resolution: {integrity: sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg==}
@@ -4263,6 +4269,8 @@ snapshots:
       color-name: 1.1.4
 
   color-name@1.1.4: {}
+
+  color2k@2.0.3: {}
 
   combined-stream@1.0.8:
     dependencies:
