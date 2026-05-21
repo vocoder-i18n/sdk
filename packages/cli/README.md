@@ -76,7 +76,7 @@ Options:
 | `--dry-run` | Extract and summarize what would be submitted without making API calls |
 | `--verbose` | Show extra diagnostics |
 | `--api-url <url>` | Override the Vocoder API URL |
-| `--app-dirs <dirs>` | Comma-separated app directories for monorepos |
+| `--app-dirs <dirs>` | Comma-separated app directories for monorepos. Overrides `vocoder.config.ts` `apps[]`. |
 
 ### `vocoder clean`
 
@@ -95,7 +95,7 @@ Options:
 | Flag | Description |
 |---|---|
 | `--yes` | Skip the confirmation prompt and delete immediately |
-| `--app-dirs <dirs>` | Comma-separated app directories for monorepos |
+| `--app-dirs <dirs>` | Comma-separated app directories for monorepos. Overrides `vocoder.config.ts` `apps[]`. |
 | `--api-url <url>` | Override the Vocoder API URL |
 
 ### `vocoder pull`

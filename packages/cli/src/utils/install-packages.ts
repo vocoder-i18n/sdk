@@ -36,7 +36,8 @@ async function runInstall(
  * Install Vocoder packages after project creation.
  *
  * Root project: everything (cli, plugin, config, ui package) installs at rootDir.
- * Monorepo: cli installs at rootDir; plugin, config, and ui package install per appDir.
+ * Monorepo: cli + config install at rootDir (config needed for root vocoder.config.ts);
+ *   plugin and ui package install per appDir.
  * Package manager is detected from the rootDir lockfile in both cases.
  */
 export async function installForProject({
@@ -55,9 +56,10 @@ export async function installForProject({
 	const pm = rootDetection.packageManager;
 
 	if (isMonorepo) {
-		// CLI (and optionally MCP) at monorepo root
+		// CLI, config (for root vocoder.config.ts), and optionally MCP at monorepo root
 		const rootDevPkgs: string[] = [];
 		if (!rootDetection.hasCli) rootDevPkgs.push("@vocoder/cli");
+		if (!rootDetection.hasConfig) rootDevPkgs.push("@vocoder/config");
 		if (installMcp) rootDevPkgs.push("@vocoder/mcp");
 
 			if (rootDevPkgs.length > 0) {

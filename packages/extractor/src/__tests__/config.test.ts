@@ -58,6 +58,55 @@ describe("parseVocoderConfig", () => {
 		expect(config!.targetBranches).toEqual(["main", "develop"]);
 	});
 
+	it("parses onTranslationFailure field", () => {
+		const source = `export default { onTranslationFailure: "fail" };`;
+		const config = parseVocoderConfig(source);
+		expect(config).not.toBeNull();
+		expect(config!.onTranslationFailure).toBe("fail");
+	});
+
+	it("parses apps[] with appDir only", () => {
+		const source = `export default defineConfig({ targetBranches: ["main"], apps: [{ appDir: "apps/web" }, { appDir: "apps/admin" }] });`;
+		const config = parseVocoderConfig(source);
+		expect(config).not.toBeNull();
+		expect(config!.apps).toHaveLength(2);
+		expect(config!.apps![0]!.appDir).toBe("apps/web");
+		expect(config!.apps![1]!.appDir).toBe("apps/admin");
+	});
+
+	it("parses apps[] with per-app overrides", () => {
+		const source = `export default defineConfig({
+      targetBranches: ["main"],
+      apps: [
+        { appDir: "apps/web", localesDir: "src/locales" },
+        { appDir: "apps/admin", formality: "formal", targetBranches: ["main", "staging"] },
+      ],
+    });`;
+		const config = parseVocoderConfig(source);
+		expect(config).not.toBeNull();
+		expect(config!.apps).toHaveLength(2);
+		expect(config!.apps![0]!.localesDir).toBe("src/locales");
+		expect(config!.apps![1]!.formality).toBe("formal");
+		expect(config!.apps![1]!.targetBranches).toEqual(["main", "staging"]);
+	});
+
+	it("parses apps[] with mixed entries (some with overrides, some without)", () => {
+		const source = `export default { apps: [{ appDir: "apps/web" }, { appDir: "apps/api", industry: "fintech" }] };`;
+		const config = parseVocoderConfig(source);
+		expect(config).not.toBeNull();
+		expect(config!.apps).toHaveLength(2);
+		expect(config!.apps![0]!.industry).toBeUndefined();
+		expect(config!.apps![1]!.industry).toBe("fintech");
+	});
+
+	it("skips apps[] entries without appDir", () => {
+		const source = `export default { apps: [{ localesDir: "locales" }, { appDir: "apps/web" }] };`;
+		const config = parseVocoderConfig(source);
+		expect(config).not.toBeNull();
+		expect(config!.apps).toHaveLength(1);
+		expect(config!.apps![0]!.appDir).toBe("apps/web");
+	});
+
 	it("returns null for broken source", () => {
 		expect(parseVocoderConfig("this is not valid js {{{{")).toBeNull();
 	});

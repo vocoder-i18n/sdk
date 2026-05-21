@@ -43,7 +43,7 @@ export interface ProjectCreateResult {
 	targetBranches: string[];
 	repositoryBound: boolean;
 	configureUrl?: string;
-	/** App directories collected during setup — used for GitHub Actions workflow generation only. */
+	/** App directories collected during setup — used for vocoder.config.ts generation. */
 	appDirs: string[];
 }
 
@@ -175,8 +175,7 @@ export async function runProjectCreate(
 
 	// ── Create project ──────────────────────────────────────────────────────────
 	// Apps are NOT created here — they are created lazily by the GitHub Action
-	// when it first runs with the app-dirs input. appDirs collected above are
-	// only used for generating the workflow YAML with the correct app-dirs input.
+	// on first run. appDirs collected above are used for vocoder.config.ts generation.
 	// Errors (including plan limit errors) propagate to the caller so it can
 	// decide whether to show an upgrade link or a generic error message.
 	const result = await api.createProject(userToken, {

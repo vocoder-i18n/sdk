@@ -9,7 +9,6 @@ import { computeFingerprint, loadVocoderConfig } from "@vocoder/extractor";
 import { detectBranch, isTargetBranch } from "../utils/branch.js";
 import { detectCommitSha, resolveGitRepositoryIdentity, resolveGitRoot } from "../utils/git-identity.js";
 import {
-	readWorkflowAppDirs,
 	readWorkflowBranches,
 	readWorkflowCommitMode,
 } from "../utils/workflow-read.js";
@@ -232,7 +231,6 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 
 		// YAML branches are the source of truth — fall back to server config if YAML absent.
 		const yamlBranches = readWorkflowBranches(gitRoot);
-		const yamlAppDirs = readWorkflowAppDirs(gitRoot);
 		const yamlCommitMode = readWorkflowCommitMode(gitRoot);
 		const effectiveTargetBranches = yamlBranches ?? apiConfig.targetBranches;
 
@@ -250,14 +248,15 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			rootConfig?.onTranslationFailure ??
 			"proceed";
 
-		// --app-dirs flag > YAML app-dirs > single-app root ("")
-		// Monorepo users must declare app dirs explicitly (flag or YAML); no CWD inference.
+		// --app-dirs flag > vocoder.config.ts apps[] > single-app root ("")
+		// Monorepo users declare app dirs in vocoder.config.ts; flag overrides for one-off runs.
+		const configAppDirs = rootConfig?.apps?.map((a) => a.appDir).filter(Boolean) ?? null;
 		const appDirs = options.appDirs
 			? options.appDirs
 					.split(",")
 					.map((d) => d.trim().replace(/^\/|\/$/g, ""))
 					.filter(Boolean)
-			: (yamlAppDirs ?? []);
+			: (configAppDirs ?? []);
 		const effectiveAppDirs = appDirs.length > 0 ? appDirs : [""];
 
 		// Validate and display named app dirs. Root ("") always valid — skip for single-app projects.
@@ -267,7 +266,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			for (const appDir of namedAppDirs) {
 				if (!existsSync(`${gitRoot}/${appDir}`)) {
 					activeStep.fail(`App directory not found: ${highlight(appDir)}`, [
-						"Fix app-dirs in your workflow YAML or --app-dirs.",
+						"Fix app dirs in vocoder.config.ts or --app-dirs.",
 					]);
 					return session.endFailure();
 				}
@@ -287,10 +286,10 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 		const appExtractions: AppExtraction[] = [];
 
 		for (const appDir of effectiveAppDirs) {
-			// Each app owns its vocoder.config.ts for include/exclude/industry/formality.
-			// Root-level projects: extractRoot === gitRoot, config loaded from there.
+			// Resolve effective per-app config: root config merged with matching apps[] entry overrides.
 			const extractRoot = appDir ? `${gitRoot}/${appDir}` : gitRoot;
-			const appConfig = loadVocoderConfig(extractRoot);
+			const appEntry = appDir ? rootConfig?.apps?.find((a) => a.appDir === appDir) : undefined;
+			const appConfig = appEntry ? { ...rootConfig, ...appEntry } : rootConfig;
 
 			const includePattern: string | string[] =
 				appConfig?.include?.length ? appConfig.include : ["**/*.{tsx,jsx,ts,js}"];
@@ -396,9 +395,11 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			...(commitSha ? { commitSha } : {}),
 			repoUrl: repoIdentity?.repoCanonical ?? "",
 			clientRunId: randomUUID(),
-			// Send YAML-derived branches so server can reconcile project.targetBranches.
-			// Only sent when YAML was found — omitting preserves server value if no YAML.
-			...(yamlBranches ? { targetBranches: yamlBranches } : {}),
+			// Send branches so server can reconcile project.targetBranches.
+			// Prefer config file value; fall back to YAML; omit if neither found (preserves server value).
+			...(rootConfig?.targetBranches ?? yamlBranches
+				? { targetBranches: (rootConfig?.targetBranches ?? yamlBranches) as string[] }
+				: {}),
 		});
 
 		// All apps cached — stop spinner with that result, no polling needed

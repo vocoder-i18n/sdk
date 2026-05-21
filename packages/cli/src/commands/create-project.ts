@@ -38,8 +38,7 @@ export interface CreateProjectOptions {
  * Prints the generated VOCODER_API_KEY to stdout on success.
  *
  * Git identity is auto-detected from the git remote. Use --repo to override.
- * Apps are NOT created here — they are managed lazily from the GitHub Action's
- * app-dirs input.
+ * Apps are NOT created here — they are created lazily by the GitHub Action on first run.
  *
  * Endpoint: POST /api/projects
  */

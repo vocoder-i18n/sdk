@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 
-import type { VocoderConfig } from "@vocoder/config";
+import type { AppConfig, VocoderConfig } from "@vocoder/config";
 import babelTraverse from "@babel/traverse";
 import { join } from "node:path";
 import { parse } from "@babel/parser";
 
-export type { VocoderConfig };
+export type { AppConfig, VocoderConfig };
 
 const traverse = (babelTraverse as any).default || babelTraverse;
 
@@ -131,7 +131,60 @@ function extractFromObject(obj: any): VocoderConfig {
 		if (key === "formality" && prop.value.type === "StringLiteral") {
 			config.formality = prop.value.value as VocoderConfig["formality"];
 		}
+
+		if (key === "onTranslationFailure" && prop.value.type === "StringLiteral") {
+			config.onTranslationFailure = prop.value.value as VocoderConfig["onTranslationFailure"];
+		}
+
+		if (key === "apps" && prop.value.type === "ArrayExpression") {
+			const apps: AppConfig[] = [];
+			for (const element of prop.value.elements) {
+				if (element?.type !== "ObjectExpression") continue;
+				const app = extractAppConfigFromObject(element);
+				if (app) apps.push(app);
+			}
+			if (apps.length > 0) config.apps = apps;
+		}
 	}
 
 	return config;
+}
+
+function extractAppConfigFromObject(obj: any): AppConfig | null {
+	let appDir: string | undefined;
+	const overrides: Omit<AppConfig, "appDir"> = {};
+
+	for (const prop of obj.properties) {
+		if (prop.type !== "ObjectProperty") continue;
+		const key: string = prop.key.name ?? prop.key.value;
+
+		if (key === "appDir" && prop.value.type === "StringLiteral") {
+			appDir = prop.value.value as string;
+		}
+
+		if (key === "include" || key === "exclude" || key === "targetBranches") {
+			if (prop.value.type !== "ArrayExpression") continue;
+			const values = prop.value.elements
+				.filter((el: any) => el?.type === "StringLiteral")
+				.map((el: any) => el.value as string);
+			if (key === "include") overrides.include = values;
+			if (key === "exclude") overrides.exclude = values;
+			if (key === "targetBranches") overrides.targetBranches = values;
+		}
+
+		if (key === "localesDir" && prop.value.type === "StringLiteral") {
+			overrides.localesDir = prop.value.value as string;
+		}
+
+		if (key === "industry" && prop.value.type === "StringLiteral") {
+			overrides.industry = prop.value.value as AppConfig["industry"];
+		}
+
+		if (key === "formality" && prop.value.type === "StringLiteral") {
+			overrides.formality = prop.value.value as AppConfig["formality"];
+		}
+	}
+
+	if (appDir === undefined) return null;
+	return { appDir, ...overrides };
 }

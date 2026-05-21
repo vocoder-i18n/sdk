@@ -86,20 +86,25 @@ To halt on translation failure, use the `on-failure` input:
 
 ## Monorepo setup
 
-For repos with multiple apps, pass the `app-dirs` input — a comma-separated list of app directories relative to the repo root:
+For repos with multiple apps, declare app directories in `vocoder.config.ts` at the repo root — no YAML input needed:
 
-```yaml
-- uses: vocoder-i18n/translate-action@v1
-  with:
-    api-key: ${{ secrets.VOCODER_API_KEY }}
-    app-dirs: apps/web,apps/admin
-    commit-mode: pr
+```ts
+// vocoder.config.ts
+import { defineConfig } from '@vocoder/config';
+
+export default defineConfig({
+  targetBranches: ['main'],
+  apps: [
+    { appDir: 'apps/web' },
+    { appDir: 'apps/admin' },
+  ],
+});
 ```
 
 Each app gets its own locale directory:
 - `apps/web/locales/manifest.json`, `apps/web/locales/{locale}.json`
 - `apps/admin/locales/manifest.json`, `apps/admin/locales/{locale}.json`
 
-App records are created lazily on first run and deactivated when removed from `app-dirs`.
+App records are created lazily on first run. Per-app fields (`localesDir`, `targetBranches`, `include`, `exclude`, `formality`, `industry`) can be overridden per entry and are merged over the root-level defaults.
 
-For single-app repos, omit `app-dirs` entirely.
+For single-app repos, omit `apps` entirely.

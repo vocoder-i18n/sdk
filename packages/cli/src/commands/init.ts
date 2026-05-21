@@ -20,6 +20,7 @@ import { resolveLookupMatch } from "../utils/project-lookup.js";
 import { selectOrganizationForInit } from "../utils/organization-select.js";
 import { writeApiKeyToEnv } from "../utils/output.js";
 import { writeGitHubActionsWorkflow } from "../utils/workflow-write.js";
+import { writeVocoderConfig } from "../utils/config-write.js";
 
 loadEnvFiles();
 
@@ -293,7 +294,6 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				const workflow = writeGitHubActionsWorkflow(
 					identity.repoRoot,
 					workflowBranches,
-					repairAppDirs,
 				);
 				if (workflow.written) {
 					session.success(`Created ${highlight(workflow.relativePath)}`);
@@ -301,6 +301,14 @@ export async function init(options: InitOptions = {}): Promise<number> {
 					session.warn(
 						`${workflow.relativePath} already exists — review it to ensure it includes the Vocoder translate step.`,
 					);
+				}
+
+				const vocoderConfig = writeVocoderConfig(identity.repoRoot, {
+					targetBranches: workflowBranches,
+					appDirs: repairAppDirs,
+				});
+				if (vocoderConfig.written) {
+					session.success(`Created ${highlight(vocoderConfig.relativePath)}`);
 				}
 
 				return session.end("Setup repaired.");
@@ -422,11 +430,7 @@ export async function init(options: InitOptions = {}): Promise<number> {
 		let workflowWritten = false;
 		let workflowRelativePath = ".github/workflows/vocoder-translate.yml";
 		if (repoRoot) {
-			const workflow = writeGitHubActionsWorkflow(
-				repoRoot,
-				projectResult.targetBranches,
-				projectResult.appDirs,
-			);
+			const workflow = writeGitHubActionsWorkflow(repoRoot, projectResult.targetBranches);
 			workflowWritten = workflow.written;
 			workflowRelativePath = workflow.relativePath;
 
@@ -434,6 +438,14 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				session.warn(
 					`${workflow.relativePath} already exists — review it to ensure it includes the Vocoder translate step.`,
 				);
+			}
+
+			const vocoderConfig = writeVocoderConfig(repoRoot, {
+				targetBranches: projectResult.targetBranches,
+				appDirs: projectResult.appDirs,
+			});
+			if (vocoderConfig.written) {
+				session.success(`Created ${highlight(vocoderConfig.relativePath)}`);
 			}
 		}
 

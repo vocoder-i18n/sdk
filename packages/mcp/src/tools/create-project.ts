@@ -292,7 +292,7 @@ export async function runProjectCreate(
 		`      - uses: vocoder-i18n/translate-action@v1`,
 		`        with:`,
 		`          api-key: \${{ secrets.VOCODER_API_KEY }}`,
-		`          # app-dirs: apps/web,apps/admin  # uncomment for monorepos`,
+		`          on-failure: proceed`,
 	].join("\n");
 
 	return {
@@ -308,7 +308,7 @@ export async function runProjectCreate(
 			workflowYaml,
 			``,
 			`   If the file already exists, do NOT overwrite it — tell the user to review it.`,
-			`   For monorepos, uncomment app-dirs and list comma-separated app directories.`,
+			`   For monorepos, also write a vocoder.config.ts at the repo root with an apps[] array listing each app directory.`,
 			``,
 			`3. Tell the user to add VOCODER_API_KEY as a GitHub repository secret:`,
 			`   GitHub repo → Settings → Secrets and variables → Actions → New repository secret`,

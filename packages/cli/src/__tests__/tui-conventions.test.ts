@@ -58,7 +58,6 @@ vi.mock("../utils/branch.js", () => ({
 
 vi.mock("../utils/workflow-read.js", () => ({
 	readWorkflowBranches: vi.fn(() => null),
-	readWorkflowAppDirs: vi.fn(() => null),
 	readWorkflowCommitMode: vi.fn(() => null),
 }));
 

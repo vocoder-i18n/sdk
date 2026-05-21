@@ -218,9 +218,6 @@ export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult
 		"",
 		"export default defineConfig({",
 		`  localesDir: '${localesDir}',`,
-		...(targetLocales.length > 0
-			? []
-			: ["  // targetBranches: ['main'],  // branches that trigger translation"]),
 		"});",
 	].join("\n");
 

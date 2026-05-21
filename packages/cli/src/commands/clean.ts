@@ -9,7 +9,6 @@ import type { CleanOptions } from "../types.js";
 import { highlight } from "../utils/theme.js";
 import { loadEnvFiles } from "../utils/load-env.js";
 import { loadVocoderConfig } from "@vocoder/extractor";
-import { readWorkflowAppDirs } from "../utils/workflow-read.js";
 import { resolveGitRoot } from "../utils/git-identity.js";
 import { validateLocalConfig } from "../utils/config.js";
 
@@ -66,20 +65,22 @@ export async function clean(options: CleanOptions = {}): Promise<number> {
 
 		const activeLocales = new Set([apiConfig.sourceLocale, ...apiConfig.targetLocales]);
 
-		const yamlAppDirs = readWorkflowAppDirs(gitRoot);
+		const rootConfig = loadVocoderConfig(gitRoot);
+		const configAppDirs = rootConfig?.apps?.map((a) => a.appDir).filter(Boolean) ?? null;
 		const appDirs = options.appDirs
 			? options.appDirs
 					.split(",")
 					.map((d) => d.trim().replace(/^\/|\/$/g, ""))
 					.filter(Boolean)
-			: (yamlAppDirs ?? []);
+			: (configAppDirs ?? []);
 		const effectiveAppDirs = appDirs.length > 0 ? appDirs : [""];
 
 		const allOrphaned: OrphanedFile[] = [];
 
 		for (const appDir of effectiveAppDirs) {
-			const extractRoot = appDir ? `${gitRoot}/${appDir}` : gitRoot;
-			const appConfig = loadVocoderConfig(extractRoot);
+			// Resolve effective per-app config: root config merged with matching apps[] entry overrides.
+			const appEntry = appDir ? rootConfig?.apps?.find((a) => a.appDir === appDir) : undefined;
+			const appConfig = appEntry ? { ...rootConfig, ...appEntry } : rootConfig;
 			const localesDir = appConfig?.localesDir ?? "locales";
 			const localeDir = appDir
 				? join(gitRoot, appDir, localesDir)

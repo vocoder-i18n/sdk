@@ -38,7 +38,7 @@ The build plugin and CLI both read `VOCODER_API_KEY` from the environment. In CI
 
 ## `vocoder.config.ts`
 
-Each app directory can have a `vocoder.config.ts` that controls extraction patterns, locale file output, and translation behavior. It does **not** contain an `appId` — app identity is derived from the API key and directory path at build time.
+A single `vocoder.config.ts` at the repo root controls extraction patterns, locale file output, and translation behavior for the entire project. It does **not** contain an `appId` — app identity is derived from the API key and directory path at build time.
 
 ### Single-app repo
 
@@ -49,33 +49,28 @@ import { defineConfig } from '@vocoder/config';
 export default defineConfig({
   include: ['src/**/*.{ts,tsx}'],
   localesDir: 'src/locales',
-  targetBranches: ['main'],
 });
 ```
+
+Branch triggers are set once in the GitHub Actions YAML `on.push.branches` — the CLI reads them from there.
 
 ### Monorepo
 
+Use the `apps` array to declare each app directory. Fields on an app entry override the root-level defaults for that app.
+
 ```ts
-// apps/web/vocoder.config.ts
+// vocoder.config.ts (at repo root)
 import { defineConfig } from '@vocoder/config';
 
 export default defineConfig({
-  include: ['src/**/*.{ts,tsx}'],
-  localesDir: 'src/locales',
-  targetBranches: ['main'],
+  apps: [
+    { appDir: 'apps/web', localesDir: 'src/locales' },
+    { appDir: 'apps/admin', localesDir: 'src/locales', formality: 'formal' },
+  ],
 });
 ```
 
-```ts
-// apps/api/vocoder.config.ts
-import { defineConfig } from '@vocoder/config';
-
-export default defineConfig({
-  include: ['src/**/*.{ts,tsx}'],
-  localesDir: 'src/locales',
-  targetBranches: ['main'],
-});
-```
+Branch triggers come from the GitHub Actions YAML `on.push.branches` field — no `targetBranches` needed here in the common case. Add `targetBranches` to a specific `apps[]` entry only when different apps need different branch triggers.
 
 The same `VOCODER_API_KEY` is used across all apps in the monorepo — set it once at the repo root.
 
@@ -104,11 +99,12 @@ This means:
 |---|---|---|
 | `include` | `string[]` | Glob patterns for files to scan. Default: `["**/*.{tsx,jsx,ts,js}"]` |
 | `exclude` | `string[]` | Glob patterns to skip |
-| `targetBranches` | `string[]` | Branches that trigger translation |
+| `targetBranches` | `string[]` | Per-app branch override (advanced monorepo only). Omit in the common case — the CLI reads branch triggers from the GitHub Actions YAML `on.push.branches` field, so no duplication is needed. |
 | `localesDir` | `string` | Directory to write translated locale files after sync |
 | `industry` | `string` | Domain classification for translation quality hints |
 | `formality` | `"formal" \| "informal" \| "auto"` | Project-wide formality level |
 | `onTranslationFailure` | `"fail" \| "proceed"` | Exit code behavior when translation fails. Default: `"proceed"` |
+| `apps` | `AppConfig[]` | Monorepo app directories. Each entry must have `appDir` and may override any field above except `apps` and `onTranslationFailure`. |
 
 ---
 

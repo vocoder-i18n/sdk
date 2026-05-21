@@ -15,6 +15,7 @@ const {
 	mockInstallForProject,
 	mockWriteApiKeyToEnv,
 	mockWriteGitHubActionsWorkflow,
+	mockWriteVocoderConfig,
 	mockResolveGitContext,
 	mockResolveCurrentAppDir,
 } = vi.hoisted(() => ({
@@ -38,6 +39,7 @@ const {
 	mockInstallForProject: vi.fn(),
 	mockWriteApiKeyToEnv: vi.fn(),
 	mockWriteGitHubActionsWorkflow: vi.fn(),
+	mockWriteVocoderConfig: vi.fn(),
 	mockResolveGitContext: vi.fn(),
 	mockResolveCurrentAppDir: vi.fn(),
 }));
@@ -106,6 +108,10 @@ vi.mock("../utils/workflow-write.js", () => ({
 	writeGitHubActionsWorkflow: mockWriteGitHubActionsWorkflow,
 }));
 
+vi.mock("../utils/config-write.js", () => ({
+	writeVocoderConfig: mockWriteVocoderConfig,
+}));
+
 vi.mock("../utils/git-identity.js", () => ({
 	resolveGitContext: mockResolveGitContext,
 	resolveCurrentAppDir: mockResolveCurrentAppDir,
@@ -166,6 +172,11 @@ beforeEach(() => {
 	mockWriteGitHubActionsWorkflow.mockReturnValue({
 		path: `${repoRoot}/.github/workflows/vocoder-translate.yml`,
 		relativePath: ".github/workflows/vocoder-translate.yml",
+		written: true,
+	});
+	mockWriteVocoderConfig.mockReturnValue({
+		path: `${repoRoot}/vocoder.config.ts`,
+		relativePath: "vocoder.config.ts",
 		written: true,
 	});
 });

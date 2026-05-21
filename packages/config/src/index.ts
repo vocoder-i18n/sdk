@@ -66,6 +66,23 @@ export interface VocoderConfig {
 	 * Not written by `vocoder init` — undocumented escape hatch only.
 	 */
 	onTranslationFailure?: "fail" | "proceed";
+	/**
+	 * Monorepo app directories. Each entry represents one app within the repo.
+	 * When set, `vocoder translate` and `vocoder clean` operate on each app
+	 * independently using per-app overrides merged over root-level defaults.
+	 * Omit for single-app repos.
+	 */
+	apps?: AppConfig[];
+}
+
+/**
+ * Per-app configuration for monorepos. Extends VocoderConfig so all fields
+ * are overrideable per-app. `apps` (no nesting) and `onTranslationFailure`
+ * (job-level only) are not overrideable at the app level.
+ */
+export interface AppConfig extends Omit<VocoderConfig, "apps" | "onTranslationFailure"> {
+	/** Directory of this app relative to the repo root (e.g. 'apps/web'). */
+	appDir: string;
 }
 
 /** Type helper for vocoder.config.ts — provides autocomplete and type checking. */
