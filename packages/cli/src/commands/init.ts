@@ -303,12 +303,13 @@ export async function init(options: InitOptions = {}): Promise<number> {
 					);
 				}
 
-				const vocoderConfig = writeVocoderConfig(identity.repoRoot, {
-					targetBranches: workflowBranches,
-					appDirs: repairAppDirs,
-				});
-				if (vocoderConfig.written) {
-					session.success(`Created ${highlight(vocoderConfig.relativePath)}`);
+				if (repairAppDirs.length > 0) {
+					const vocoderConfig = writeVocoderConfig(identity.repoRoot, {
+						appDirs: repairAppDirs,
+					});
+					if (vocoderConfig.written) {
+						session.success(`Created ${highlight(vocoderConfig.relativePath)}`);
+					}
 				}
 
 				return session.end("Setup repaired.");
@@ -440,12 +441,13 @@ export async function init(options: InitOptions = {}): Promise<number> {
 				);
 			}
 
-			const vocoderConfig = writeVocoderConfig(repoRoot, {
-				targetBranches: projectResult.targetBranches,
-				appDirs: projectResult.appDirs,
-			});
-			if (vocoderConfig.written) {
-				session.success(`Created ${highlight(vocoderConfig.relativePath)}`);
+			if (projectResult.appDirs.length > 0) {
+				const vocoderConfig = writeVocoderConfig(repoRoot, {
+					appDirs: projectResult.appDirs,
+				});
+				if (vocoderConfig.written) {
+					session.success(`Created ${highlight(vocoderConfig.relativePath)}`);
+				}
 			}
 		}
 

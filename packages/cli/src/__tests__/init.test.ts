@@ -211,6 +211,8 @@ describe("init", () => {
 		expect(code).toBe(0);
 		expect(mockRunProjectCreate).toHaveBeenCalled();
 		expect(mockWriteApiKeyToEnv).toHaveBeenCalledWith("vcp_new", repoRoot);
+		// monorepo: config written with apps[]
+		expect(mockWriteVocoderConfig).toHaveBeenCalledWith(repoRoot, { appDirs: ["apps/vite"] });
 	});
 
 	it("repairs local setup for an exact app match", async () => {
@@ -254,6 +256,8 @@ describe("init", () => {
 		expect(mockInstallForProject).toHaveBeenCalledWith(
 			expect.objectContaining({ rootDir: repoRoot, appDirs: [] }),
 		);
+		// single-app: no config file generated
+		expect(mockWriteVocoderConfig).not.toHaveBeenCalled();
 	});
 
 	it("regenerates a missing project key when the user confirms repair", async () => {

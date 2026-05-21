@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	renderWorkflowYaml,
+	renderPerAppWorkflowYaml,
 	writeGitHubActionsWorkflow,
 } from "../utils/workflow-write.js";
 import { readWorkflowCommitMode } from "../utils/workflow-read.js";
@@ -67,6 +68,33 @@ describe("permissions and guards", () => {
 
 	it("includes contents: write permission", () => {
 		expect(renderWorkflowYaml(["main"])).toContain("contents: write");
+	});
+});
+
+describe("renderPerAppWorkflowYaml", () => {
+	it("renders the app-dir in the action inputs", () => {
+		const yaml = renderPerAppWorkflowYaml("apps/web", ["main"]);
+		expect(yaml).toContain("app-dir: apps/web");
+	});
+
+	it("renders branches from the argument", () => {
+		const yaml = renderPerAppWorkflowYaml("apps/web", ["main", "staging"]);
+		expect(yaml).toContain("branches: ['main', 'staging']");
+	});
+
+	it("includes the app dir in the workflow name", () => {
+		const yaml = renderPerAppWorkflowYaml("apps/admin", ["main"]);
+		expect(yaml).toContain("name: Vocoder Translate — apps/admin");
+	});
+
+	it("includes the vocoder-bot guard", () => {
+		const yaml = renderPerAppWorkflowYaml("apps/web", ["main"]);
+		expect(yaml).toContain("if: github.actor != 'vocoder-bot[bot]'");
+	});
+
+	it("references the published action", () => {
+		const yaml = renderPerAppWorkflowYaml("apps/web", ["main"]);
+		expect(yaml).toContain("uses: vocoder-i18n/translate-action@v1");
 	});
 });
 

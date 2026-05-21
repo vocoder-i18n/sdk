@@ -39,6 +39,35 @@ jobs:
 }
 
 /**
+ * Render a per-app workflow YAML for advanced monorepos where different apps
+ * target different branches. The generated file uses `app-dir` to target one
+ * specific app. Most teams use a single workflow — this is an advanced escape hatch.
+ */
+export function renderPerAppWorkflowYaml(appDir: string, branches: string[]): string {
+	const branchList = branches.map((b) => `'${b}'`).join(", ");
+	return `name: Vocoder Translate — ${appDir}
+on:
+  push:
+    branches: [${branchList}]
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    if: github.actor != 'vocoder-bot[bot]'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vocoder-i18n/translate-action@v1
+        with:
+          api-key: \${{ secrets.VOCODER_API_KEY }}
+          app-dir: ${appDir}
+          # proceed: build continues even if translations fail (default)
+          # fail: block the build if translations fail
+          on-failure: proceed
+`;
+}
+
+/**
  * Write `.github/workflows/vocoder-translate.yml` under `repoRoot`. Skips silently if
  * the file already exists — the user may have a custom workflow they don't
  * want overwritten.

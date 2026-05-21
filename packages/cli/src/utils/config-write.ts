@@ -20,7 +20,7 @@ export interface ConfigWriteResult {
  */
 export function writeVocoderConfig(
 	repoRoot: string,
-	opts: { targetBranches?: string[]; appDirs?: string[] },
+	opts: { appDirs?: string[] },
 ): ConfigWriteResult {
 	const relativePath = "vocoder.config.ts";
 	const absolutePath = join(repoRoot, relativePath);

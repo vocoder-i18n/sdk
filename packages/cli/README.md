@@ -62,7 +62,7 @@ Extract strings, submit them to Vocoder, poll until completion, and write the la
 ```bash
 vocoder translate
 vocoder translate --dry-run
-vocoder translate --app-dirs apps/web,apps/admin
+vocoder translate --app-dir apps/web
 ```
 
 Reads `VOCODER_API_KEY` from the environment or local env files.
@@ -76,7 +76,7 @@ Options:
 | `--dry-run` | Extract and summarize what would be submitted without making API calls |
 | `--verbose` | Show extra diagnostics |
 | `--api-url <url>` | Override the Vocoder API URL |
-| `--app-dirs <dirs>` | Comma-separated app directories for monorepos. Overrides `vocoder.config.ts` `apps[]`. |
+| `--app-dir <dir>` | Single app directory to process (e.g. `apps/web`). Overrides `vocoder.config.ts` `apps[]`. Used in per-app workflow files. |
 
 ### `vocoder clean`
 
@@ -85,7 +85,7 @@ Remove locale files in your project that are no longer in the configured target 
 ```bash
 vocoder clean
 vocoder clean --yes
-vocoder clean --app-dirs apps/web,apps/admin
+vocoder clean --app-dir apps/web
 ```
 
 Reads `VOCODER_API_KEY` from the environment or local env files.
@@ -95,7 +95,7 @@ Options:
 | Flag | Description |
 |---|---|
 | `--yes` | Skip the confirmation prompt and delete immediately |
-| `--app-dirs <dirs>` | Comma-separated app directories for monorepos. Overrides `vocoder.config.ts` `apps[]`. |
+| `--app-dir <dir>` | Single app directory to process. Overrides `vocoder.config.ts` `apps[]`. |
 | `--api-url <url>` | Override the Vocoder API URL |
 
 ### `vocoder pull`

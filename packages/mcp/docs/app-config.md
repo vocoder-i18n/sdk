@@ -70,7 +70,7 @@ export default defineConfig({
 });
 ```
 
-Branch triggers come from the GitHub Actions YAML `on.push.branches` field — no `targetBranches` needed here in the common case. Add `targetBranches` to a specific `apps[]` entry only when different apps need different branch triggers.
+Branch triggers are set in the GitHub Actions YAML `on.push.branches` — not in this config file. For the advanced case where different apps need different branch triggers, create separate per-app workflow files (see `vocoder://docs/github-action-setup`).
 
 The same `VOCODER_API_KEY` is used across all apps in the monorepo — set it once at the repo root.
 
@@ -97,9 +97,8 @@ This means:
 
 | Field | Type | Description |
 |---|---|---|
-| `include` | `string[]` | Glob patterns for files to scan. Default: `["**/*.{tsx,jsx,ts,js}"]` |
-| `exclude` | `string[]` | Glob patterns to skip |
-| `targetBranches` | `string[]` | Per-app branch override (advanced monorepo only). Omit in the common case — the CLI reads branch triggers from the GitHub Actions YAML `on.push.branches` field, so no duplication is needed. |
+| `include` | `string[]` | Glob patterns for files to scan, relative to the git root. For monorepos, defaults to `["{appDir}/**/*.{tsx,jsx,ts,js}"]`. For single-app repos, defaults to `["**/*.{tsx,jsx,ts,js}"]`. When set, fully replaces the default — no merging. |
+| `exclude` | `string[]` | Glob patterns to skip, relative to the git root. |
 | `localesDir` | `string` | Directory to write translated locale files after sync |
 | `industry` | `string` | Domain classification for translation quality hints |
 | `formality` | `"formal" \| "informal" \| "auto"` | Project-wide formality level |

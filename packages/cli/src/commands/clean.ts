@@ -67,11 +67,8 @@ export async function clean(options: CleanOptions = {}): Promise<number> {
 
 		const rootConfig = loadVocoderConfig(gitRoot);
 		const configAppDirs = rootConfig?.apps?.map((a) => a.appDir).filter(Boolean) ?? null;
-		const appDirs = options.appDirs
-			? options.appDirs
-					.split(",")
-					.map((d) => d.trim().replace(/^\/|\/$/g, ""))
-					.filter(Boolean)
+		const appDirs = options.appDir
+			? [options.appDir.replace(/^\/|\/$/g, "")]
 			: (configAppDirs ?? []);
 		const effectiveAppDirs = appDirs.length > 0 ? appDirs : [""];
 

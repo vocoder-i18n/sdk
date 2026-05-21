@@ -56,8 +56,8 @@ program
 	.option("--verbose", "Detailed output")
 	.option("--api-url <url>", "Override Vocoder API URL")
 	.option(
-		"--app-dirs <dirs>",
-		"Comma-separated app directories for monorepos. Overrides vocoder.config.ts apps[]. Omit for single-app repos.",
+		"--app-dir <dir>",
+		"Single app directory to process (e.g. apps/web). Overrides vocoder.config.ts apps[]. Omit for the common case.",
 	)
 	.action((options) => runCommand(translate, options));
 
@@ -143,8 +143,8 @@ program
 	.command("clean")
 	.description("Remove locale files not in the current target locales")
 	.option(
-		"--app-dirs <dirs>",
-		"Comma-separated app directories for monorepos. Overrides vocoder.config.ts apps[]. Omit for single-app repos.",
+		"--app-dir <dir>",
+		"Single app directory to process (e.g. apps/web). Overrides vocoder.config.ts apps[]. Omit for the common case.",
 	)
 	.option("--yes", "Skip the confirmation prompt and delete without asking")
 	.option("--api-url <url>", "Override Vocoder API URL")

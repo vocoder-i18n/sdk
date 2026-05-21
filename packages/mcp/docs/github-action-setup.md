@@ -86,14 +86,13 @@ To halt on translation failure, use the `on-failure` input:
 
 ## Monorepo setup
 
-For repos with multiple apps, declare app directories in `vocoder.config.ts` at the repo root — no YAML input needed:
+For repos with multiple apps, declare app directories in `vocoder.config.ts` at the repo root — the single workflow file handles all apps automatically:
 
 ```ts
 // vocoder.config.ts
 import { defineConfig } from '@vocoder/config';
 
 export default defineConfig({
-  targetBranches: ['main'],
   apps: [
     { appDir: 'apps/web' },
     { appDir: 'apps/admin' },
@@ -101,10 +100,39 @@ export default defineConfig({
 });
 ```
 
+`vocoder init` generates this file automatically for monorepos. The single workflow file reads `apps[]` at runtime — no YAML changes needed when adding or removing apps.
+
 Each app gets its own locale directory:
 - `apps/web/locales/manifest.json`, `apps/web/locales/{locale}.json`
 - `apps/admin/locales/manifest.json`, `apps/admin/locales/{locale}.json`
 
-App records are created lazily on first run. Per-app fields (`localesDir`, `targetBranches`, `include`, `exclude`, `formality`, `industry`) can be overridden per entry and are merged over the root-level defaults.
+App records are created lazily on first run. Per-app fields (`localesDir`, `include`, `exclude`, `formality`, `industry`) can be overridden per entry and are merged over root-level defaults.
 
-For single-app repos, omit `apps` entirely.
+For single-app repos, omit `apps` entirely — no `vocoder.config.ts` is needed unless you want to customize extraction settings.
+
+## Advanced: per-app branch targeting
+
+If different apps need to translate on different branches, create a separate workflow file per app instead of a single shared workflow. Each file has its own `on.push.branches` and passes `app-dir` to the action:
+
+```yaml
+# .github/workflows/vocoder-apps-web.yml
+name: Vocoder Translate — apps/web
+on:
+  push:
+    branches: ['main', 'staging']
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    if: github.actor != 'vocoder-bot[bot]'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vocoder-i18n/translate-action@v1
+        with:
+          api-key: ${{ secrets.VOCODER_API_KEY }}
+          app-dir: apps/web
+          on-failure: proceed
+```
+
+This is an advanced pattern — most teams use a single shared workflow.

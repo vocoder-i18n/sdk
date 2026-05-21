@@ -6,8 +6,8 @@ export interface LocaleInfo {
 export type LocalesMap = Record<string, LocaleInfo>;
 
 export interface CleanOptions {
-	/** Comma-separated app directories for monorepos. Omit for single-app repos. */
-	appDirs?: string;
+	/** Single app directory to process (e.g. "apps/web"). Overrides vocoder.config.ts apps[]. */
+	appDir?: string;
 	/** Skip the confirmation prompt and delete without asking. */
 	yes?: boolean;
 	/** Override Vocoder API URL. */
@@ -43,8 +43,8 @@ export interface TranslateCommandOptions {
 	dryRun?: boolean;
 	verbose?: boolean;
 	apiUrl?: string;
-	/** Comma-separated app directories for monorepos. Empty/absent = single-app. */
-	appDirs?: string;
+	/** Single app directory to process (e.g. "apps/web"). Overrides vocoder.config.ts apps[]. */
+	appDir?: string;
 }
 
 /** Per-app string submission for POST /api/translate */

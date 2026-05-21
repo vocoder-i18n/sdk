@@ -248,14 +248,11 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			rootConfig?.onTranslationFailure ??
 			"proceed";
 
-		// --app-dirs flag > vocoder.config.ts apps[] > single-app root ("")
-		// Monorepo users declare app dirs in vocoder.config.ts; flag overrides for one-off runs.
+		// --app-dir flag > vocoder.config.ts apps[] > single-app root ("")
+		// Monorepo users declare app dirs in vocoder.config.ts; flag overrides for per-app workflows.
 		const configAppDirs = rootConfig?.apps?.map((a) => a.appDir).filter(Boolean) ?? null;
-		const appDirs = options.appDirs
-			? options.appDirs
-					.split(",")
-					.map((d) => d.trim().replace(/^\/|\/$/g, ""))
-					.filter(Boolean)
+		const appDirs = options.appDir
+			? [options.appDir.replace(/^\/|\/$/g, "")]
 			: (configAppDirs ?? []);
 		const effectiveAppDirs = appDirs.length > 0 ? appDirs : [""];
 
@@ -266,7 +263,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			for (const appDir of namedAppDirs) {
 				if (!existsSync(`${gitRoot}/${appDir}`)) {
 					activeStep.fail(`App directory not found: ${highlight(appDir)}`, [
-						"Fix app dirs in vocoder.config.ts or --app-dirs.",
+						"Fix app dirs in vocoder.config.ts or --app-dir.",
 					]);
 					return session.endFailure();
 				}
@@ -287,12 +284,12 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 
 		for (const appDir of effectiveAppDirs) {
 			// Resolve effective per-app config: root config merged with matching apps[] entry overrides.
-			const extractRoot = appDir ? `${gitRoot}/${appDir}` : gitRoot;
 			const appEntry = appDir ? rootConfig?.apps?.find((a) => a.appDir === appDir) : undefined;
 			const appConfig = appEntry ? { ...rootConfig, ...appEntry } : rootConfig;
 
+			const defaultInclude = appDir ? [`${appDir}/**/*.{tsx,jsx,ts,js}`] : ["**/*.{tsx,jsx,ts,js}"];
 			const includePattern: string | string[] =
-				appConfig?.include?.length ? appConfig.include : ["**/*.{tsx,jsx,ts,js}"];
+				appConfig?.include?.length ? appConfig.include : defaultInclude;
 			const excludePattern = appConfig?.exclude?.length ? appConfig.exclude : undefined;
 			const industry = appConfig?.industry;
 
@@ -309,7 +306,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			const extractor = new StringExtractor();
 			const extractedStrings = await extractor.extractFromProject(
 				includePattern,
-				extractRoot,
+				gitRoot,
 				excludePattern,
 			);
 
