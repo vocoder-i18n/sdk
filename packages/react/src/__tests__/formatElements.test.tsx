@@ -1,10 +1,10 @@
-import React from "react";
+import type React from "react";
 import { describe, expect, it } from "vitest";
 import { formatElements } from "../utils/formatElements";
 
 describe("formatElements", () => {
 	it("replaces a paired placeholder with the slot element + inner text as children", () => {
-		const result = formatElements("<0>click here</0>", [<a href="/x" />]);
+		const result = formatElements("<0>click here</0>", [<a key="0" href="/x" />]);
 		expect(result).toHaveLength(1);
 		const el = result[0] as React.ReactElement;
 		expect(el.type).toBe("a");
@@ -13,7 +13,7 @@ describe("formatElements", () => {
 	});
 
 	it("replaces a self-closing placeholder with the slot element (no children)", () => {
-		const result = formatElements("before <0/> after", [<img alt="icon" />]);
+		const result = formatElements("before <0/> after", [<img key="0" alt="icon" />]);
 		expect(result).toHaveLength(3);
 		expect(result[0]).toBe("before ");
 		const el = result[1] as React.ReactElement;
@@ -22,7 +22,7 @@ describe("formatElements", () => {
 	});
 
 	it("preserves surrounding text", () => {
-		const result = formatElements("Read <0>the docs</0> for help.", [<a href="/docs" />]);
+		const result = formatElements("Read <0>the docs</0> for help.", [<a key="0" href="/docs" />]);
 		expect(result).toHaveLength(3);
 		expect(result[0]).toBe("Read ");
 		expect(result[2]).toBe(" for help.");
@@ -31,7 +31,7 @@ describe("formatElements", () => {
 	it("handles multiple sequential placeholders", () => {
 		const result = formatElements(
 			"<0>Privacy</0> and <1>Terms</1>",
-			[<a href="/privacy" />, <a href="/terms" />],
+			[<a key="privacy" href="/privacy" />, <a key="terms" href="/terms" />],
 		);
 		expect(result).toHaveLength(3); // slot0, " and ", slot1
 		const el0 = result[0] as React.ReactElement;

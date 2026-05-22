@@ -1,4 +1,4 @@
-import { CommandSession, joinHighlighted } from "./command-session.js";
+import { type CommandSession, joinHighlighted } from "./command-session.js";
 import { highlight } from "./theme.js";
 import type { VocoderAPI } from "./api.js";
 import { promptTextInput } from "./prompt-text.js";

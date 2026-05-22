@@ -20,10 +20,10 @@ import { createProject } from "./commands/create-project.js";
 import { regenerateKey } from "./commands/regenerate-key.js";
 
 async function runCommand<TOptions>(
-	command: (options: TOptions) => Promise<number>,
+	handler: (opts: TOptions) => Promise<number>,
 	options: TOptions,
 ): Promise<void> {
-	const exitCode = await command(options);
+	const exitCode = await handler(options);
 	// Force exit so open stdin handles from readline/clack don't stall the process.
 	process.exit(exitCode);
 }

@@ -34,7 +34,6 @@ export function tryClipboard(text: string): boolean {
 			});
 			return true;
 		} catch {
-			continue;
 		}
 	}
 	return false;

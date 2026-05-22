@@ -12,7 +12,7 @@
  */
 
 import * as p from "@clack/prompts";
-import { CommandSession, formatLabelValue } from "./command-session.js";
+import { type CommandSession, formatLabelValue } from "./command-session.js";
 import type { VocoderAPI } from "./api.js";
 import { highlight } from "./theme.js";
 import { tryOpenBrowser } from "./browser.js";

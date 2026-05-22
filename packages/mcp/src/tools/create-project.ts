@@ -7,7 +7,7 @@ import {
 	verifyStoredAuth,
 } from "@vocoder/cli/lib";
 
-export interface InitStartInput {}
+export type InitStartInput = {}
 
 export interface ExistingApp {
 	appDir: string;

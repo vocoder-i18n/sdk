@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
  */
 import { render, screen, waitFor } from "@testing-library/react";
 
-import React from "react";
 import { T } from "../T";
 import { VocoderProvider } from "../VocoderProvider";
 
@@ -298,7 +297,7 @@ describe("Q5 — rich text", () => {
 			<VocoderProvider>
 				<T
 					message="Click <0>here</0> for help"
-					components={[<a href="/help" />]}
+					components={[<a key="help" href="/help" />]}
 				/>
 			</VocoderProvider>,
 		);
@@ -315,7 +314,7 @@ describe("Q5 — rich text", () => {
 			<VocoderProvider>
 				<T
 					message="Click <0>here</0> for help"
-					components={[<a href="/ayuda" />]}
+					components={[<a key="ayuda" href="/ayuda" />]}
 				/>
 			</VocoderProvider>,
 		);
@@ -330,7 +329,7 @@ describe("Q5 — rich text", () => {
 			<VocoderProvider>
 				<T
 					message="Read our <0>Privacy Policy</0> and <1>Terms of Service</1>"
-					components={[<a href="/privacy" />, <a href="/terms" />]}
+					components={[<a key="privacy" href="/privacy" />, <a key="terms" href="/terms" />]}
 				/>
 			</VocoderProvider>,
 		);
@@ -346,7 +345,7 @@ describe("Q5 — rich text", () => {
 				<T
 					message="Hello {name}, read <0>the docs</0>."
 					values={{ name: "John" }}
-					components={[<a href="/docs" />]}
+					components={[<a key="docs" href="/docs" />]}
 				/>
 			</VocoderProvider>,
 		);
@@ -361,7 +360,7 @@ describe("Q5 — rich text", () => {
 			<VocoderProvider>
 				<T
 					message="Upload complete <0/>"
-					components={[<span data-testid="icon" />]}
+					components={[<span key="icon" data-testid="icon" />]}
 				/>
 			</VocoderProvider>,
 		);
@@ -375,7 +374,7 @@ describe("Q5 — rich text", () => {
 			<VocoderProvider>
 				<T
 					message="Read <0>our <1>docs</1> now</0>"
-					components={[<a href="/docs" />, <strong />]}
+					components={[<a key="docs" href="/docs" />, <strong key="bold" />]}
 				/>
 			</VocoderProvider>,
 		);

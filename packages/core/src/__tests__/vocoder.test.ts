@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { type LocaleLoader, VocoderCore, createVocoder } from "../vocoder";
+import { type LocaleLoader, createVocoder } from "../vocoder";
 import type { LocaleManifest } from "../types";
 
 const enTranslations: Record<string, string> = {};
@@ -159,7 +159,7 @@ describe("VocoderCore", () => {
 		});
 
 		it("applies ICU interpolation", async () => {
-			const hash = "icutest"; // use options.id to skip hashing
+			const _hash = "icutest"; // use options.id to skip hashing
 			const core = createVocoder();
 			core.load(enManifest, makeLoader({ en: { icutest: "Hello {name}" } }));
 			core.seed("en", { icutest: "Hello {name}" });

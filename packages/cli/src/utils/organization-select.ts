@@ -10,7 +10,7 @@
  */
 
 import * as p from "@clack/prompts";
-import { CommandSession } from "./command-session.js";
+import type { CommandSession } from "./command-session.js";
 import type { VocoderAPI } from "./api.js";
 import { highlight } from "./theme.js";
 import { promptTextInput } from "./prompt-text.js";

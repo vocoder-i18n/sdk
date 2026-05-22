@@ -1,4 +1,4 @@
-import type { LocaleManifest, LocalesMap, TranslationsMap, VocoderContextValue, VocoderProviderProps } from "./types";
+import type { LocalesMap, TranslationsMap, VocoderContextValue, VocoderProviderProps } from "./types";
 import {
 	PREVIEW_MODE,
 	isVocoderEnabled,
@@ -21,7 +21,6 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
-	useReducer,
 	useState,
 } from "react";
 
@@ -76,7 +75,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 
 	// Resolve which core instance to use — stable for component lifetime.
 	// Priority: explicit instance > manifest convenience props > default singleton.
-	// eslint-disable-next-line react-hooks/exhaustive-deps
+	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally empty — core is created once on mount; re-creating on prop changes would reset all locale state
 	const core: VocoderCore = useMemo(() => {
 		if (instanceProp) return instanceProp;
 		if (manifest) {
@@ -180,6 +179,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	}, [core]);
 
 	// ── Activate initial locale (client-side async) ────────────────────────
+	// biome-ignore lint/correctness/useExhaustiveDependencies: hydration?.data?.locale, initialLocale, and isInitialized intentionally excluded — this effect runs once on mount to set initial locale; isInitialized is an early-exit guard, not a trigger
 	useEffect(() => {
 		if (!enabled || isInitialized) return;
 
@@ -191,7 +191,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 			"en";
 
 		core.activate(preferred).then(() => setIsInitialized(true));
-	}, [core, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [core, enabled]);
 
 	// ── Apply dir/lang to document.documentElement (opt-in) ───────────────
 	useEffect(() => {
@@ -204,6 +204,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	// ── Background CDN refresh ─────────────────────────────────────────────
 	// Fetches updated translations when locale has no build-time translations.
 	// CDN is a fallback for build-time misses only — skip when already loaded.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: translations and core.seed intentionally excluded — adding translations would cause an infinite loop (effect reads then sets translations)
 	useEffect(() => {
 		if (!enabled || !isRefreshAvailable || !isInitialized || !locale) return;
 
@@ -221,7 +222,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 		return () => {
 			cancelled = true;
 		};
-	}, [enabled, locale, isInitialized]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [enabled, locale, isInitialized]);
 
 	// ── Derived values ─────────────────────────────────────────────────────
 	const hasSettled = !enabled || isInitialized || Boolean(hydration?.data);
@@ -255,10 +256,10 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	);
 
 	const ordinal = useCallback(
-		(value: number, gender?: string): string => {
+		(n: number, gender?: string): string => {
 			const forms = locales?.[locale]?.ordinalForms;
-			if (!forms) return String(value);
-			return applyOrdinalForms(value, locale, forms, gender) ?? String(value);
+			if (!forms) return String(n);
+			return applyOrdinalForms(n, locale, forms, gender) ?? String(n);
 		},
 		[locale, locales],
 	);
@@ -267,7 +268,7 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	const hasTranslation = useCallback(
 		(key: string): boolean => {
 			const map = translations[locale];
-			return !!map && Object.prototype.hasOwnProperty.call(map, key);
+			return !!map && Object.hasOwn(map, key);
 		},
 		[translations, locale],
 	);

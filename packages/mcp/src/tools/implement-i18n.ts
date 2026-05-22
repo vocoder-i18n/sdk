@@ -98,7 +98,7 @@ function scanSourceFiles(root: string, baseDir: string, results: string[]): void
 	for (const entry of entries) {
 		if (results.length >= 100) return;
 		const full = join(root, entry);
-		let stat;
+		let stat: ReturnType<typeof statSync> | undefined;
 		try {
 			stat = statSync(full);
 		} catch {
@@ -196,7 +196,7 @@ export default async function RootLayout({
 
 export function runImplementI18n(input: ImplementI18nInput): ImplementI18nResult {
 	const sourceLocale = input.sourceLocale ?? "en";
-	const targetLocales = input.targetLocales ?? [];
+	const _targetLocales = input.targetLocales ?? [];
 	const cwd = input.appDir ?? process.cwd();
 	const scanRoot = input.scope ? join(cwd, input.scope) : cwd;
 

@@ -19,7 +19,7 @@ import { buildStringEntries } from "../utils/string-entries.js";
 import chalk from "chalk";
 import {
 	CommandSession,
-	CommandStep,
+	type CommandStep,
 	displayAppDir,
 	formatLabelValue,
 	joinHighlighted,

@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { VocoderAPI, VocoderAPIError } from "./api.js";
+import { type VocoderAPI, VocoderAPIError } from "./api.js";
 
 export interface AuthData {
 	token: string;

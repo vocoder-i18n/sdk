@@ -1,5 +1,5 @@
 import type React from "react";
-import type { FormatMode, LocaleManifest, LocaleLoader, LocalesMap, OrdinalForms, TOptions, VocoderCore } from "@vocoder/core";
+import type { FormatMode, LocaleManifest, LocaleLoader, LocalesMap, TOptions, VocoderCore } from "@vocoder/core";
 
 // Re-export shared framework-agnostic types from @vocoder/core so consumers
 // can import them from either @vocoder/react or @vocoder/core.

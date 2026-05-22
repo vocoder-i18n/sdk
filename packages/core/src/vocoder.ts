@@ -141,7 +141,7 @@ export class VocoderCore {
 	/** True when a pre-computed translation hash exists for the active locale. */
 	hasTranslation(key: string): boolean {
 		const map = this._translations[this._locale];
-		return !!map && Object.prototype.hasOwnProperty.call(map, key);
+		return !!map && Object.hasOwn(map, key);
 	}
 
 	/** Locale display name via `Intl.DisplayNames`. Falls back to the locale code. */

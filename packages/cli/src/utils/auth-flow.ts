@@ -21,7 +21,7 @@ import * as p from "@clack/prompts";
 
 import type { AccountAuthOptions } from "../types.js";
 import type { VocoderAPI } from "./api.js";
-import { CommandSession, formatLabelValue } from "./command-session.js";
+import { type CommandSession, formatLabelValue } from "./command-session.js";
 import { highlight } from "./theme.js";
 import { startCallbackServer } from "./local-server.js";
 import { tryOpenBrowser } from "./browser.js";

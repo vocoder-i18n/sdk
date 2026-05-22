@@ -31,6 +31,7 @@ export function formatElements(
 	let lastIndex = 0;
 	let match: RegExpExecArray | null;
 
+	// biome-ignore lint/suspicious/noAssignInExpressions: standard RegExp exec loop — assignment in condition is idiomatic here
 	while ((match = re.exec(message)) !== null) {
 		if (match.index > lastIndex) {
 			result.push(message.slice(lastIndex, match.index));

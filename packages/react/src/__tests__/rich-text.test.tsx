@@ -1,5 +1,4 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import React from "react";
 import { describe, expect, it } from "vitest";
 import { T } from "../T";
 import { VocoderProvider } from "../VocoderProvider";
@@ -10,7 +9,7 @@ describe("Rich text formatting", () => {
 			<VocoderProvider>
 				<T
 					message="Click <0>here</0> for help"
-					components={[<a href="/help" className="help-link" />]}
+					components={[<a key="help" href="/help" className="help-link" />]}
 				/>
 			</VocoderProvider>,
 		);
@@ -30,7 +29,7 @@ describe("Rich text formatting", () => {
 			<VocoderProvider>
 				<T
 					message="Click <0>here</0> for help"
-					components={[<a href="/ayuda" />]}
+					components={[<a key="ayuda" href="/ayuda" />]}
 				/>
 			</VocoderProvider>,
 		);
@@ -47,7 +46,7 @@ describe("Rich text formatting", () => {
 			<VocoderProvider>
 				<T
 					message="Read our <0>Privacy Policy</0> and <1>Terms of Service</1>"
-					components={[<a href="/privacy" />, <a href="/terms" />]}
+					components={[<a key="privacy" href="/privacy" />, <a key="terms" href="/terms" />]}
 				/>
 			</VocoderProvider>,
 		);

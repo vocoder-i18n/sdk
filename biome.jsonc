@@ -28,12 +28,13 @@
 		"rules": {
 			"complexity": {
 				"noExcessiveCognitiveComplexity": "off",
-				"noUselessFragments": "off"
+				"noUselessFragments": "error"
 			},
 			"correctness": {
-				"useExhaustiveDependencies": "off",
-				"noConstantCondition": "off",
-				"noUnusedImports": "off"
+				"useExhaustiveDependencies": "error",
+				"noConstantCondition": "error",
+				"noUnusedImports": "error",
+				"noUnusedVariables": "error"
 			},
 			"performance": {
 				"noNamespaceImport": "off",
@@ -46,11 +47,11 @@
 				"noNonNullAssertion": "off"
 			},
 			"suspicious": {
-				"noExplicitAny": "off",
-				"noAssignInExpressions": "off",
-				"noConfusingVoidType": "off",
+				"noExplicitAny": "warn",
+				"noAssignInExpressions": "error",
+				"noConfusingVoidType": "error",
 				"noDocumentCookie": "off",
-				"noEmptyInterface": "off"
+				"noEmptyInterface": "error"
 			},
 			"security": {
 				"noDangerouslySetInnerHtml": "off"
@@ -61,7 +62,7 @@
 			},
 			"nursery": {
 				"noIncrementDecrement": "off",
-				"noShadow": "off"
+				"noShadow": "error"
 			}
 		}
 	},

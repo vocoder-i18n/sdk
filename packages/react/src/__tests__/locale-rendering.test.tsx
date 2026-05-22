@@ -16,7 +16,7 @@
  * Zero live provider calls. All translation data is inline.
  * Runs on every commit — no gate needed.
  */
-import React from "react";
+import type React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { T } from "../T";
@@ -46,8 +46,8 @@ function makeContextValue(
 		getDisplayName: (tl) => tl,
 
 		hasTranslation: (key) =>
-			Object.prototype.hasOwnProperty.call(translations, key) ||
-			Object.prototype.hasOwnProperty.call(translations, generateMessageHash(key)),
+			Object.hasOwn(translations, key) ||
+			Object.hasOwn(translations, generateMessageHash(key)),
 
 		t: (text, values, options) => {
 			const hash = options?.id ?? generateMessageHash(text, options?.context);

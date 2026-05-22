@@ -1,6 +1,6 @@
 import React from "react";
 import type { ComponentSlot, TProps } from "./types";
-import { ALL_CLDR, DEFAULT_ORDINAL_ICU, PLURAL_CLDR, applyOrdinalForms, buildPluralICU, buildSelectICU, formatICU, formatValue, generateMessageHash, rewriteSelectordinalInICU } from "@vocoder/core";
+import { DEFAULT_ORDINAL_ICU, PLURAL_CLDR, applyOrdinalForms, buildPluralICU, buildSelectICU, formatICU, formatValue, generateMessageHash, rewriteSelectordinalInICU } from "@vocoder/core";
 import { extractText } from "./utils/extractText";
 import { formatElements } from "./utils/formatElements";
 import { useVocoder } from "./VocoderProvider";

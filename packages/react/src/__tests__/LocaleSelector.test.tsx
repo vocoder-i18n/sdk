@@ -1,7 +1,6 @@
 import { getContrast, hasBadContrast, mix, readableColor } from "color2k";
 import { render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import React from "react";
 import { describe, expect, it } from "vitest";
 import { LocaleSelector } from "../LocaleSelector";
 import { VocoderContext, useVocoder, VocoderProvider } from "../VocoderProvider";

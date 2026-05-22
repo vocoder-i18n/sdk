@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, } from "vitest";
 import { WHAT_HAPPENS, INIT_INSTRUCTIONS } from "../tools/init-status.js";
 import { runSetup } from "../tools/setup.js";
 import { runInitStart, runInitComplete, runProjectCreate } from "../tools/create-project.js";

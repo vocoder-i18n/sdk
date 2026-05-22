@@ -16,7 +16,9 @@ import { join } from "node:path";
 // ── Hoist mock refs so vi.mock factory can close over them ─────────────────────
 
 const { mockIntro, mockOutro, mockLog, mockSpinner, mockNote } = vi.hoisted(() => {
+	// biome-ignore lint/nursery/noShadow: vi.hoisted factory closes over names that match the outer destructuring — intentional vitest pattern
 	const mockSpinner = { start: vi.fn(), stop: vi.fn(), message: vi.fn() };
+	// biome-ignore lint/nursery/noShadow: same as above
 	const mockLog = {
 		success: vi.fn(),
 		warn: vi.fn(),
