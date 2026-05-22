@@ -10,4 +10,7 @@ export default defineConfig({
 	target: "es2017",
 	platform: "neutral",
 	outDir: "dist",
+	// Prevents consumers with checkJs:true from type-checking the compiled JS.
+	// Type information is provided exclusively via the generated .d.ts files.
+	banner: { js: "// @ts-nocheck" },
 });
