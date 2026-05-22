@@ -14,7 +14,7 @@ export default defineConfig({
 	// extractor's dist/index.d.ts may not exist when building plugin in isolation.
 	// TS7016 (noImplicitAny) is suppressed here because extractor types don't appear
 	// in plugin's public API; the JS bundle is unaffected by this DTS-only relaxation.
-	dts: { compilerOptions: { strict: false } },
+	dts: { compilerOptions: { strict: false, lib: ["ES2022", "DOM"] } },
 	clean: true,
 	sourcemap: true,
 	target: "node18",
@@ -35,14 +35,14 @@ export default defineConfig({
 		if (format === "esm") {
 			// createRequire shim: bundled CJS deps call require() internally; needs ESM equivalent.
 			options.banner = {
-				js: `import { createRequire as __createRequire } from 'module'; const require = __createRequire(import.meta.url);`,
+				js: `// @ts-nocheck\nimport { createRequire as __createRequire } from 'module'; const require = __createRequire(import.meta.url);`,
 			};
 		}
 		if (format === "cjs") {
 			// Polyfill import.meta.url for any bundled ESM deps that call createRequire(import.meta.url).
 			// esbuild replaces import.meta.url with undefined in CJS output; define must reference an identifier.
 			options.banner = {
-				js: `const __importMetaUrl = require('url').pathToFileURL(__filename).href;`,
+				js: `// @ts-nocheck\nconst __importMetaUrl = require('url').pathToFileURL(__filename).href;`,
 			};
 			options.define = {
 				...options.define,

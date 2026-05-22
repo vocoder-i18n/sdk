@@ -8,4 +8,5 @@ export default defineConfig({
 	sourcemap: true,
 	target: "node18",
 	outDir: "dist",
+	banner: { js: "// @ts-nocheck" },
 });

@@ -6,7 +6,7 @@ export default defineConfig({
 		lib: "src/lib.ts",
 	},
 	format: ["esm"],
-	dts: true,
+	dts: { compilerOptions: { lib: ["ES2022", "DOM"] } },
 	clean: true,
 	sourcemap: true,
 	minify: false,
@@ -29,7 +29,7 @@ export default defineConfig({
 		// CJS deps bundled into ESM call require() for Node built-ins (tty, os, etc.).
 		// This shim makes require() available inside the ESM bundle.
 		options.banner = {
-			js: `import { createRequire as __createRequire } from 'module'; const require = __createRequire(import.meta.url);`,
+			js: `// @ts-nocheck\nimport { createRequire as __createRequire } from 'module'; const require = __createRequire(import.meta.url);`,
 		};
 	},
 });

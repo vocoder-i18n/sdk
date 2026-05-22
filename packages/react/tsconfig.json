@@ -4,7 +4,7 @@
 		"declaration": true,
 		"esModuleInterop": true,
 		"jsx": "react-jsx",
-		"lib": ["ES2017", "ES2021.Intl", "DOM"],
+		"lib": ["ES2022", "ES2021.Intl", "DOM"],
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"outDir": "./dist",
