@@ -1,6 +1,6 @@
 import { VocoderAPI, VocoderAPIError } from "../utils/api.js";
 import { dirname, join } from "node:path";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 
 import type { PullOptions } from "../types.js";
 import { detectBranch } from "../utils/branch.js";
@@ -75,7 +75,10 @@ export async function pull(options: PullOptions = {}): Promise<number> {
 				);
 				continue;
 			}
-			for (const result of writeLocaleFileTree(localeFileTree, rootDir)) {
+			const isTypeScript =
+				existsSync(join(rootDir, appDir, "tsconfig.json")) ||
+				existsSync(join(rootDir, "tsconfig.json"));
+			for (const result of writeLocaleFileTree(localeFileTree, rootDir, { isTypeScript })) {
 				session.success(
 					`Wrote ${highlight(String(result.count))} file${result.count === 1 ? "" : "s"} to ${highlight(result.displayDir)}`,
 				);
@@ -111,9 +114,23 @@ export interface LocaleWriteResult {
 export function writeLocaleFileTree(
 	localeFileTree: Record<string, string>,
 	rootDir: string,
+	options?: { isTypeScript?: boolean },
 ): LocaleWriteResult[] {
 	const dirCounts = new Map<string, number>();
-	for (const [relativePath, content] of Object.entries(localeFileTree)) {
+	for (let [relativePath, content] of Object.entries(localeFileTree)) {
+		if (relativePath.endsWith("loader.js") && options?.isTypeScript) {
+			// Write loader.ts with type annotations for TypeScript projects.
+			// Clean up any previously-generated loader.js and loader.d.ts.
+			const jsPath = join(rootDir, relativePath);
+			rmSync(jsPath, { force: true });
+			rmSync(jsPath.replace(/\.js$/, ".d.ts"), { force: true });
+			relativePath = relativePath.replace(/\.js$/, ".ts");
+			content = content.replace(
+				"async function loadLocale(locale)",
+				"async function loadLocale(locale: string): Promise<Record<string, string>>",
+			);
+		}
+
 		const filePath = join(rootDir, relativePath);
 		mkdirSync(dirname(filePath), { recursive: true });
 		writeFileSync(filePath, content, "utf-8");

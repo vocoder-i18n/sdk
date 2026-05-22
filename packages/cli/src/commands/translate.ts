@@ -170,7 +170,10 @@ function renderWrittenLocaleFiles(
 	const showRootLabel = apps.length > 1;
 	for (const app of apps) {
 		if (app.localeFileTree) {
-			for (const result of writeLocaleFileTree(app.localeFileTree, rootDir)) {
+			const isTypeScript =
+				existsSync(join(rootDir, app.appDir, "tsconfig.json")) ||
+				existsSync(join(rootDir, "tsconfig.json"));
+			for (const result of writeLocaleFileTree(app.localeFileTree, rootDir, { isTypeScript })) {
 				session.success(
 					`Wrote ${highlight(String(result.count))} file${result.count === 1 ? "" : "s"} to ${highlight(result.displayDir)}`,
 				);

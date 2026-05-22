@@ -7,6 +7,9 @@ const external = [
 	"@vocoder/core",
 ];
 
+// Bundled into locale-selector — consumers don't install these directly.
+const noExternal = ["@radix-ui/react-dropdown-menu", "color2k"];
+
 export default defineConfig([
 	// Client entries — require React hooks/context. 'use client' tells Next.js
 	// App Router not to evaluate these in the RSC runtime.
@@ -24,6 +27,7 @@ export default defineConfig([
 		target: "es2017" as const,
 		platform: "neutral" as const,
 		external,
+		noExternal,
 		esbuildOptions(options) {
 			options.banner = { js: "'use client';" };
 		},
