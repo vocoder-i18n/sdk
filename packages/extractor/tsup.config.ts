@@ -5,7 +5,16 @@ export default defineConfig({
 		index: "src/index.ts",
 	},
 	format: ["esm", "cjs"],
-	dts: true,
+	dts: {
+		compilerOptions: {
+			baseUrl: ".",
+			paths: {
+				"@vocoder/config": ["../config/src/index.ts"],
+				"@vocoder/core": ["../core/src/index.ts"],
+			},
+			rootDir: "..",
+		},
+	},
 	clean: true,
 	sourcemap: true,
 	target: "node18",

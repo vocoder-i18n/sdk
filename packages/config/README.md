@@ -2,7 +2,7 @@
 
 Vocoder project configuration — defines which files to extract strings from and project-level translation settings.
 
-> This package is a peer dependency of `@vocoder/cli` and `@vocoder/plugin` — most users never install it directly.
+> Most users never install this package directly. It exists mainly as a typed helper for `vocoder.config.ts` and for tooling built on top of the SDK.
 
 ## Installation
 

@@ -10,11 +10,11 @@ The i18n SDK for Vocoder — components, CLI tooling, and AI assistant integrati
 | [`@vocoder/cli`](./packages/cli) | `npm install -D @vocoder/cli` | CLI for project setup, string extraction, and translation sync |
 | [`@vocoder/mcp`](./packages/mcp) | `npm install -D @vocoder/mcp` | MCP server for AI assistants — implements i18n tooling via the Model Context Protocol |
 | [`@vocoder/plugin`](./packages/plugin) | `npm install -D @vocoder/plugin` | Build plugin for CDN bundle delivery (Vite, Next.js, Webpack, Rollup, esbuild) |
-| [`@vocoder/core`](./packages/core) | bundled — most users don't install directly | Shared primitives: hash, ICU formatting, locale utilities, and types |
-| [`@vocoder/config`](./packages/config) | bundled — most users don't install directly | `defineConfig` type helper for `vocoder.config.ts` |
-| [`@vocoder/extractor`](./packages/extractor) | bundled — most users don't install directly | Babel AST extractor for `<T>` components and `t()` calls |
+| [`@vocoder/core`](./packages/core) | low-level package | Shared primitives: hash, ICU formatting, locale utilities, and types |
+| [`@vocoder/config`](./packages/config) | low-level package | `defineConfig` type helper for `vocoder.config.ts` |
+| [`@vocoder/extractor`](./packages/extractor) | low-level package | Babel AST extractor for `<T>` components and `t()` calls |
 
-Most projects only need two packages: `@vocoder/react` and `@vocoder/cli`. `@vocoder/core`, `@vocoder/config`, and `@vocoder/extractor` are bundled into the CLI — you do not install them separately unless you are building tooling on top of the SDK.
+Most projects only need two packages: `@vocoder/react` and `@vocoder/cli`. The other packages are lower-level building blocks for custom tooling, build integration, or AI-assistant workflows.
 
 ## Quick Start
 
@@ -75,7 +75,15 @@ pnpm dev        # watch mode for all packages
 pnpm test       # run tests across all packages
 ```
 
-All packages are versioned in lockstep. Use `pnpm changeset` to describe changes, then `pnpm changeset version` and `pnpm release` to publish.
+The release process is managed with Changesets. `@vocoder/cli`, `@vocoder/config`, `@vocoder/extractor`, `@vocoder/mcp`, and `@vocoder/plugin` are versioned together; `@vocoder/core` and `@vocoder/react` may version independently. Use `pnpm changeset` to describe changes, then `pnpm changeset version` and `pnpm release` to publish.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for local setup, testing, and release expectations.
+
+## Security
+
+See [SECURITY.md](./SECURITY.md) for how to report vulnerabilities privately.
 
 ## License
 

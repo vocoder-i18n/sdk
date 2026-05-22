@@ -42,5 +42,5 @@ Added msg prop for cleaner ICU MessageFormat syntax and fixed extraction bug
 ## Learn More
 
 - [Changesets Documentation](https://github.com/changesets/changesets)
-- [Vocoder Publishing Guide](../PUBLISHING.md)
-- [Quick Reference](../PUBLISHING_QUICK_REFERENCE.md)
+- [Vocoder SDK README](../README.md)
+- [Contributing Guide](../CONTRIBUTING.md)

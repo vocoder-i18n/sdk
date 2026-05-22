@@ -59,22 +59,22 @@
   ],
   "author": "Vocoder <admin@vocoder.app>",
   "license": "MIT",
-  "homepage": "https://github.com/vocoder/vocoder-sdk#readme",
+  "homepage": "https://github.com/vocoder-i18n/sdk#readme",
   "bugs": {
-    "url": "https://github.com/vocoder/vocoder-sdk/issues"
+    "url": "https://github.com/vocoder-i18n/sdk/issues"
   },
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
-    "@radix-ui/react-dropdown-menu": "^2.0.0",
-    "@vocoder/core": "workspace:*",
-    "color2k": "^2.0.3"
+    "@vocoder/core": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18.0.0"
   },
   "devDependencies": {
+    "@radix-ui/react-dropdown-menu": "^2.0.0",
+    "color2k": "^2.0.3",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",
     "@testing-library/user-event": "^14.6.1",

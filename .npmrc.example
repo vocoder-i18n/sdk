@@ -1,0 +1,2 @@
+; Copy to .npmrc for local publishing, or export NPM_TOKEN in your shell/CI.
+//registry.npmjs.org/:_authToken=${NPM_TOKEN}

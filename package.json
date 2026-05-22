@@ -2,6 +2,15 @@
   "name": "vocoder-sdk",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vocoder-i18n/sdk.git"
+  },
+  "homepage": "https://github.com/vocoder-i18n/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/vocoder-i18n/sdk/issues"
+  },
   "packageManager": "pnpm@10.29.1",
   "workspaces": [
     "packages/*"

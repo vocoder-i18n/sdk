@@ -34,9 +34,9 @@
   ],
   "author": "Vocoder <admin@vocoder.app>",
   "license": "MIT",
-  "homepage": "https://github.com/vocoder/vocoder-sdk#readme",
+  "homepage": "https://github.com/vocoder-i18n/sdk#readme",
   "bugs": {
-    "url": "https://github.com/vocoder/vocoder-sdk/issues"
+    "url": "https://github.com/vocoder-i18n/sdk/issues"
   },
   "scripts": {
     "build": "tsup",

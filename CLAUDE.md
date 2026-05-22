@@ -93,6 +93,28 @@ Style:
 - Never mention competitors in documentation or code.
 - Each package README is self-contained.
 
+## Open Source Document Synchronization
+
+When making changes that affect open-source usage, contribution flow, release hygiene, security reporting, repository metadata, or what gets published to npm, update the relevant OSS docs in the same task before marking it complete.
+
+Keep these files in sync when applicable:
+
+| File | Update when... |
+|---|---|
+| **README.md** (root) | Package lineup, quick start, release workflow, or cross-package behavior changes |
+| **CONTRIBUTING.md** | Local setup, test/build expectations, release steps, or contribution policy changes |
+| **SECURITY.md** | Vulnerability reporting process, security contact, or scope changes |
+| **CODE_OF_CONDUCT.md** | Community standards or enforcement contact changes |
+| **SUPPORT.md** | Support channels or issue-routing guidance changes |
+| **OPEN_SOURCE_CHECKLIST.md** | New release gates, repo-health requirements, or launch-readiness expectations |
+| **.github/ISSUE_TEMPLATE/** and **.github/PULL_REQUEST_TEMPLATE.md** | Information required from contributors or reviewers changes |
+| **package.json** metadata and package **LICENSE** files | Repository URLs, bugs/homepage links, license, publish surface, or package visibility changes |
+
+Rules:
+- If a code or config change would make one of these docs inaccurate, update the doc in the same PR/task.
+- Do not leave TODO-style placeholders for OSS process docs when the correct current behavior is knowable from the repo.
+- Treat stale OSS docs as a correctness bug, not a follow-up nice-to-have.
+
 ## CLI TUI Output Standards
 
 All CLI command output must follow these conventions. Apply them without prompting when working in `packages/cli/`.
