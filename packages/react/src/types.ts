@@ -33,7 +33,7 @@ export type ComponentSlot =
 export interface VocoderContextValue {
 	availableLocales: string[];
 	getDisplayName: (targetLocale: string, viewingLocale?: string) => string;
-	/** True when initial translations are ready for render */
+	/** True when the provider has finished initializing and render is safe. When no locale data is available, source text is rendered. */
 	isReady: boolean;
 	locale: string;
 	/** Text direction for the current locale. 'rtl' for Arabic, Hebrew, etc. 'ltr' for all others. */

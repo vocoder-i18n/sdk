@@ -11,8 +11,9 @@ export interface ConfigWriteResult {
 }
 
 /**
- * Write `vocoder.config.ts` under `repoRoot`. Skips silently if the file
- * already exists — the user may have a custom config they don't want overwritten.
+ * Write `vocoder.config.ts` (TypeScript projects) or `vocoder.config.js`
+ * (JavaScript projects) under `repoRoot`. TypeScript is detected by the
+ * presence of `tsconfig.json`. Skips silently if the file already exists.
  *
  * Branch triggers are intentionally omitted — the CLI reads them from the
  * GitHub Actions YAML (`on.push.branches`), so no duplication is needed.
@@ -22,7 +23,9 @@ export function writeVocoderConfig(
 	repoRoot: string,
 	opts: { appDirs?: string[] },
 ): ConfigWriteResult {
-	const relativePath = "vocoder.config.ts";
+	const isTypeScript = existsSync(join(repoRoot, "tsconfig.json"));
+	const ext = isTypeScript ? "ts" : "js";
+	const relativePath = `vocoder.config.${ext}`;
 	const absolutePath = join(repoRoot, relativePath);
 
 	if (existsSync(absolutePath)) {

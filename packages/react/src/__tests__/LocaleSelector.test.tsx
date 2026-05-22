@@ -4,8 +4,8 @@ import { userEvent } from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it } from "vitest";
 import { LocaleSelector } from "../LocaleSelector";
-import { useVocoder, VocoderProvider } from "../VocoderProvider";
-import type { LocaleSelectorProps } from "../types";
+import { VocoderContext, useVocoder, VocoderProvider } from "../VocoderProvider";
+import type { LocaleSelectorProps, VocoderContextValue } from "../types";
 
 const LIGHT_BORDER_WEIGHT = 0.08;
 const LIGHT_HOVER_WEIGHT = 0.03;
@@ -117,6 +117,27 @@ async function openLocaleMenu(user = userEvent.setup()) {
 	await waitFor(() => {
 		expect(screen.getByText("English")).toBeInTheDocument();
 	});
+}
+
+function makeContextValue(
+	overrides: Partial<VocoderContextValue> = {},
+): VocoderContextValue {
+	return {
+		availableLocales: ["en", "es"],
+		getDisplayName: (targetLocale: string) => targetLocale,
+		hasTranslation: () => false,
+		isReady: true,
+		locale: "en",
+		dir: "ltr",
+		locales: {
+			en: { nativeName: "English", isRTL: false },
+			es: { nativeName: "Español", isRTL: false },
+		},
+		ordinal: (value: number) => String(value),
+		setLocale: async () => {},
+		t: (text: string) => text,
+		...overrides,
+	};
 }
 
 describe("LocaleSelector", () => {
@@ -256,5 +277,22 @@ describe("LocaleSelector", () => {
 
 		await openLocaleMenu(user);
 		expect(getContent()).toBeInTheDocument();
+	});
+
+	it("returns null when fewer than two locales are available", () => {
+		render(
+			<VocoderContext.Provider
+				value={makeContextValue({
+					availableLocales: ["en"],
+					locales: {
+						en: { nativeName: "English", isRTL: false },
+					},
+				})}
+			>
+				<LocaleSelector />
+			</VocoderContext.Provider>,
+		);
+
+		expect(screen.queryByLabelText("Select language")).not.toBeInTheDocument();
 	});
 });

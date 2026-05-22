@@ -43,6 +43,9 @@ export const VocoderContext = createContext<VocoderContextValue | null>(null);
 
 const STORAGE_KEY = "vocoder_locale";
 const HYDRATION_ID = "__vocoder_hydration__";
+let hasWarnedMissingLocaleData = false;
+const MISSING_LOCALE_DATA_WARNING =
+	"Vocoder did not find any locale data. Falling back to source text. Ensure your generated locale files are available to the React SDK.";
 
 type HydrationSnapshot = {
 	locale: string;
@@ -53,6 +56,18 @@ type HydrationSnapshot = {
 
 function escapeJsonForHtml(value: string): string {
 	return value.replace(/</g, "\\u003c");
+}
+
+function hasLoadedLocaleContent(translations: TranslationsMap): boolean {
+	return Object.values(translations).some((map) => Object.keys(map).length > 0);
+}
+
+function warnMissingLocaleData() {
+	if (hasWarnedMissingLocaleData) return;
+	if (typeof process !== "undefined" && process.env.NODE_ENV === "production") return;
+
+	console.warn(MISSING_LOCALE_DATA_WARNING);
+	hasWarnedMissingLocaleData = true;
 }
 
 function readHydrationFromDom(): {
@@ -234,49 +249,59 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 		let cancelled = false;
 
 		(async () => {
-			await initializeVocoder();
-			if (cancelled) return;
+			try {
+				await initializeVocoder();
+				if (cancelled) return;
 
-			const cfg = getConfig();
-			const genTranslations = getTranslations();
-			const genLocales = getLocales();
+				const cfg = getConfig();
+				const genTranslations = getTranslations();
+				const genLocales = getLocales();
 
-			if (Object.keys(genTranslations).length > 0) {
-				setTranslations((prev) => ({ ...genTranslations, ...prev }));
-			}
-			if (Object.keys(genLocales).length > 0) {
-				setLocales(genLocales);
-			}
-			if (cfg.sourceLocale) {
-				setDefaultLocale(cfg.sourceLocale);
-			}
-
-			const available =
-				Object.keys(genLocales).length > 0
-					? Object.keys(genLocales)
-					: Object.keys(genTranslations);
-
-			if (available.length > 0) {
-				const fallback = cfg.sourceLocale || available[0] || "en";
-				const storedPreference = getCookie(STORAGE_KEY);
-				const bestLocale = getBestMatchingLocale(
-					storedPreference || fallback,
-					available,
-					fallback,
-				);
-
-				if (!genTranslations[bestLocale]) {
-					const loaded = await loadLocaleFromRuntime(bestLocale);
-					if (cancelled) return;
-					setTranslations((prev) => ({ ...prev, [bestLocale]: loaded }));
+				if (Object.keys(genTranslations).length > 0) {
+					setTranslations((prev) => ({ ...genTranslations, ...prev }));
+				}
+				if (Object.keys(genLocales).length > 0) {
+					setLocales(genLocales);
+				}
+				if (cfg.sourceLocale) {
+					setDefaultLocale(cfg.sourceLocale);
 				}
 
-				if (cancelled) return;
-				setLocaleState(bestLocale);
-				_setGlobalLocale(bestLocale);
-			}
+				const available =
+					Object.keys(genLocales).length > 0
+						? Object.keys(genLocales)
+						: Object.keys(genTranslations);
 
-			setIsInitialized(true);
+				if (available.length > 0) {
+					const fallback = cfg.sourceLocale || available[0] || "en";
+					const storedPreference = getCookie(STORAGE_KEY);
+					const bestLocale = getBestMatchingLocale(
+						storedPreference || fallback,
+						available,
+						fallback,
+					);
+
+					if (!genTranslations[bestLocale]) {
+						try {
+							const loaded = await loadLocaleFromRuntime(bestLocale);
+							if (cancelled) return;
+							setTranslations((prev) => ({ ...prev, [bestLocale]: loaded }));
+						} catch {
+							warnMissingLocaleData();
+						}
+					}
+
+					if (cancelled) return;
+					setLocaleState(bestLocale);
+					_setGlobalLocale(bestLocale);
+				}
+			} catch {
+				warnMissingLocaleData();
+			} finally {
+				if (!cancelled) {
+					setIsInitialized(true);
+				}
+			}
 		})();
 
 		return () => {
@@ -321,16 +346,25 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	}, [enabled, locale, isInitialized]);
 
 	// ── Derived values ───────────────────────────────────────────────
-	const isReady =
-		Boolean(translations[locale]) && (isInitialized || Boolean(hydrationData));
+	const hasLocaleData =
+		Object.keys(locales).length > 0 || hasLoadedLocaleContent(translations);
+	const hasSettled = !enabled || isInitialized || Boolean(hydrationData);
+	const isReady = hasSettled;
 
 	const availableLocales = useMemo(
 		() =>
 			Object.keys(locales).length > 0
 				? Object.keys(locales)
-				: Object.keys(translations),
+				: Object.entries(translations)
+						.filter(([, map]) => Object.keys(map).length > 0)
+						.map(([localeKey]) => localeKey),
 		[locales, translations],
 	);
+
+	useEffect(() => {
+		if (!enabled || !hasSettled || hasLocaleData) return;
+		warnMissingLocaleData();
+	}, [enabled, hasLocaleData, hasSettled]);
 
 	// ── Context methods ──────────────────────────────────────────────
 	// t — reactive translate. Takes source text + optional values/options.

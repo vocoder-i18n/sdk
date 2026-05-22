@@ -437,7 +437,7 @@ function LocaleSwitcher() {
     setLocale,        // (locale: string) => Promise<void>
     availableLocales, // string[] — all configured locale codes
     locales,          // LocalesMap — metadata (nativeName, dir, currencyCode, ordinalForms)
-    isReady,          // true when initial translations are loaded
+    isReady,          // true when the provider is ready to render; missing locale data falls back to source text
     dir,              // 'ltr' | 'rtl' — text direction for the active locale
     t,                // Reactive translate function — use inside components
     hasTranslation,   // (text: string) => boolean

@@ -1,41 +1,22 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
 import type { VocoderPluginOptions } from "./types";
-import { loadEnvFile } from "./env";
 import { createUnplugin } from "unplugin";
+import { existsSync } from "node:fs";
+import { loadEnvFile } from "./env";
+import { resolve } from "node:path";
 import { transformMsgProps } from "@vocoder/extractor";
 
 export type { VocoderPluginOptions };
 
-// Subpath export stubs that the plugin overrides with generated virtual modules.
+// Subpath import IDs that the plugin resolves to real files on disk.
+// @vocoder/react exports stubs at these paths as fallback when files are absent.
 const VIRTUAL_LOCALE_LOADER = "@vocoder/react/locale-loader";
-const RESOLVED_LOCALE_LOADER = "\0vocoder-locale-loader";
 const VIRTUAL_MANIFEST_LOADER = "@vocoder/react/manifest-loader";
-const RESOLVED_MANIFEST_LOADER = "\0vocoder-manifest-loader";
 
 export const unplugin = createUnplugin(
 	(options: VocoderPluginOptions = {}) => {
 		loadEnvFile();
 
 		const localesDir = options.localesDir ?? "locales";
-		let manifest: unknown = null;
-
-		function loadManifest(): void {
-			const manifestPath = resolve(process.cwd(), localesDir, "manifest.json");
-			try {
-				manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
-				if (options.verbose) {
-					console.log(`[vocoder] Loaded manifest from ${manifestPath}`);
-				}
-			} catch {
-				manifest = null;
-				if (options.verbose) {
-					console.warn(
-						`[vocoder] manifest.json not found at ${manifestPath} — translations disabled`,
-					);
-				}
-			}
-		}
 
 		function getDefineValues(): Record<string, string> {
 			return {
@@ -43,61 +24,39 @@ export const unplugin = createUnplugin(
 			};
 		}
 
-		// Generates a module with a static switch statement so every bundler
-		// (Vite, Rollup, esbuild, webpack) can analyze the imports statically and
-		// split each locale into its own lazy chunk. Dynamic template literals are
-		// NOT rewritten by most bundlers — absolute static strings are.
-		function generateLocaleLoader(): string {
-			const localesAbsPath = resolve(process.cwd(), localesDir);
-			let files: string[] = [];
-			try {
-				files = readdirSync(localesAbsPath).filter(
-					(f) => f.endsWith(".json") && f !== "manifest.json",
-				);
-			} catch {
-				// locales dir doesn't exist yet — emit an empty switch
-			}
-			const cases = files
-				.map((f) => {
-					const locale = f.replace(".json", "");
-					const absPath = resolve(localesAbsPath, f);
-					return `    case ${JSON.stringify(locale)}: return import(${JSON.stringify(absPath)}).then(function(m) { return m.default != null ? m.default : m; });`;
-				})
-				.join("\n");
-			return `export async function loadLocale(locale) {\n  switch (locale) {\n${cases}\n    default: return {};\n  }\n}\n`;
-		}
-
 		return {
 			name: "vocoder",
 			enforce: "pre" as const,
 
-			buildStart() {
-				loadManifest();
-			},
-
-			resolveId(id: string) {
-				if (id === VIRTUAL_LOCALE_LOADER) return RESOLVED_LOCALE_LOADER;
-				if (id === VIRTUAL_MANIFEST_LOADER) return RESOLVED_MANIFEST_LOADER;
-				return null;
-			},
-
-			// Restricts unplugin's webpack load rule to only the virtual modules.
-			// Without this, unplugin sets type:"javascript/auto" on every file (including
-			// locale JSON), making webpack reject valid JSON as malformed JavaScript.
-			loadInclude(id: string) {
-				return id === RESOLVED_LOCALE_LOADER || id === RESOLVED_MANIFEST_LOADER;
-			},
-
-			load(id: string) {
-				if (id === RESOLVED_LOCALE_LOADER) return generateLocaleLoader();
-				if (id === RESOLVED_MANIFEST_LOADER) return `export default ${JSON.stringify(manifest ?? null)};`;
-				return null;
+			// Redirect @vocoder/react subpath imports to real files written by `vocoder translate`.
+			// Returns null when files are absent — imports fall through to the stub in @vocoder/react,
+			// so source-text rendering still works before any translation has been run.
+			resolveId: {
+				filter: { id: { include: [/^@vocoder\/react\/(locale-loader|manifest-loader)$/] } },
+				handler(id: string, _importer, options) {
+					// Skip during Vite's dep-scan phase — let esbuild's own resolver handle it
+					// so the scan completes without triggering repeated re-optimization passes.
+					// `scan` is Vite-specific and not in unplugin's cross-bundler types.
+					if ((options as { isEntry: boolean; scan?: boolean })?.scan) return null;
+					if (id === VIRTUAL_LOCALE_LOADER) {
+						const p = resolve(process.cwd(), localesDir, "loader.js");
+						return existsSync(p) ? p : null;
+					}
+					if (id === VIRTUAL_MANIFEST_LOADER) {
+						const p = resolve(process.cwd(), localesDir, "manifest.json");
+						return existsSync(p) ? p : null;
+					}
+					return null;
+				},
 			},
 
 			transformInclude(id: string) {
 				return /\.[jt]sx?$/.test(id) && !id.includes("node_modules");
 			},
 
+			// Injects id, message, values, and components props on <T> elements
+			// that have dynamic children — required for ergonomic authoring without
+			// explicit message and values props on every dynamic <T>.
 			transform(code: string) {
 				if (!code.includes("@vocoder/react")) return null;
 				try {
@@ -110,17 +69,17 @@ export const unplugin = createUnplugin(
 
 			vite: {
 				config() {
-					loadManifest();
 					return {
 						define: getDefineValues(),
-						// Exclude virtual subpath modules from pre-bundling so esbuild
-						// leaves the bare specifiers in @vocoder/react's pre-bundled chunk.
-						// Vite rewrites them at serve time through the module pipeline,
-						// where resolveId/load fire and return the generated modules.
+						// Exclude locale subpath imports from Vite's esbuild pre-bundler.
+						// Without this, esbuild resolves them to the @vocoder/react stubs during
+						// pre-bundling and caches them — plugin resolveId never fires at serve time.
+						// Excluded imports stay external in the @vocoder/react pre-bundle and are
+						// resolved through the module pipeline where resolveId can redirect to real files.
 						optimizeDeps: {
 							exclude: [
-								"@vocoder/react/locale-loader",
-								"@vocoder/react/manifest-loader",
+								VIRTUAL_LOCALE_LOADER,
+								VIRTUAL_MANIFEST_LOADER,
 							],
 						},
 					};

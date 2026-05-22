@@ -1,12 +1,11 @@
 # Build Plugin Reference — @vocoder/plugin
 
-The Vocoder build plugin does three things:
+The Vocoder build plugin does two things:
 
-1. **Transforms natural JSX syntax** into explicit `message`/`values`/`components` props
-2. **Intercepts `@vocoder/react/manifest-loader`** and returns the project's `locales/manifest.json` content so the SDK runtime knows which locales exist
-3. **Intercepts `@vocoder/react/locale-loader`** and returns a generated switch statement that lazy-loads per-locale JSON files as separate code-split chunks
+1. **Transforms natural JSX syntax** into explicit `message`/`values`/`components` props on `<T>` elements
+2. **Aliases locale subpath imports** to real files written by `vocoder translate` — `@vocoder/react/locale-loader` → `locales/loader.js`, `@vocoder/react/manifest-loader` → `locales/manifest.json`
 
-Both virtual module interceptions work via `resolveId`/`load` hooks — the same mechanism across Vite, webpack, Rollup, and esbuild. No bundler-specific define injection is needed for locale data.
+Both aliases work via `resolveId` — the same mechanism across Vite, webpack, Rollup, and esbuild. When the target files are absent (before the first `vocoder translate` run), the aliases fall through to stubs in `@vocoder/react` and the app renders source text with no crash.
 
 ---
 
@@ -82,7 +81,7 @@ await build({
 
 ```ts
 interface VocoderPluginOptions {
-  verbose?: boolean     // Log manifest loading details during build. Default: false
+  verbose?: boolean     // Log alias resolution details during build. Default: false
   preview?: boolean     // Enable preview mode (show source strings, disable locale switching). Default: false
   localesDir?: string   // Path to locales directory, relative to process.cwd(). Default: 'locales'
 }
@@ -90,10 +89,10 @@ interface VocoderPluginOptions {
 
 ```ts
 // Vite example with options
-vocoder({ verbose: true, localesDir: 'apps/web/locales' })
+vocoder({ localesDir: 'apps/web/locales' })
 
 // Next.js example with options
-withVocoder(nextConfig, { verbose: true })
+withVocoder(nextConfig, { localesDir: 'apps/web/locales' })
 ```
 
 ---
@@ -162,72 +161,13 @@ The plugin defines one global constant at build time via Vite `define` / webpack
 |---|---|---|
 | `__VOCODER_PREVIEW__` | `boolean` | `true` in preview mode. SDK shows source text instead of translations. |
 
-Locale data (manifest and translation strings) is delivered via virtual modules, not globals — see below.
-
 ---
 
-## Virtual Manifest Loader
+## Manifest Alias
 
-The plugin intercepts `@vocoder/react/manifest-loader` and returns the project's `locales/manifest.json` content as a module default export.
+The plugin resolves `@vocoder/react/manifest-loader` to `locales/manifest.json` (or the custom `localesDir` equivalent). The SDK runtime imports this at startup to know which locales exist and their metadata.
 
-```js
-// Generated at build time — content of locales/manifest.json
-export default {
-  "version": 1,
-  "sourceLocale": "en",
-  "targetLocales": ["es", "fr"],
-  "locales": {
-    "en": { "nativeName": "English", "isRTL": false, ... },
-    "es": { "nativeName": "Español", "isRTL": false, ... }
-  },
-  ...
-}
-```
-
-The SDK runtime (`@vocoder/react`) imports this at startup to know which locales exist and their metadata. It is loaded once, synchronously, before any component renders.
-
-Without the plugin, `@vocoder/react/manifest-loader` resolves to a stub returning `null` — the SDK has no locale metadata and renders only source text.
-
----
-
-## Virtual Locale Loader
-
-The plugin intercepts `@vocoder/react/locale-loader` and replaces it with a generated module containing a static switch statement — one case per locale file found in `localesDir`:
-
-```js
-// Generated at build time
-export async function loadLocale(locale) {
-  switch (locale) {
-    case 'en': return import('/abs/path/locales/en.json').then(m => m.default ?? m)
-    case 'es': return import('/abs/path/locales/es.json').then(m => m.default ?? m)
-    case 'fr': return import('/abs/path/locales/fr.json').then(m => m.default ?? m)
-    default:   return {}
-  }
-}
-```
-
-Static string imports allow every bundler (Vite, webpack, Rollup, esbuild) to analyze them and code-split each locale into its own lazy chunk. Only the active locale is fetched at runtime, on demand when the user switches locale.
-
-Without the plugin, `@vocoder/react/locale-loader` resolves to a stub returning `{}` — the SDK renders source text.
-
-**Vite note**: The plugin adds both `@vocoder/react/manifest-loader` and `@vocoder/react/locale-loader` to `optimizeDeps.exclude` so Vite's esbuild pre-bundler treats them as external, preserving the bare specifiers in the pre-bundled `@vocoder/react` chunk. Vite's module pipeline then resolves them through the plugin's hooks at serve/build time.
-
----
-
-## locales/ Directory Structure
-
-The plugin expects your `localesDir` to contain:
-
-```
-locales/
-  manifest.json        # Written by vocoder CLI after translation
-  en.json              # Source locale translations (hash → string)
-  fr.json              # Target locale translations
-  es.json
-  ...
-```
-
-`manifest.json` format:
+`manifest.json` is generated by `vocoder translate` and committed to the repository.
 
 ```json
 {
@@ -243,11 +183,63 @@ locales/
 }
 ```
 
+Without the plugin, `@vocoder/react/manifest-loader` falls through to a stub returning `null` — the SDK has no locale metadata and renders only source text.
+
+---
+
+## Locale Loader Alias
+
+The plugin resolves `@vocoder/react/locale-loader` to `locales/loader.js` (or the custom `localesDir` equivalent). The loader is a static switch statement generated by `vocoder translate`:
+
+```js
+// Auto-generated by Vocoder. Do not edit.
+export async function loadLocale(locale) {
+  switch (locale) {
+    case "en": return import("./en.json").then((m) => m.default ?? m);
+    case "es": return import("./es.json").then((m) => m.default ?? m);
+    case "fr": return import("./fr.json").then((m) => m.default ?? m);
+    default: return {};
+  }
+}
+```
+
+Static relative imports allow every bundler (Vite, webpack, Rollup, esbuild) to analyze them and code-split each locale into its own lazy chunk. Only the active locale is fetched at runtime when the user switches.
+
+Without the plugin, `@vocoder/react/locale-loader` falls through to a stub returning `{}` — the SDK renders source text.
+
+**Vite note**: The plugin adds both subpath imports to `optimizeDeps.exclude` so Vite's esbuild pre-bundler does not resolve them to the `@vocoder/react` stubs and cache them. Excluded imports stay external in the pre-bundled `@vocoder/react` chunk and are resolved through the module pipeline at serve time, where `resolveId` can redirect them to the real files.
+
+**Framework-agnostic use**: Vue or Svelte apps can import `loader.js` and `manifest.json` directly without the plugin:
+
+```js
+import manifest from './locales/manifest.json'
+import { loadLocale } from './locales/loader.js'
+// pass to your framework's Vocoder provider
+```
+
+---
+
+## locales/ Directory Structure
+
+The plugin expects `localesDir` to contain files generated by `vocoder translate`:
+
+```
+locales/
+  manifest.json        # Locale metadata and fingerprint
+  loader.js            # Dynamic import switch (generated)
+  en.json              # Source locale (hash → string)
+  fr.json              # Target locale
+  es.json
+  ...
+```
+
+All files in this directory are auto-generated — commit them but do not edit manually.
+
 ---
 
 ## Server Components (Next.js App Router)
 
-`getConfig()` and `getLocales()` read locale metadata from the manifest virtual module synchronously. Import them from `@vocoder/react/server` (no `'use client'` boundary) in Server Components:
+`getConfig()` and `getLocales()` read locale metadata from the manifest at build time. Import them from `@vocoder/react/server` (no `'use client'` boundary) in Server Components:
 
 ```ts
 // app/layout.tsx (Server Component)

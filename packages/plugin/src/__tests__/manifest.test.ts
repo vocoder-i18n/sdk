@@ -1,94 +1,109 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import * as path from "node:path";
 
 vi.mock("node:fs", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("node:fs")>();
-	return { ...actual, readFileSync: vi.fn(actual.readFileSync) };
+	return { ...actual, existsSync: vi.fn(actual.existsSync) };
 });
 
+vi.mock("../env", () => ({ loadEnvFile: vi.fn() }));
+vi.mock("@vocoder/extractor", () => ({ transformMsgProps: vi.fn(() => ({ changed: false, code: "" })) }));
+
 import * as fs from "node:fs";
+import { unplugin } from "../index";
 
-describe("plugin manifest loading", () => {
-	const sampleManifest = {
-		version: 1 as const,
-		sourceLocale: "en",
-		targetLocales: ["fr", "de"],
-		locales: {
-			en: { nativeName: "English", isRTL: false },
-			fr: { nativeName: "Français", isRTL: false },
-			de: { nativeName: "Deutsch", isRTL: false },
-		},
-		updatedAt: "2026-01-01T00:00:00.000Z",
-		fingerprint: "abc123",
-	};
+function createPlugin(options = {}) {
+	// unplugin.raw returns the raw plugin factory used by Vite/Rollup
+	return unplugin.raw(options, { framework: "vite" as never });
+}
 
-	describe("getDefineValues shape", () => {
-		it("serializes manifest to valid JSON string", () => {
-			const serialized = JSON.stringify(sampleManifest);
-			const parsed = JSON.parse(serialized);
-			expect(parsed.sourceLocale).toBe("en");
-			expect(parsed.targetLocales).toEqual(["fr", "de"]);
-			expect(parsed.fingerprint).toBe("abc123");
-		});
-
-		it("serializes null manifest to JSON null string", () => {
-			expect(JSON.stringify(null)).toBe("null");
-		});
-
-		it("preserves all locale metadata through serialization", () => {
-			const serialized = JSON.stringify(sampleManifest);
-			const parsed = JSON.parse(serialized);
-			expect(parsed.locales.fr.nativeName).toBe("Français");
-			expect(parsed.locales.en.isRTL).toBe(false);
-		});
+describe("plugin resolveId", () => {
+	beforeEach(() => {
+		vi.resetAllMocks();
 	});
 
-	describe("locales alias path", () => {
-		it("resolves default locales dir relative to cwd", () => {
-			const cwd = "/project";
-			const localesDir = "locales";
-			const alias = path.resolve(cwd, localesDir);
-			expect(alias).toBe("/project/locales");
-		});
+	it("returns real path for locale-loader when loader.js exists", () => {
+		vi.mocked(fs.existsSync).mockImplementation((p) =>
+			String(p).endsWith("loader.js"),
+		);
 
-		it("respects custom localesDir option", () => {
-			const cwd = "/project";
-			const localesDir = "apps/web/locales";
-			const alias = path.resolve(cwd, localesDir);
-			expect(alias).toBe("/project/apps/web/locales");
-		});
+		const plugin = createPlugin();
+		const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/locale-loader", undefined, {} as never);
+
+		expect(result).toBe(path.resolve(process.cwd(), "locales", "loader.js"));
 	});
 
-	describe("manifest reading", () => {
-		it("returns null when manifest.json is missing", () => {
-			vi.mocked(fs.readFileSync).mockImplementationOnce(() => {
-				throw new Error("ENOENT");
-			});
+	it("returns null for locale-loader when loader.js is absent", () => {
+		vi.mocked(fs.existsSync).mockReturnValue(false);
 
-			let manifest: unknown = null;
-			try {
-				manifest = JSON.parse(fs.readFileSync("/nonexistent/manifest.json", "utf-8"));
-			} catch {
-				manifest = null;
-			}
+		const plugin = createPlugin();
+		const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/locale-loader", undefined, {} as never);
 
-			expect(manifest).toBeNull();
-		});
+		expect(result).toBeNull();
+	});
 
-		it("parses manifest.json when present", () => {
-			vi.mocked(fs.readFileSync).mockReturnValueOnce(
-				JSON.stringify(sampleManifest) as unknown as Buffer,
+	it("returns real path for manifest-loader when manifest.json exists", () => {
+		vi.mocked(fs.existsSync).mockImplementation((p) =>
+			String(p).endsWith("manifest.json"),
+		);
+
+		const plugin = createPlugin();
+		const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/manifest-loader", undefined, {} as never);
+
+		expect(result).toBe(path.resolve(process.cwd(), "locales", "manifest.json"));
+	});
+
+	it("returns null for manifest-loader when manifest.json is absent", () => {
+		vi.mocked(fs.existsSync).mockReturnValue(false);
+
+		const plugin = createPlugin();
+		const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/manifest-loader", undefined, {} as never);
+
+		expect(result).toBeNull();
+	});
+
+	it("returns null for unrelated module IDs", () => {
+		vi.mocked(fs.existsSync).mockReturnValue(true);
+
+		const plugin = createPlugin();
+		const result = plugin.resolveId.handler?.call({} as never,"some-other-package", undefined, {} as never);
+
+		expect(result).toBeNull();
+	});
+
+	describe("custom localesDir option", () => {
+		it("resolves locale-loader using custom localesDir", () => {
+			vi.mocked(fs.existsSync).mockImplementation((p) =>
+				String(p).endsWith("loader.js"),
 			);
 
-			let manifest: unknown = null;
-			try {
-				manifest = JSON.parse(fs.readFileSync("/project/locales/manifest.json", "utf-8"));
-			} catch {
-				manifest = null;
-			}
+			const plugin = createPlugin({ localesDir: "src/i18n" });
+			const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/locale-loader", undefined, {} as never);
 
-			expect(manifest).not.toBeNull();
-			expect((manifest as typeof sampleManifest).sourceLocale).toBe("en");
+			expect(result).toBe(path.resolve(process.cwd(), "src/i18n", "loader.js"));
 		});
+
+		it("resolves manifest-loader using custom localesDir", () => {
+			vi.mocked(fs.existsSync).mockImplementation((p) =>
+				String(p).endsWith("manifest.json"),
+			);
+
+			const plugin = createPlugin({ localesDir: "src/i18n" });
+			const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/manifest-loader", undefined, {} as never);
+
+			expect(result).toBe(path.resolve(process.cwd(), "src/i18n", "manifest.json"));
+		});
+	});
+});
+
+describe("plugin alias paths", () => {
+	it("default localesDir resolves to cwd/locales", () => {
+		const alias = path.resolve(process.cwd(), "locales", "loader.js");
+		expect(alias).toBe(path.join(process.cwd(), "locales", "loader.js"));
+	});
+
+	it("custom localesDir resolves correctly", () => {
+		const alias = path.resolve("/project", "apps/web/locales", "manifest.json");
+		expect(alias).toBe("/project/apps/web/locales/manifest.json");
 	});
 });

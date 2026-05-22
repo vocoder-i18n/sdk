@@ -253,7 +253,7 @@ export const LocaleSelector: React.FC<LocaleSelectorProps> = ({
 		});
 	}, [availableLocales, locale, locales, sortBy, getDisplayName]);
 
-	if (!isVocoderEnabled()) return null;
+	if (!isVocoderEnabled() || sortedLocales.length < 2) return null;
 
 	const getPositionStyles = (): React.CSSProperties => {
 		const base: React.CSSProperties = { position: "fixed", zIndex: 9999 };

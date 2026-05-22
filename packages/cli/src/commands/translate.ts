@@ -279,6 +279,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			sourceEntriesCount: number;
 			sourceEntriesHash: string;
 			fingerprint: string;
+			localesDir?: string;
 		};
 		const appExtractions: AppExtraction[] = [];
 
@@ -330,7 +331,7 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			const scope = `${projectShortId}:${appDir}`;
 			const fingerprint = computeFingerprint(scope, stringEntries.map((e) => e.key));
 
-			appExtractions.push({ appDir, stringEntries, sourceEntriesCount: stringEntries.length, sourceEntriesHash, fingerprint });
+			appExtractions.push({ appDir, stringEntries, sourceEntriesCount: stringEntries.length, sourceEntriesHash, fingerprint, localesDir: appConfig?.localesDir });
 		}
 
 		const totalSourceEntries = appExtractions.reduce((sum, a) => sum + a.sourceEntriesCount, 0);
@@ -379,6 +380,9 @@ export async function translate(options: TranslateCommandOptions = {}): Promise<
 			// Forward YAML commit-mode so DB stays in sync when the YAML is updated.
 			// Omitted when YAML is absent — server value is preserved in that case.
 			...(yamlCommitMode ? { commitMode: yamlCommitMode } : {}),
+			// Forward localesDir so server persists any change from vocoder.config.ts.
+			// Omitted when unset — server value is preserved in that case.
+			...(a.localesDir ? { localesDir: a.localesDir } : {}),
 		}));
 
 		activeStep = session.startStep(

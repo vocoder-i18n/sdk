@@ -67,7 +67,9 @@ export async function installForProject({
 				await runInstall(session, cmd, rootDir, "root");
 			}
 
-		// Per-app: plugin, config, ui package
+		// Per-app: cli, plugin, and ui package.
+		// cli is needed per-app because pnpm does not expose workspace-root binaries
+		// to child workspace packages. config lives only at the monorepo root.
 			for (const appDir of appDirs) {
 				const appDirFull = join(rootDir, appDir);
 				if (!existsSync(join(appDirFull, "package.json"))) {
@@ -81,8 +83,8 @@ export async function installForProject({
 			const devPkgs: string[] = [];
 			const runtimePkgs: string[] = [];
 
+			if (!detection.hasCli) devPkgs.push("@vocoder/cli");
 			if (!detection.hasUnplugin) devPkgs.push("@vocoder/plugin");
-			if (!detection.hasConfig) devPkgs.push("@vocoder/config");
 			if (detection.uiPackage && !detection.hasUiPackage) runtimePkgs.push(detection.uiPackage);
 
 				if (detection.uiPackage === null) {
