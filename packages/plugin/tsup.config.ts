@@ -19,11 +19,10 @@ export default defineConfig({
 	sourcemap: true,
 	target: "node18",
 	outDir: "dist",
-	// unplugin is intentionally external: its webpack/rspack loaders register absolute
-	// paths via __dirname at runtime. Bundling unplugin into plugin's dist shifts
-	// __dirname to plugin/dist, breaking those loader paths. Keeping unplugin as a
-	// real dependency ensures __dirname resolves inside unplugin's own dist where the
-	// loader files actually live.
+	// @vocoder/extractor and its Babel deps are noExternal so the plugin is
+	// self-contained — consumers don't install Babel. unplugin stays external because
+	// its webpack/rspack loaders register absolute paths via __dirname at runtime;
+	// bundling it would shift __dirname to plugin/dist, breaking those loader paths.
 	noExternal: [
 		"@vocoder/extractor",
 		"@babel/parser",

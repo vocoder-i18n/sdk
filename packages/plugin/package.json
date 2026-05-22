@@ -38,8 +38,7 @@
     },
     "./vite": {
       "types": "./dist/vite.d.ts",
-      "import": "./dist/vite.mjs",
-      "require": "./dist/vite.js"
+      "import": "./dist/vite.mjs"
     },
     "./webpack": {
       "types": "./dist/webpack.d.ts",
@@ -48,13 +47,11 @@
     },
     "./rollup": {
       "types": "./dist/rollup.d.ts",
-      "import": "./dist/rollup.mjs",
-      "require": "./dist/rollup.js"
+      "import": "./dist/rollup.mjs"
     },
     "./esbuild": {
       "types": "./dist/esbuild.d.ts",
-      "import": "./dist/esbuild.mjs",
-      "require": "./dist/esbuild.js"
+      "import": "./dist/esbuild.mjs"
     },
     "./next": {
       "types": "./dist/next.d.ts",
@@ -66,7 +63,7 @@
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && rm -f dist/vite.js dist/vite.js.map dist/rollup.js dist/rollup.js.map dist/esbuild.js dist/esbuild.js.map",
     "dev": "tsup --watch --no-dts --clean=false",
     "test": "vitest run",
     "test:watch": "vitest",
