@@ -5,6 +5,8 @@ export type GitRepositoryIdentity = {
 	repoCanonical: string;
 	/** Absolute path to the git repository root (`git rev-parse --show-toplevel`). */
 	repoRoot: string;
+	/** App directory relative to repo root (empty string for root-level apps). */
+	appDir: string;
 };
 
 export type GitContext = {
@@ -133,7 +135,13 @@ export function resolveGitRepositoryIdentity(): GitRepositoryIdentity | null {
 	return {
 		repoCanonical: toCanonical(parsed.host, parsed.ownerRepoPath),
 		repoRoot,
+		appDir: resolveCurrentAppDir(repoRoot),
 	};
+}
+
+/** Detect repo identity including appDir — use this instead of resolveGitRepositoryIdentity. */
+export function detectRepoIdentity(): GitRepositoryIdentity | null {
+	return resolveGitRepositoryIdentity();
 }
 
 /**

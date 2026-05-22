@@ -21,16 +21,6 @@
       "types": "./dist/server.d.ts",
       "import": "./dist/server.mjs",
       "require": "./dist/server.js"
-    },
-    "./locale-loader": {
-      "types": "./dist/locale-loader.d.ts",
-      "import": "./dist/locale-loader.mjs",
-      "require": "./dist/locale-loader.js"
-    },
-    "./manifest-loader": {
-      "types": "./dist/manifest-loader.d.ts",
-      "import": "./dist/manifest-loader.mjs",
-      "require": "./dist/manifest-loader.js"
     }
   },
   "files": [

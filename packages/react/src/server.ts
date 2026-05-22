@@ -1,6 +1,35 @@
-// getConfig and getLocales read from __VOCODER_MANIFEST__ (a build-time define constant).
-// They live here (server entry, no 'use client') so Next.js Server Components can call them.
-export { getConfig, getLocales } from "./runtime";
+import { vocoder } from "@vocoder/core";
+import type { LocalesMap } from "@vocoder/core";
+
+/**
+ * Returns locale config from the default VocoderCore singleton.
+ * Call after `vocoder.load()` has been called in your app bootstrap.
+ *
+ * @example Next.js App Router:
+ *   import { getConfig, getLocaleDir } from '@vocoder/react/server'
+ *   export default async function Layout() {
+ *     const { sourceLocale } = getConfig()
+ *     ...
+ *   }
+ */
+export function getConfig(): {
+	sourceLocale: string;
+	targetLocales: string[];
+	locales: LocalesMap;
+} {
+	return {
+		sourceLocale: vocoder.defaultLocale,
+		targetLocales: vocoder.availableLocales.filter(
+			(l) => l !== vocoder.defaultLocale,
+		),
+		locales: vocoder.locales,
+	};
+}
+
+/** Returns locale metadata from the default VocoderCore singleton. */
+export function getLocales(): LocalesMap {
+	return vocoder.locales;
+}
 
 /**
  * Returns the text direction for a given locale using locale metadata.
@@ -9,11 +38,10 @@ export { getConfig, getLocales } from "./runtime";
  * ```tsx
  * // app/layout.tsx
  * import { cookies } from 'next/headers';
- * import { getConfig, getLocales, getLocaleDir } from '@vocoder/react/server';
+ * import { getLocales, getLocaleDir } from '@vocoder/react/server';
  *
  * export default async function RootLayout({ children }) {
- *   const { sourceLocale } = getConfig();
- *   const stored = (await cookies()).get('vocoder_locale')?.value ?? sourceLocale;
+ *   const stored = (await cookies()).get('vocoder_locale')?.value ?? 'en';
  *   const dir = getLocaleDir(stored, getLocales());
  *   return <html lang={stored} dir={dir}>{children}</html>;
  * }

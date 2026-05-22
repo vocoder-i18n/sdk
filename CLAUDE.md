@@ -44,6 +44,7 @@ pnpm release
 ```
 
 **Rules:**
+- Always document new / modified code. But only ever document the way things currently work. Do not make reference to the way things used to work, or document in a way that describes why something changed. We just need documentation and unit tests to be an accurate reflection of how the code should currently work.
 - Never manually edit `version` in individual `package.json` files — let `changeset version` do it
 - Never publish a single package in isolation — always publish all via `pnpm release`
 - `@vocoder/extractor`, `@vocoder/config`, and `@vocoder/core` are bundled into plugin and CLI (`noExternal` in tsup). Keep them in `devDependencies` in those packages, not `dependencies`

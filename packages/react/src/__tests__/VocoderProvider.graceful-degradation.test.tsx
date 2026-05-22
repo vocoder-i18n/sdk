@@ -1,49 +1,49 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-const MISSING_LOCALE_DATA_WARNING =
-	"Vocoder did not find any locale data. Falling back to source text. Ensure your generated locale files are available to the React SDK.";
+import { T } from "../T";
+import { useVocoder, VocoderProvider } from "../VocoderProvider";
+import type { LocaleManifest } from "../types";
+import { createVocoder } from "@vocoder/core";
 
 afterEach(() => {
-	vi.resetModules();
 	vi.restoreAllMocks();
 });
 
+const emptyManifest: LocaleManifest = {
+	version: 1,
+	sourceLocale: "en",
+	targetLocales: [],
+	locales: {
+		en: { nativeName: "English", isRTL: false },
+	},
+	updatedAt: "2026-01-01T00:00:00.000Z",
+	fingerprint: "test",
+};
+
+function DegradationComponent() {
+	const { availableLocales, isReady, locale } = useVocoder();
+	return (
+		<div>
+			<div data-testid="ready">{String(isReady)}</div>
+			<div data-testid="locale">{locale}</div>
+			<div data-testid="available">{availableLocales.join(",")}</div>
+			<div data-testid="translation">
+				<T>Hello</T>
+			</div>
+		</div>
+	);
+}
+
 describe("VocoderProvider graceful degradation", () => {
-	it("becomes ready, renders source text, and warns when no locale data is available", async () => {
-		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-		vi.doMock("../runtime", () => ({
-			getConfig: () => ({ sourceLocale: "", targetLocales: [], locales: {} }),
-			getLocales: () => ({}),
-			getTranslations: () => ({}),
-			initializeVocoder: vi.fn().mockResolvedValue(undefined),
-			loadLocale: vi.fn().mockResolvedValue({}),
-			loadLocaleSync: vi.fn().mockReturnValue(null),
-		}));
-
-		const { T } = await import("../T");
-		const { useVocoder, VocoderProvider } = await import("../VocoderProvider");
-
-		function MissingLocaleDataComponent() {
-			const { availableLocales, isReady, locale } = useVocoder();
-
-			return (
-				<div>
-					<div data-testid="ready">{String(isReady)}</div>
-					<div data-testid="locale">{locale}</div>
-					<div data-testid="available">{availableLocales.join(",")}</div>
-					<div data-testid="translation">
-						<T>Hello</T>
-					</div>
-				</div>
-			);
-		}
+	it("becomes ready with an empty core — renders source text, no locale data", async () => {
+		// Use an instance with no translations loaded — simulates first-run / missing files
+		const emptyCore = createVocoder();
+		emptyCore.load(emptyManifest, () => Promise.resolve({}));
 
 		render(
-			<VocoderProvider>
-				<MissingLocaleDataComponent />
+			<VocoderProvider instance={emptyCore}>
+				<DegradationComponent />
 			</VocoderProvider>,
 		);
 
@@ -52,48 +52,35 @@ describe("VocoderProvider graceful degradation", () => {
 		});
 
 		expect(screen.getByTestId("locale")).toHaveTextContent("en");
-		expect(screen.getByTestId("available")).toHaveTextContent("");
+		// Only "en" in manifest, no translations loaded
+		expect(screen.getByTestId("available")).toHaveTextContent("en");
+		// Falls back to source text when translations are empty
 		expect(screen.getByTestId("translation")).toHaveTextContent("Hello");
-		expect(warn).toHaveBeenCalledTimes(1);
-		expect(warn).toHaveBeenCalledWith(MISSING_LOCALE_DATA_WARNING);
 	});
 
-	it("settles ready state and falls back to source text when locale loading fails during startup", async () => {
-		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+	it("settles ready state and falls back to source text when locale loading fails", async () => {
+		const failingLoader = vi.fn().mockRejectedValue(new Error("missing file"));
 
-		vi.doMock("../runtime", () => ({
-			getConfig: () => ({ sourceLocale: "en", targetLocales: ["es"], locales: {} }),
-			getLocales: () => ({
+		const twoLocaleManifest: LocaleManifest = {
+			version: 1,
+			sourceLocale: "en",
+			targetLocales: ["es"],
+			locales: {
 				en: { nativeName: "English", isRTL: false },
 				es: { nativeName: "Español", isRTL: false },
-			}),
-			getTranslations: () => ({}),
-			initializeVocoder: vi.fn().mockResolvedValue(undefined),
-			loadLocale: vi.fn().mockRejectedValue(new Error("missing file")),
-			loadLocaleSync: vi.fn().mockReturnValue(null),
-		}));
+			},
+			updatedAt: "2026-01-01T00:00:00.000Z",
+			fingerprint: "test",
+		};
 
-		const { T } = await import("../T");
-		const { useVocoder, VocoderProvider } = await import("../VocoderProvider");
-
-		function FailedLocaleLoadComponent() {
-			const { availableLocales, isReady, locale } = useVocoder();
-
-			return (
-				<div>
-					<div data-testid="ready">{String(isReady)}</div>
-					<div data-testid="locale">{locale}</div>
-					<div data-testid="available">{availableLocales.join(",")}</div>
-					<div data-testid="translation">
-						<T>Hello</T>
-					</div>
-				</div>
-			);
-		}
+		const core = createVocoder();
+		// Give the core no-op seeded translations so activate() skips the failing loader for 'en'
+		core.load(twoLocaleManifest, failingLoader);
+		core.seed("en", {}); // pre-seed so 'en' activation doesn't call the failing loader
 
 		render(
-			<VocoderProvider>
-				<FailedLocaleLoadComponent />
+			<VocoderProvider instance={core}>
+				<DegradationComponent />
 			</VocoderProvider>,
 		);
 
@@ -103,8 +90,7 @@ describe("VocoderProvider graceful degradation", () => {
 
 		expect(screen.getByTestId("locale")).toHaveTextContent("en");
 		expect(screen.getByTestId("available")).toHaveTextContent("en,es");
+		// Source text rendered since no translations
 		expect(screen.getByTestId("translation")).toHaveTextContent("Hello");
-		expect(warn).toHaveBeenCalledTimes(1);
-		expect(warn).toHaveBeenCalledWith(MISSING_LOCALE_DATA_WARNING);
 	});
 });

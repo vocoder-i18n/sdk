@@ -21,47 +21,47 @@ export default defineConfig({
 })
 ```
 
-### Approach 1: `await initializeVocoder()` before mount (recommended)
+### Approach 1: Bootstrap singleton before mount (recommended)
+
+Initialize the `vocoder` singleton with your manifest and loader, activate the source locale, then mount React. `VocoderProvider` with no props subscribes to this singleton automatically.
 
 ```tsx
 // src/main.tsx
-import { initializeVocoder, VocoderProvider } from '@vocoder/react'
+import { vocoder, VocoderProvider } from '@vocoder/react'
+import manifest from '../locales/manifest.json'
+import { loadLocale } from '../locales/loader.js'
 
-async function bootstrap() {
-  await initializeVocoder()
+vocoder.load(manifest, loadLocale)
+vocoder.activate(manifest.sourceLocale).then(() => {
   ReactDOM.createRoot(document.getElementById('root')!).render(
-    <VocoderProvider>
-      <App />
-    </VocoderProvider>
+    <React.StrictMode>
+      <VocoderProvider>
+        <App />
+      </VocoderProvider>
+    </React.StrictMode>
   )
-}
-
-bootstrap()
+})
 ```
 
-`initializeVocoder()` does two things before React mounts:
-1. Dynamic-imports the virtual manifest (bundled JS chunk from your CDN)
-2. Reads the user's locale from cookie, then dynamic-imports that locale's translation bundle (another bundled JS chunk)
-
-These are **code-split JS chunks the build plugin already bundled** — they're not runtime API calls. They live on your CDN alongside your app JS. Cold load: ~50–150ms. Warm/cached: near-instant.
+`vocoder.activate()` loads the active locale's translation chunk before React mounts. Subsequent locale changes call `vocoder.activate(locale)` via `setLocale` inside the provider.
 
 **Result:** React mounts with translations already in memory. No flash of untranslated content.
 
-**Trade-off:** Blank page while the two chunks load instead of briefly showing source text. For users on the source locale (e.g. English), `initializeVocoder()` resolves immediately — nothing to load. Only non-source-locale users eat the chunk load time, and it's one dynamic import — fast.
+**Trade-off:** Blank page while the locale chunk loads. For users on the source locale, `activate()` resolves from the seeded data — near-instant. Only non-source-locale users wait for the import, and it's one dynamic import — fast.
 
-**This is the recommended SPA pattern.** The blank period is equivalent to any other lazy-loaded JS dependency and is preferable to a flash of English text on a French user's screen.
+**This is the recommended SPA pattern.**
 
-Optional: show a minimal native spinner before React mounts:
+Optional: show a minimal native spinner while the bootstrap runs:
 
 ```tsx
-async function bootstrap() {
-  const spinner = document.getElementById('loading-spinner')
-  await initializeVocoder()
+const spinner = document.getElementById('loading-spinner')
+vocoder.load(manifest, loadLocale)
+vocoder.activate(manifest.sourceLocale).then(() => {
   spinner?.remove()
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <VocoderProvider><App /></VocoderProvider>
   )
-}
+})
 ```
 
 ### Approach 2: Mount immediately, use `isReady` for loading state
@@ -315,9 +315,9 @@ export default function App() {
 
 ---
 
-## Git-First Setup (no build plugin)
+## Manifest Props Mode (no build plugin)
 
-Git-first mode lets you use `@vocoder/react` without `@vocoder/plugin`. Translation data lives in committed JSON files rather than build-time virtual modules. The Vocoder CLI still runs sync and extraction, but the provider reads locale data from props instead of injected globals.
+When you pass `manifest` + `loadLocale` directly to `VocoderProvider`, the provider creates an isolated `VocoderCore` instance internally. No build plugin or singleton bootstrap needed. The Vocoder CLI still runs sync and extraction.
 
 ### File layout
 
@@ -335,13 +335,11 @@ src/
 ```tsx
 // src/main.tsx
 import manifest from './locales/manifest.json'
-import enTranslations from './locales/en.json'
 import { VocoderProvider } from '@vocoder/react'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <VocoderProvider
     manifest={manifest}
-    initialTranslations={enTranslations}
     loadLocale={(locale) => import(`./locales/${locale}.json`).then(m => m.default)}
   >
     <App />
@@ -361,7 +359,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const cookieStore = await cookies()
   const initialLocale = cookieStore.get('vocoder_locale')?.value ?? manifest.sourceLocale
 
-  // Import the initial locale's translations server-side to avoid client flash
   const { default: initialTranslations } = await import(`../locales/${initialLocale}.json`)
 
   return (
@@ -381,14 +378,121 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }
 ```
 
-### Behavior in git-first mode
+### Behavior in manifest props mode
 
 - `manifest.sourceLocale` is used as the default locale when no cookie or `initialLocale` is set
 - `initialTranslations` seeds the starting locale — no async load on first render
 - `loadLocale` is called only when the user switches to a locale not yet loaded
-- `isReady` is `true` immediately (no async plugin initialization)
 - The hydration `<script>` tag is still emitted in SSR, so locale + translations are available on the client without a round-trip
-- All other provider behavior (cookie persistence, `applyDir`, `setLocale`, `dir`, `useVocoder()`) works identically to plugin mode
+- All other provider behavior (cookie persistence, `applyDir`, `setLocale`, `dir`, `useVocoder()`) works identically
+
+---
+
+## Non-React Frameworks
+
+`VocoderCore` is framework-agnostic. Vue, Svelte, and Angular can use it directly without `@vocoder/react`.
+
+### Vue 3
+
+```ts
+// src/i18n.ts — bootstrap (run before app.mount)
+import { vocoder } from '@vocoder/core'
+import manifest from '../locales/manifest.json'
+import { loadLocale } from '../locales/loader.js'
+
+vocoder.load(manifest, loadLocale)
+export { vocoder }
+```
+
+```ts
+// src/plugins/vocoder.ts
+import { ref, reactive } from 'vue'
+import type { App } from 'vue'
+import { vocoder } from '../i18n'
+
+export const VocoderPlugin = {
+  install(app: App) {
+    const locale = ref(vocoder.locale)
+    const unsubscribe = vocoder.onChange(() => { locale.value = vocoder.locale })
+    app.config.globalProperties.$t = vocoder.t.bind(vocoder)
+    app.config.globalProperties.$setLocale = vocoder.activate.bind(vocoder)
+    app.provide('vocoder', { locale, setLocale: vocoder.activate.bind(vocoder) })
+    app.unmount = ((originalUnmount) => () => { unsubscribe(); originalUnmount() })(app.unmount)
+  }
+}
+```
+
+```ts
+// src/main.ts
+import { vocoder } from './i18n'
+import { VocoderPlugin } from './plugins/vocoder'
+
+vocoder.activate(manifest.sourceLocale).then(() => {
+  const app = createApp(App)
+  app.use(VocoderPlugin)
+  app.mount('#app')
+})
+```
+
+### Svelte
+
+`VocoderCore` implements the Svelte store contract — subscribe with a function that receives an immediate snapshot, then updates on each locale change.
+
+```ts
+// src/lib/i18n.ts
+import { vocoder } from '@vocoder/core'
+import manifest from '../locales/manifest.json'
+import { loadLocale } from '../locales/loader.js'
+
+vocoder.load(manifest, loadLocale)
+export { vocoder }
+```
+
+```svelte
+<!-- src/App.svelte -->
+<script>
+  import { vocoder } from './lib/i18n'
+
+  // $vocoder is a VocoderState snapshot: { locale, defaultLocale, locales, availableLocales }
+  // Updates automatically when vocoder.activate() is called
+</script>
+
+{#if $vocoder.locale}
+  <h1>{vocoder.t('Welcome')}</h1>
+  <select bind:value={$vocoder.locale} on:change={e => vocoder.activate(e.target.value)}>
+    {#each $vocoder.availableLocales as loc}
+      <option value={loc}>{$vocoder.locales[loc]?.nativeName ?? loc}</option>
+    {/each}
+  </select>
+{/if}
+```
+
+### Angular
+
+```ts
+// src/app/vocoder.service.ts
+import { Injectable, OnDestroy } from '@angular/core'
+import { BehaviorSubject } from 'rxjs'
+import { vocoder } from '@vocoder/core'
+import manifest from '../../locales/manifest.json'
+import { loadLocale } from '../../locales/loader.js'
+
+@Injectable({ providedIn: 'root' })
+export class VocoderService implements OnDestroy {
+  locale$ = new BehaviorSubject(vocoder.locale)
+  private unsubscribe = vocoder.onChange(() => this.locale$.next(vocoder.locale))
+
+  constructor() {
+    vocoder.load(manifest, loadLocale)
+    vocoder.activate(manifest.sourceLocale)
+  }
+
+  t = vocoder.t.bind(vocoder)
+  setLocale = vocoder.activate.bind(vocoder)
+
+  ngOnDestroy() { this.unsubscribe() }
+}
+```
 
 ---
 

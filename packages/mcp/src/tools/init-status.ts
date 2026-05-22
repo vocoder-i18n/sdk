@@ -1,4 +1,4 @@
-import { detectRepoIdentity } from "@vocoder/plugin";
+import { detectRepoIdentity } from "@vocoder/cli/lib";
 import {
 	VocoderAPI,
 	readAuthData,

@@ -8,7 +8,7 @@ import {
 	loadVocoderConfig,
 } from "@vocoder/cli/lib";
 import { computeFingerprint } from "@vocoder/extractor";
-import { detectBranch, detectCommitSha, detectRepoIdentity } from "@vocoder/plugin";
+import { detectBranch, detectCommitSha, detectRepoIdentity } from "@vocoder/cli/lib";
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_WAIT_MS = 60000;

@@ -1,98 +1,98 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as path from "node:path";
 
-vi.mock("node:fs", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("node:fs")>();
-	return { ...actual, existsSync: vi.fn(actual.existsSync) };
-});
-
 vi.mock("../env", () => ({ loadEnvFile: vi.fn() }));
-vi.mock("@vocoder/extractor", () => ({ transformMsgProps: vi.fn(() => ({ changed: false, code: "" })) }));
+vi.mock("@vocoder/extractor", () => ({
+	transformMsgProps: vi.fn(() => ({ changed: false, code: "" })),
+}));
 
-import * as fs from "node:fs";
+import { transformMsgProps } from "@vocoder/extractor";
 import { unplugin } from "../index";
 
 function createPlugin(options = {}) {
-	// unplugin.raw returns the raw plugin factory used by Vite/Rollup
 	return unplugin.raw(options, { framework: "vite" as never });
 }
 
-describe("plugin resolveId", () => {
-	beforeEach(() => {
-		vi.resetAllMocks();
+describe("plugin transform", () => {
+	it("skips files that do not import @vocoder/react", () => {
+		const plugin = createPlugin();
+		const result = plugin.transform?.call({} as never, "const x = 1;", "file.tsx");
+		expect(result).toBeNull();
+		expect(transformMsgProps).not.toHaveBeenCalled();
 	});
 
-	it("returns real path for locale-loader when loader.js exists", () => {
-		vi.mocked(fs.existsSync).mockImplementation((p) =>
-			String(p).endsWith("loader.js"),
+	it("calls transformMsgProps for files that import @vocoder/react", () => {
+		vi.mocked(transformMsgProps).mockReturnValueOnce({ changed: true, code: "transformed" });
+		const plugin = createPlugin();
+		const result = plugin.transform?.call(
+			{} as never,
+			'import { T } from "@vocoder/react"; <T>Hello</T>',
+			"app.tsx",
 		);
-
-		const plugin = createPlugin();
-		const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/locale-loader", undefined, {} as never);
-
-		expect(result).toBe(path.resolve(process.cwd(), "locales", "loader.js"));
+		expect(transformMsgProps).toHaveBeenCalled();
+		expect(result).toEqual({ code: "transformed" });
 	});
 
-	it("returns null for locale-loader when loader.js is absent", () => {
-		vi.mocked(fs.existsSync).mockReturnValue(false);
-
+	it("returns null when transformMsgProps reports no changes", () => {
+		vi.mocked(transformMsgProps).mockReturnValueOnce({ changed: false, code: "" });
 		const plugin = createPlugin();
-		const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/locale-loader", undefined, {} as never);
-
-		expect(result).toBeNull();
-	});
-
-	it("returns real path for manifest-loader when manifest.json exists", () => {
-		vi.mocked(fs.existsSync).mockImplementation((p) =>
-			String(p).endsWith("manifest.json"),
+		const result = plugin.transform?.call(
+			{} as never,
+			'import { T } from "@vocoder/react"; <T>Hello</T>',
+			"app.tsx",
 		);
-
-		const plugin = createPlugin();
-		const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/manifest-loader", undefined, {} as never);
-
-		expect(result).toBe(path.resolve(process.cwd(), "locales", "manifest.json"));
-	});
-
-	it("returns null for manifest-loader when manifest.json is absent", () => {
-		vi.mocked(fs.existsSync).mockReturnValue(false);
-
-		const plugin = createPlugin();
-		const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/manifest-loader", undefined, {} as never);
-
 		expect(result).toBeNull();
 	});
 
-	it("returns null for unrelated module IDs", () => {
-		vi.mocked(fs.existsSync).mockReturnValue(true);
-
+	it("returns null when transformMsgProps throws", () => {
+		vi.mocked(transformMsgProps).mockImplementationOnce(() => {
+			throw new Error("parse error");
+		});
 		const plugin = createPlugin();
-		const result = plugin.resolveId.handler?.call({} as never,"some-other-package", undefined, {} as never);
-
+		const result = plugin.transform?.call(
+			{} as never,
+			'import { T } from "@vocoder/react"; <T>Hello</T>',
+			"app.tsx",
+		);
 		expect(result).toBeNull();
 	});
+});
 
-	describe("custom localesDir option", () => {
-		it("resolves locale-loader using custom localesDir", () => {
-			vi.mocked(fs.existsSync).mockImplementation((p) =>
-				String(p).endsWith("loader.js"),
-			);
+describe("plugin transformInclude", () => {
+	it("includes .tsx files outside node_modules", () => {
+		const plugin = createPlugin();
+		expect(plugin.transformInclude?.call({} as never, "src/App.tsx")).toBe(true);
+	});
 
-			const plugin = createPlugin({ localesDir: "src/i18n" });
-			const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/locale-loader", undefined, {} as never);
+	it("includes .ts files", () => {
+		const plugin = createPlugin();
+		expect(plugin.transformInclude?.call({} as never, "src/util.ts")).toBe(true);
+	});
 
-			expect(result).toBe(path.resolve(process.cwd(), "src/i18n", "loader.js"));
-		});
+	it("excludes node_modules", () => {
+		const plugin = createPlugin();
+		expect(
+			plugin.transformInclude?.call({} as never, "node_modules/react/index.js"),
+		).toBe(false);
+	});
 
-		it("resolves manifest-loader using custom localesDir", () => {
-			vi.mocked(fs.existsSync).mockImplementation((p) =>
-				String(p).endsWith("manifest.json"),
-			);
+	it("excludes non-JS/TS files", () => {
+		const plugin = createPlugin();
+		expect(plugin.transformInclude?.call({} as never, "styles.css")).toBe(false);
+	});
+});
 
-			const plugin = createPlugin({ localesDir: "src/i18n" });
-			const result = plugin.resolveId.handler?.call({} as never,"@vocoder/react/manifest-loader", undefined, {} as never);
+describe("plugin vite config — define injection", () => {
+	it("injects __VOCODER_PREVIEW__ false by default", () => {
+		const plugin = createPlugin();
+		const config = (plugin as { vite?: { config?: () => unknown } }).vite?.config?.();
+		expect(config).toEqual({ define: { __VOCODER_PREVIEW__: "false" } });
+	});
 
-			expect(result).toBe(path.resolve(process.cwd(), "src/i18n", "manifest.json"));
-		});
+	it("injects __VOCODER_PREVIEW__ true when preview option is set", () => {
+		const plugin = createPlugin({ preview: true });
+		const config = (plugin as { vite?: { config?: () => unknown } }).vite?.config?.();
+		expect(config).toEqual({ define: { __VOCODER_PREVIEW__: "true" } });
 	});
 });
 

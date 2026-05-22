@@ -311,25 +311,46 @@ Required context provider. Place at the root of your app (client-side). Manages 
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `children` | `ReactNode` | — | Required |
+| `instance` | `VocoderCore` | — | Explicit `VocoderCore` instance. Use when you created the singleton yourself (multi-tenant apps, tests, non-default instances). When omitted, the provider subscribes to the default `vocoder` singleton from `@vocoder/core`. |
 | `initialLocale` | `string` | — | SSR-detected locale. Pass the raw `vocoder_locale` cookie value from the server. The provider normalizes it against available locales automatically. Omit for client-only apps. |
 | `preview` | `boolean` | — | Whether this user has preview mode enabled. Resolve from the `vocoder_preview` cookie server-side and pass the boolean. Only relevant when `preview: true` is set in the build plugin config. |
 | `applyDir` | `boolean` | `true` | Auto-sets `dir` and `lang` on `document.documentElement` when locale changes. Set `false` only if you manage direction yourself. |
-| `manifest` | `LocaleManifest` | — | Git-first mode: locale config + metadata from a committed `manifest.json`. When provided, the provider bypasses the `@vocoder/plugin` runtime and derives everything from this manifest. Use alongside `initialTranslations` and `loadLocale`. |
-| `initialTranslations` | `Record<string, string>` | — | Initial translation map for the starting locale. Use in manifest mode to seed translations on first render. Keys are FNV-1a hashes of source text (same format as locale JSON files). |
-| `loadLocale` | `(locale: string) => Promise<Record<string, string>>` | — | Locale loader for manifest mode. Called when the user switches locale. Typically a dynamic import of the locale JSON file. |
+| `manifest` | `LocaleManifest` | — | Convenience: locale config + metadata from a committed `manifest.json`. When provided, the provider creates a dedicated `VocoderCore` instance internally — no singleton bootstrap needed. Use alongside `loadLocale` (and optionally `initialTranslations` for SSR). |
+| `initialTranslations` | `Record<string, string>` | — | Initial translation map for the starting locale. Pass server-fetched translations to seed first render without a round-trip. Keys are hashes of source text (same format as locale JSON files). |
+| `loadLocale` | `(locale: string) => Promise<Record<string, string>>` | — | Locale loader. Called when the user switches locale. Required with `manifest`. Typically a dynamic import of the locale JSON file. |
 
-### Git-first usage example
+### Standard usage — singleton bootstrap
+
+Initialize the default `vocoder` singleton before mount. `VocoderProvider` with no props subscribes to it automatically.
+
+```tsx
+// src/main.tsx
+import { vocoder, VocoderProvider } from '@vocoder/react'
+import manifest from '../locales/manifest.json'
+import { loadLocale } from '../locales/loader.js'
+
+vocoder.load(manifest, loadLocale)
+vocoder.activate(manifest.sourceLocale).then(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <VocoderProvider>
+      <App />
+    </VocoderProvider>
+  )
+})
+```
+
+### Manifest props mode (no singleton bootstrap)
+
+Pass `manifest` + `loadLocale` directly. The provider creates an isolated core internally.
 
 ```tsx
 import manifest from './locales/manifest.json'
-import enTranslations from './locales/en.json'
 import { VocoderProvider } from '@vocoder/react'
 
 export default function RootLayout({ children }) {
   return (
     <VocoderProvider
       manifest={manifest}
-      initialTranslations={enTranslations}
       loadLocale={(locale) => import(`./locales/${locale}.json`).then(m => m.default)}
     >
       {children}
@@ -338,19 +359,43 @@ export default function RootLayout({ children }) {
 }
 ```
 
-In git-first mode there is no build plugin. The `manifest.json` and locale JSON files are committed to your repository and imported directly.
+### Explicit instance mode
 
-### SPA (Vite, CRA)
+Pass a `VocoderCore` instance you created yourself. Useful for isolated environments (tests, multiple providers).
+
+```tsx
+import { createVocoder, VocoderProvider } from '@vocoder/react'
+import manifest from './locales/manifest.json'
+import { loadLocale } from './locales/loader.js'
+
+const myCore = createVocoder()
+myCore.load(manifest, loadLocale)
+
+export default function RootLayout({ children }) {
+  return (
+    <VocoderProvider instance={myCore}>
+      {children}
+    </VocoderProvider>
+  )
+}
+```
+
+### SPA (Vite, CRA) — singleton pattern
 
 ```tsx
 // src/main.tsx
-import { VocoderProvider } from '@vocoder/react'
+import { vocoder, VocoderProvider } from '@vocoder/react'
+import manifest from '../locales/manifest.json'
+import { loadLocale } from '../locales/loader.js'
 
-root.render(
-  <VocoderProvider>
-    <App />
-  </VocoderProvider>
-)
+vocoder.load(manifest, loadLocale)
+vocoder.activate(manifest.sourceLocale).then(() => {
+  root.render(
+    <VocoderProvider>
+      <App />
+    </VocoderProvider>
+  )
+})
 ```
 
 ### Next.js App Router
@@ -410,13 +455,12 @@ Import from `@vocoder/react/server`. Returns `"ltr"` or `"rtl"` for a locale usi
 
 ```tsx
 // app/layout.tsx
-import { config } from 'virtual:vocoder/manifest'
 import { cookies } from 'next/headers'
-import { getLocaleDir } from '@vocoder/react/server'
+import { getLocaleDir, getLocales } from '@vocoder/react/server'
 
 export default async function RootLayout({ children }) {
-  const locale = (await cookies()).get('vocoder_locale')?.value ?? config.sourceLocale
-  const dir = getLocaleDir(locale, config.locales)
+  const locale = (await cookies()).get('vocoder_locale')?.value ?? 'en'
+  const dir = getLocaleDir(locale, getLocales())
   return <html lang={locale} dir={dir}>{children}</html>
 }
 ```

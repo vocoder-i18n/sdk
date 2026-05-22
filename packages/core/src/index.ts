@@ -19,3 +19,11 @@ export type {
 	TranslationsMap,
 	VocoderTranslationData,
 } from "./types";
+export {
+	VocoderCore,
+	createVocoder,
+	vocoder,
+	t,
+	ordinal,
+} from "./vocoder";
+export type { LocaleLoader, VocoderState } from "./vocoder";

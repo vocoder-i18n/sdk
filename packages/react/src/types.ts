@@ -1,5 +1,5 @@
 import type React from "react";
-import type { FormatMode, LocaleManifest, LocalesMap, OrdinalForms, TOptions } from "@vocoder/core";
+import type { FormatMode, LocaleManifest, LocaleLoader, LocalesMap, OrdinalForms, TOptions, VocoderCore } from "@vocoder/core";
 
 // Re-export shared framework-agnostic types from @vocoder/core so consumers
 // can import them from either @vocoder/react or @vocoder/core.
@@ -56,6 +56,31 @@ export interface VocoderProviderProps {
 	/** React children */
 	children: React.ReactNode;
 	/**
+	 * Explicit VocoderCore instance. Use when you need per-request isolation (SSR)
+	 * or multi-framework setups where one core is shared with Vue/Svelte code.
+	 * When omitted, the provider uses the default `vocoder` singleton from @vocoder/core.
+	 * @example
+	 *   import { createVocoder } from '@vocoder/core'
+	 *   const core = createVocoder()
+	 *   core.load(manifest, loadLocale)
+	 *   await core.activate('en')
+	 *   <VocoderProvider instance={core}>
+	 */
+	instance?: VocoderCore;
+	/**
+	 * Convenience: locale manifest. When provided alongside `loadLocale`, the provider
+	 * creates a VocoderCore instance internally so you don't need to manage one yourself.
+	 * Ideal for React-only apps. Use `instance` instead for multi-framework setups.
+	 */
+	manifest?: LocaleManifest;
+	/**
+	 * Convenience: locale loader (required when `manifest` is provided).
+	 * Called when the user switches locale to fetch that locale's translations.
+	 * @example
+	 *   loadLocale={(locale) => import(`./locales/${locale}.json`).then(m => m.default)}
+	 */
+	loadLocale?: LocaleLoader;
+	/**
 	 * SSR-detected initial locale. Pass the raw cookie value (or preferred locale string)
 	 * from your server — the provider normalizes it against available locales automatically.
 	 * Omit for client-only apps; the provider reads the locale cookie from document.cookie.
@@ -65,12 +90,15 @@ export interface VocoderProviderProps {
 	 */
 	initialLocale?: string;
 	/**
+	 * Server-fetched translations for the starting locale (SSR only). Seed these to avoid
+	 * a loading flash on first render. The key should match `initialLocale` (or
+	 * `manifest.sourceLocale` when `initialLocale` is absent).
+	 */
+	initialTranslations?: Record<string, string>;
+	/**
 	 * Whether the current user has preview mode enabled. Resolve server-side from the
 	 * `vocoder_preview` cookie and pass the boolean. Falls back to document.cookie on client.
 	 * Only relevant when `preview: true` is set in your vocoder build plugin config.
-	 * @example Next.js App Router:
-	 *   const preview = (await cookies()).get('vocoder_preview')?.value === 'true';
-	 *   <VocoderProvider preview={preview}>
 	 */
 	preview?: boolean;
 	/**
@@ -82,26 +110,6 @@ export interface VocoderProviderProps {
 	 * @default true
 	 */
 	applyDir?: boolean;
-	/**
-	 * Git-first mode: locale configuration + metadata from a committed manifest.json.
-	 * When provided, the provider bypasses @vocoder/plugin runtime globals and derives
-	 * locale config entirely from this manifest. Use alongside initialTranslations and
-	 * loadLocale to run Vocoder without the build plugin.
-	 */
-	manifest?: LocaleManifest;
-	/**
-	 * Initial translations for the starting locale. Required in manifest mode to seed
-	 * translations on first render without an async load. The key should match
-	 * initialLocale (or manifest.sourceLocale when initialLocale is absent).
-	 */
-	initialTranslations?: Record<string, string>;
-	/**
-	 * Locale loader for manifest mode. Called when the user switches locale.
-	 * Should return the translation map for the requested locale.
-	 * @example
-	 *   loadLocale={(locale) => import(`./locales/${locale}.json`).then(m => m.default)}
-	 */
-	loadLocale?: (locale: string) => Promise<Record<string, string>>;
 }
 
 export interface TProps {
