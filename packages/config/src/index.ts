@@ -19,9 +19,6 @@ export type Industry =
 	| "nonprofit"
 	| "other";
 
-/** @deprecated Use `Industry` */
-export type AppIndustry = Industry;
-
 /**
  * Translation formality level.
  * Can be set project-wide in vocoder.config.ts or overridden per-string
@@ -51,7 +48,6 @@ export interface VocoderConfig {
 	 * Synced to App at extraction time.
 	 */
 	industry?: Industry;
-	/** @deprecated Use `industry` */
 	appIndustry?: Industry;
 	/**
 	 * Project-wide default formality level for translations.

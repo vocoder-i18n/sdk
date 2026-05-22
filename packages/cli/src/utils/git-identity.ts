@@ -139,7 +139,6 @@ export function resolveGitRepositoryIdentity(): GitRepositoryIdentity | null {
 	};
 }
 
-/** Detect repo identity including appDir — use this instead of resolveGitRepositoryIdentity. */
 export function detectRepoIdentity(): GitRepositoryIdentity | null {
 	return resolveGitRepositoryIdentity();
 }

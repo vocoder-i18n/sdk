@@ -20,8 +20,3 @@ export type {
 	VocoderProviderProps,
 } from "./types";
 export { useVocoder, VocoderContext, VocoderProvider } from "./VocoderProvider";
-
-// NOTE: LocaleSelector is now exported from a separate entry point to avoid
-// bundling Radix UI and Lucide dependencies unless explicitly imported.
-// Import it like this:
-//   import { LocaleSelector } from '@vocoder/react/locale-selector';

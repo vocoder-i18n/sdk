@@ -44,7 +44,7 @@ describe("parseVocoderConfig", () => {
 		expect(config!.industry).toBe("legal");
 	});
 
-	it("maps legacy appIndustry field to industry", () => {
+	it("maps appIndustry field to industry", () => {
 		const source = `export default { appIndustry: "ecommerce" };`;
 		const config = parseVocoderConfig(source);
 		expect(config).not.toBeNull();

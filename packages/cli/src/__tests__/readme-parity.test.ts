@@ -7,7 +7,7 @@ const readme = readFileSync(join(cliRoot, "README.md"), "utf-8");
 const binSource = readFileSync(join(cliRoot, "src/bin.ts"), "utf-8");
 
 describe("README and CLI auth surface stay aligned", () => {
-	it("documents the auth namespace and removes legacy account commands", () => {
+	it("documents the auth namespace", () => {
 		expect(readme).toContain("### `vocoder auth login`");
 		expect(readme).toContain("### `vocoder auth status`");
 		expect(readme).toContain("### `vocoder auth logout`");

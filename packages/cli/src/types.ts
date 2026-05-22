@@ -74,24 +74,6 @@ export interface BatchTranslateRequestBody {
 	targetBranches?: string[];
 }
 
-/** @deprecated Use BatchTranslateRequestBody for POST /api/translate */
-export interface TranslateRequestBody {
-	branch: string;
-	commitSha?: string;
-	stringEntries: Array<{
-		key: string;
-		text: string;
-		context?: string;
-		formality?: string;
-		uiRole?: string;
-	}>;
-	targetLocales: string[];
-	sourceEntriesHash: string;
-	repoCanonical?: string;
-	repoAppDir?: string;
-	clientRunId?: string;
-}
-
 export interface AppTranslateStatus {
 	appDir: string;
 	appId: string;
@@ -112,15 +94,6 @@ export interface BatchTranslateStatusResponse {
 	jobId: string;
 	status: "pending" | "running" | "complete" | "failed";
 	apps: AppTranslateStatus[];
-}
-
-/** @deprecated Use BatchTranslateStatusResponse for GET /api/translate/:jobId/status */
-export interface TranslateStatusResponse {
-	status: "pending" | "running" | "complete" | "failed";
-	progress: { completed: number; total: number };
-	locales: Record<string, "pending" | "running" | "complete" | "failed">;
-	fingerprint?: string;
-	error?: string;
 }
 
 export type EffectiveSyncMode = "required" | "best-effort";
@@ -234,7 +207,6 @@ export interface SyncPolicyErrorResponse {
 	errorCode: "BRANCH_NOT_ALLOWED" | "PROJECT_REPOSITORY_MISMATCH";
 	message: string;
 	branch?: string;
-	// targetBranches removed
 	boundRepoLabel?: string | null;
 	boundScopePath?: string | null;
 }

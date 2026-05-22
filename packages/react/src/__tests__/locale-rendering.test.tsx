@@ -107,7 +107,6 @@ function renderWithVocoder(
 // "1uanpsy" = {value, select, male {his} female {her} other {their}}
 // "0x4ur6n" = {gender, select, male {He} female {She} other {They}} replied
 // "1ql9h40" = {count, selectordinal, other {#}}  ← DEFAULT_ORDINAL_ICU (locale-neutral)
-// old hash "0z8709g" was the English-suffix ICU; hash changed when constant was made locale-neutral
 // ---------------------------------------------------------------------------
 
 const RU: Record<string, string> = {
@@ -792,8 +791,7 @@ const EMBEDDED_ORDINAL_SOURCE =
 	"Your {year, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} result";
 
 describe("Bug 1: Embedded selectordinal — suffix-based rewrite (DE)", () => {
-	// Bundle contains a German translation with GARBAGE ordinal branches
-	// (simulating what DeepL stored before the fix).
+	// Bundle contains a German translation with GARBAGE ordinal branches.
 	const garbageDEBundle: Record<string, string> = {
 		[generateMessageHash(EMBEDDED_ORDINAL_SOURCE)]:
 			"Dein {year, selectordinal, one {GARBAGE_1er} other {GARBAGE_N.}} Ergebnis",
