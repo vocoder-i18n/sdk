@@ -1,9 +1,7 @@
-import { parse } from "@babel/parser";
-import babelTraverse from "@babel/traverse";
+import * as babel from "@babel/core";
+import * as t from "@babel/types";
 import { generateMessageHash } from "@vocoder/core";
 import { ALL_CLDR } from "./icu-builders";
-
-const traverse = (babelTraverse as any).default || babelTraverse;
 
 export interface TransformResult {
 	code: string;
@@ -16,8 +14,8 @@ export interface TransformResult {
  * elementCount      — tracks which numeric index the next JSX element child gets (<0>, <1>, …).
  * complexCount      — tracks which positional index the next complex expression gets ({0}, {1}, …).
  * namedVars         — all simple identifier names found (e.g. `{count}` → "count").
- * complexExprs      — source positions of complex expressions mapped to their positional key.
- *                     Used by transformMsgProps to reconstruct the values prop verbatim from source.
+ * complexExprs      — complex expression AST nodes mapped to their positional key.
+ *                     Used by transformMsgProps to build the values prop from the original nodes.
  * bail              — set to true when an unsupported expression is detected (nested <T>,
  *                     conditional/logical inside template literal). Caller must abort extraction.
  * tComponentNames   — names the T component is imported as; used to detect nested <T> elements.
@@ -26,7 +24,7 @@ export interface ExtractContext {
 	elementCount: number;
 	complexCount: number;
 	namedVars: Set<string>;
-	complexExprs: Array<{ key: number; start: number; end: number }>;
+	complexExprs: Array<{ key: number; node: t.Expression }>;
 	bail: boolean;
 	tComponentNames: Set<string>;
 }
@@ -90,7 +88,7 @@ export function extractTextContentFromNodes(
 						} else {
 							// Complex expression inside template literal — positional placeholder.
 							const key = ctx.complexCount++;
-							ctx.complexExprs.push({ key, start: e.start, end: e.end });
+							ctx.complexExprs.push({ key, node: e as t.Expression });
 							text += `{${key}}`;
 						}
 					}
@@ -105,7 +103,7 @@ export function extractTextContentFromNodes(
 			} else {
 				// Complex expression (MemberExpression, CallExpression, etc.) — positional placeholder.
 				const key = ctx.complexCount++;
-				ctx.complexExprs.push({ key, start: expr.start, end: expr.end });
+				ctx.complexExprs.push({ key, node: expr as t.Expression });
 				text += `{${key}}`;
 			}
 		} else if (child.type === "JSXElement") {
@@ -139,10 +137,10 @@ export function extractTextContentFromNodes(
  * This enables the natural authoring syntax:
  *   <T count={count}>You have {count} items</T>
  * to work correctly at runtime by injecting:
- *   <T count={count} message="You have {count} items">You have {count} items</T>
+ *   <T count={count} id="abc123" message="You have {count} items">You have {count} items</T>
  *
- * Uses targeted string insertion (no code regeneration) so original formatting
- * is fully preserved and source maps remain accurate.
+ * Uses babel.transformAsync() with a Babel plugin visitor so AST mutations are correct
+ * and inline source maps are generated automatically.
  *
  * Skips:
  * - Elements that already have message prop
@@ -159,159 +157,195 @@ export function extractTextContentFromNodes(
  * All frameworks share the same lookup-key convention (message prop + values object)
  * so extraction and runtime are identical regardless of framework.
  */
-export function transformMsgProps(code: string): TransformResult {
+export async function transformMsgProps(
+	code: string,
+	filename?: string,
+): Promise<TransformResult> {
 	if (!code.includes("@vocoder/react")) return { code, changed: false };
 
-	let ast: any;
+	let changed = false;
+
+	let result: babel.BabelFileResult | null;
 	try {
-		ast = parse(code, {
-			sourceType: "module",
-			plugins: ["jsx", "typescript"],
+		result = await babel.transformAsync(code, {
+			filename,
+			configFile: false,
+			babelrc: false,
+			parserOpts: { plugins: ["jsx", "typescript"] },
+			sourceMaps: "inline",
+			plugins: [
+				(): babel.PluginObj => {
+					const tComponentNames = new Set<string>();
+
+					return {
+						visitor: {
+							ImportDeclaration(path) {
+								if (path.node.source.value !== "@vocoder/react") return;
+								for (const spec of path.node.specifiers) {
+									if (
+										t.isImportSpecifier(spec) &&
+										t.isIdentifier(spec.imported) &&
+										spec.imported.name === "T"
+									) {
+										tComponentNames.add(spec.local.name);
+									}
+								}
+							},
+
+							JSXElement(path) {
+								if (tComponentNames.size === 0) return;
+
+								const opening = path.node.openingElement;
+								if (!t.isJSXIdentifier(opening.name)) return;
+								const tagName = opening.name.name;
+								if (!tComponentNames.has(tagName)) return;
+
+								// Skip if already has message prop
+								if (
+									opening.attributes.some(
+										(attr) =>
+											t.isJSXAttribute(attr) &&
+											t.isJSXIdentifier(attr.name) &&
+											attr.name.name === "message",
+									)
+								)
+									return;
+
+								// Skip if in plural/select mode (has CLDR, _N, or _word props)
+								if (
+									opening.attributes.some((attr) => {
+										if (!t.isJSXAttribute(attr) || !t.isJSXIdentifier(attr.name))
+											return false;
+										const n = attr.name.name;
+										return ALL_CLDR.has(n) || /^_\d+$/.test(n) || /^_[a-zA-Z]/.test(n);
+									})
+								)
+									return;
+
+								// Bail early on conditional/logical direct children — untranslatable as a unit.
+								const hasBailingExpr = path.node.children.some(
+									(child) =>
+										t.isJSXExpressionContainer(child) &&
+										(t.isConditionalExpression(child.expression) ||
+											t.isLogicalExpression(child.expression)),
+								);
+								if (hasBailingExpr) {
+									const line = path.node.loc?.start.line ?? "?";
+									console.warn(
+										`[vocoder] Conditional/logical expression in <T> at line ${line} — extract outside: {cond ? <T>A</T> : <T>B</T>}`,
+									);
+									return;
+								}
+
+								// Collect top-level JSX element children for the components prop.
+								const jsxElements: t.JSXElement[] = [];
+								for (const child of path.node.children) {
+									if (t.isJSXElement(child)) jsxElements.push(child);
+								}
+
+								// Extract template text and collect named/complex variable metadata.
+								const ctx: ExtractContext = {
+									elementCount: 0,
+									complexCount: 0,
+									namedVars: new Set(),
+									complexExprs: [],
+									bail: false,
+									tComponentNames,
+								};
+								const template = extractTextContentFromNodes(
+									path.node.children,
+									ctx,
+								).trim();
+								if (ctx.bail) {
+									const line = path.node.loc?.start.line ?? "?";
+									console.warn(
+										`[vocoder] Unsupported expression in <T> at line ${line} — could not extract template.`,
+									);
+									return;
+								}
+								if (!template) return;
+
+								// Nothing dynamic to inject — skip static-only strings (runtime extractText handles them).
+								if (
+									ctx.namedVars.size === 0 &&
+									jsxElements.length === 0 &&
+									ctx.complexExprs.length === 0
+								)
+									return;
+
+								const hash = generateMessageHash(template);
+								const escaped = template.replace(/"/g, "&quot;");
+
+								const newAttrs: t.JSXAttribute[] = [
+									t.jsxAttribute(t.jsxIdentifier("id"), t.stringLiteral(hash)),
+									t.jsxAttribute(
+										t.jsxIdentifier("message"),
+										t.stringLiteral(escaped),
+									),
+								];
+
+								// values={{ name, 0: user.name }}
+								if (ctx.namedVars.size > 0 || ctx.complexExprs.length > 0) {
+									const props: t.ObjectProperty[] = [
+										...[...ctx.namedVars].map((name) =>
+											// shorthand property: { name } instead of { name: name }
+											t.objectProperty(
+												t.identifier(name),
+												t.identifier(name),
+												false,
+												true,
+											),
+										),
+										...ctx.complexExprs.map(({ key, node }) =>
+											t.objectProperty(
+												t.numericLiteral(key),
+												t.cloneNode(node, true),
+											),
+										),
+									];
+									newAttrs.push(
+										t.jsxAttribute(
+											t.jsxIdentifier("values"),
+											t.jsxExpressionContainer(t.objectExpression(props)),
+										),
+									);
+								}
+
+								// components={[<Foo />, ...]} — self-closing version of each child JSX element
+								if (jsxElements.length > 0) {
+									const elements = jsxElements.map((child) =>
+										t.jsxElement(
+											t.jsxOpeningElement(
+												t.cloneNode(child.openingElement.name),
+												child.openingElement.attributes.map((a) =>
+													t.cloneNode(a, true),
+												),
+												true,
+											),
+											null,
+											[],
+											true,
+										),
+									);
+									newAttrs.push(
+										t.jsxAttribute(
+											t.jsxIdentifier("components"),
+											t.jsxExpressionContainer(t.arrayExpression(elements)),
+										),
+									);
+								}
+
+								opening.attributes.push(...newAttrs);
+								changed = true;
+							},
+						},
+					};
+				},
+			],
 		});
 	} catch {
 		return { code, changed: false };
 	}
 
-	const tComponentNames = new Set<string>();
-
-	traverse(ast, {
-		ImportDeclaration(path: any) {
-			if (path.node.source.value !== "@vocoder/react") return;
-			for (const spec of path.node.specifiers) {
-				if (
-					spec.type === "ImportSpecifier" &&
-					spec.imported.type === "Identifier" &&
-					spec.imported.name === "T"
-				) {
-					tComponentNames.add(spec.local.name);
-				}
-			}
-		},
-	});
-
-	if (tComponentNames.size === 0) return { code, changed: false };
-
-	interface Insertion {
-		position: number;
-		text: string;
-	}
-	const insertions: Insertion[] = [];
-
-	traverse(ast, {
-		JSXElement(path: any) {
-			const opening = path.node.openingElement;
-			const tagName =
-				opening.name.type === "JSXIdentifier" ? opening.name.name : null;
-			if (!tagName || !tComponentNames.has(tagName)) return;
-
-			// Skip if already has message prop
-			const hasMessageProp = opening.attributes.some(
-				(attr: any) =>
-					attr.type === "JSXAttribute" && attr.name.name === "message",
-			);
-			if (hasMessageProp) return;
-
-			// Skip if in plural/select mode (has CLDR, _N, or _word props)
-			const hasPluralSelectProps = opening.attributes.some((attr: any) => {
-				if (attr.type !== "JSXAttribute") return false;
-				const n = attr.name.name;
-				return ALL_CLDR.has(n) || /^_\d+$/.test(n) || /^_[a-zA-Z]/.test(n);
-			});
-			if (hasPluralSelectProps) return;
-
-			// Bail early on conditional/logical direct children — untranslatable as a unit.
-			const hasBailingExpr = path.node.children.some(
-				(child: any) =>
-					child.type === "JSXExpressionContainer" &&
-					(child.expression.type === "ConditionalExpression" ||
-						child.expression.type === "LogicalExpression"),
-			);
-			if (hasBailingExpr) {
-				const line = path.node.loc?.start.line ?? "?";
-				console.warn(
-					`[vocoder] Conditional/logical expression in <T> at line ${line} — extract outside: {cond ? <T>A</T> : <T>B</T>}`,
-				);
-				return;
-			}
-
-			// Collect top-level JSX element positions for the components prop.
-			interface ElementInfo {
-				openingStart: number;
-				openingEnd: number;
-				selfClosing: boolean;
-			}
-			const jsxElements: ElementInfo[] = [];
-			for (const child of path.node.children) {
-				if (child.type === "JSXElement") {
-					jsxElements.push({
-						openingStart: child.openingElement.start,
-						openingEnd: child.openingElement.end,
-						selfClosing: child.openingElement.selfClosing,
-					});
-				}
-			}
-
-			// Extract template text and collect named/complex variable metadata.
-			const ctx: ExtractContext = {
-				elementCount: 0,
-				complexCount: 0,
-				namedVars: new Set(),
-				complexExprs: [],
-				bail: false,
-				tComponentNames,
-			};
-			const template = extractTextContentFromNodes(path.node.children, ctx).trim();
-			if (ctx.bail) {
-				const line = path.node.loc?.start.line ?? "?";
-				console.warn(
-					`[vocoder] Unsupported expression in <T> at line ${line} — could not extract template.`,
-				);
-				return;
-			}
-			if (!template) return;
-
-			// Nothing dynamic to inject — skip static-only strings (runtime extractText handles them).
-			if (ctx.namedVars.size === 0 && jsxElements.length === 0 && ctx.complexExprs.length === 0) return;
-
-			const escaped = template.replace(/"/g, "&quot;");
-			const hash = generateMessageHash(template);
-
-			let insertText = ` id="${hash}" message="${escaped}"`;
-
-			const valuesParts: string[] = [
-				...[...ctx.namedVars],
-				...ctx.complexExprs.map(
-					({ key, start, end }) => `${key}: ${code.slice(start, end)}`,
-				),
-			];
-			if (valuesParts.length > 0) {
-				insertText += ` values={{ ${valuesParts.join(", ")} }}`;
-			}
-
-			if (jsxElements.length > 0) {
-				const componentParts = jsxElements.map(
-					({ openingStart, openingEnd, selfClosing }) => {
-						const openingTag = code.slice(openingStart, openingEnd);
-						if (selfClosing) return openingTag;
-						return openingTag.slice(0, -1).trimEnd() + " />";
-					},
-				);
-				insertText += ` components={[${componentParts.join(", ")}]}`;
-			}
-
-			const insertPos = opening.end - 1;
-			insertions.push({ position: insertPos, text: insertText });
-		},
-	});
-
-	if (insertions.length === 0) return { code, changed: false };
-
-	// Apply in reverse order so earlier positions aren't shifted
-	insertions.sort((a, b) => b.position - a.position);
-	let result = code;
-	for (const { position, text } of insertions) {
-		result = result.slice(0, position) + text + result.slice(position);
-	}
-
-	return { code: result, changed: true };
+	return { code: result?.code ?? code, changed };
 }

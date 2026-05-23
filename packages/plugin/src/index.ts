@@ -26,10 +26,10 @@ export const unplugin = createUnplugin(
 			// Injects id, message, values, and components props on <T> elements
 			// that have dynamic children — required for ergonomic authoring without
 			// explicit message and values props on every dynamic <T>.
-			transform(code: string) {
+			async transform(code: string, id: string) {
 				if (!code.includes("@vocoder/react")) return null;
 				try {
-					const result = transformMsgProps(code);
+					const result = await transformMsgProps(code, id);
 					return result.changed ? { code: result.code } : null;
 				} catch {
 					return null;

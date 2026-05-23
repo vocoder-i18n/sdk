@@ -1,5 +1,22 @@
 import { defineConfig } from "tsup";
 
+// @babel/core's config-file detector probes for @babel/preset-typescript to determine whether
+// .ts config files need TS parsing. Dead code with configFile:false, but esbuild statically
+// resolves all require() calls — stub it to prevent bundle failure.
+const stubUnreachableBabelProbes = {
+	name: "stub-unreachable-babel-probes",
+	setup(build: any) {
+		build.onResolve(
+			{ filter: /^@babel\/preset-typescript\/package\.json$/ },
+			() => ({ path: "@babel/preset-typescript/package.json", namespace: "babel-probe-stub" }),
+		);
+		build.onLoad({ filter: /.*/, namespace: "babel-probe-stub" }, () => ({
+			contents: "module.exports = {}",
+			loader: "js",
+		}));
+	},
+};
+
 export default defineConfig({
 	entry: {
 		index: "src/index.ts",
@@ -31,6 +48,7 @@ export default defineConfig({
 		"@babel/core",
 		"glob",
 	],
+	esbuildPlugins: [stubUnreachableBabelProbes],
 	esbuildOptions(options, { format }) {
 		if (format === "esm") {
 			// createRequire shim: bundled CJS deps call require() internally; needs ESM equivalent.
