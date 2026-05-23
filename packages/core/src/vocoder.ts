@@ -2,6 +2,7 @@ import {
 	applyOrdinalForms,
 	formatICU,
 } from "./icu";
+import { checkForUpdates, isRefreshAvailable } from "./cdn-refresh";
 import { generateMessageHash } from "./hash";
 import { getBestMatchingLocale } from "./cookies";
 import { manifestToLocalesMap } from "./manifest";
@@ -39,6 +40,7 @@ export interface VocoderState {
 export class VocoderCore {
 	private _locale = "";
 	private _defaultLocale = "";
+	private _fingerprint: string | undefined = undefined;
 	private _locales: LocalesMap = {};
 	private _translations: TranslationsMap = {};
 	private _loader: LocaleLoader | null = null;
@@ -50,6 +52,11 @@ export class VocoderCore {
 
 	get defaultLocale(): string {
 		return this._defaultLocale;
+	}
+
+	/** Present on Pro+ plans — signals live translation updates are available. */
+	get fingerprint(): string | undefined {
+		return this._fingerprint;
 	}
 
 	get locales(): LocalesMap {
@@ -72,6 +79,7 @@ export class VocoderCore {
 		this._loader = loader;
 		this._locales = manifestToLocalesMap(manifest);
 		this._defaultLocale = manifest.sourceLocale;
+		this._fingerprint = manifest.fingerprint;
 	}
 
 	/**
@@ -94,6 +102,7 @@ export class VocoderCore {
 
 		this._locale = best;
 		this._notify();
+		this._triggerRefresh(best);
 	}
 
 	/**
@@ -163,8 +172,21 @@ export class VocoderCore {
 	 * Suitable for React (`useReducer` force-render), Vue (`ref` updates), Angular
 	 * (`BehaviorSubject.next`), or any imperative subscriber.
 	 */
+	/**
+	 * Subscribe to locale changes. The callback fires after every `activate()` call.
+	 * Returns an unsubscribe function — call it to stop receiving notifications.
+	 *
+	 * Side effect: fires a background CDN check for the current locale on registration
+	 * (client-only, no-op in SSR). This covers the SSR + pre-activated singleton case
+	 * where `activate()` ran server-side and the client never calls it again.
+	 * Requests are deduplicated — at most one in-flight fetch per locale per session.
+	 *
+	 * Suitable for React (`useReducer` force-render), Vue (`ref` updates), Angular
+	 * (`BehaviorSubject.next`), or any imperative subscriber.
+	 */
 	onChange(fn: () => void): () => void {
 		this._listeners.add(fn);
+		this._triggerRefresh(this._locale);
 		return () => this._listeners.delete(fn);
 	}
 
@@ -203,6 +225,22 @@ export class VocoderCore {
 		for (const fn of [...this._listeners]) fn();
 	}
 
+	// Fire CDN refresh in background. No-op when: locale is empty, fingerprint absent,
+	// refresh unavailable, or SSR (window undefined — guarded inside checkForUpdates).
+	// inflightRequests dedup ensures at most one in-flight request per fingerprint+locale.
+	private _triggerRefresh(locale: string): void {
+		if (!locale || !this._fingerprint) return;
+		if (!isRefreshAvailable(this._fingerprint)) return;
+		const fingerprint = this._fingerprint;
+		checkForUpdates(locale, fingerprint).then((updated) => {
+			if (!updated) return;
+			this.seed(locale, updated);
+			this._notify();
+		}).catch(() => {
+			// CDN refresh errors are non-fatal — build-time translations remain active
+		});
+	}
+
 	/**
 	 * @internal For testing only.
 	 * Resets all state — locale, translations, manifest, listeners.
@@ -211,6 +249,7 @@ export class VocoderCore {
 	_reset(): void {
 		this._locale = "";
 		this._defaultLocale = "";
+		this._fingerprint = undefined;
 		this._locales = {};
 		this._translations = {};
 		this._loader = null;

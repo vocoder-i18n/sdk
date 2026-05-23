@@ -76,7 +76,8 @@ export interface LocaleManifest {
 	targetLocales: string[];
 	locales: Record<string, LocaleManifestEntry>;
 	updatedAt: string;
-	fingerprint: string;
+	/** Present only for Pro+ plans — signals live translation updates are available. */
+	fingerprint?: string;
 }
 
 export interface VocoderTranslationData {

@@ -1,6 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type LocaleLoader, createVocoder } from "../vocoder";
 import type { LocaleManifest } from "../types";
+
+vi.mock("../cdn-refresh", () => ({
+	checkForUpdates: vi.fn().mockResolvedValue(null),
+	isRefreshAvailable: vi.fn(() => false),
+}));
+
+import { checkForUpdates, isRefreshAvailable } from "../cdn-refresh";
 
 const enTranslations: Record<string, string> = {};
 const esTranslations: Record<string, string> = { "1w2u0qz": "Hola" }; // hash of "Hello"
@@ -302,6 +309,98 @@ describe("VocoderCore", () => {
 			await b.activate("en");
 			expect(a.locale).toBe("es");
 			expect(b.locale).toBe("en");
+		});
+	});
+
+	describe("_triggerRefresh / CDN integration", () => {
+		beforeEach(() => {
+			vi.mocked(checkForUpdates).mockReset().mockResolvedValue(null);
+			vi.mocked(isRefreshAvailable).mockReset().mockReturnValue(false);
+		});
+
+		it("does not call checkForUpdates when isRefreshAvailable returns false", async () => {
+			vi.mocked(isRefreshAvailable).mockReturnValue(false);
+			const core = createVocoder();
+			core.load(manifest, makeLoader());
+			await core.activate("en");
+			expect(checkForUpdates).not.toHaveBeenCalled();
+		});
+
+		it("calls checkForUpdates after activate() when refresh is available", async () => {
+			vi.mocked(isRefreshAvailable).mockReturnValue(true);
+			const core = createVocoder();
+			core.load(manifest, makeLoader());
+			await core.activate("en");
+			expect(checkForUpdates).toHaveBeenCalledWith("en", manifest.fingerprint);
+		});
+
+		it("calls checkForUpdates on onChange() registration when locale is already set", async () => {
+			vi.mocked(isRefreshAvailable).mockReturnValue(true);
+			const core = createVocoder();
+			core.load(manifest, makeLoader());
+			await core.activate("en");
+			vi.mocked(checkForUpdates).mockClear();
+			core.onChange(vi.fn());
+			expect(checkForUpdates).toHaveBeenCalledWith("en", manifest.fingerprint);
+		});
+
+		it("does not call checkForUpdates on onChange() when locale is not yet set", () => {
+			vi.mocked(isRefreshAvailable).mockReturnValue(true);
+			const core = createVocoder();
+			core.load(manifest, makeLoader());
+			// No activate() — locale is ""
+			core.onChange(vi.fn());
+			expect(checkForUpdates).not.toHaveBeenCalled();
+		});
+
+		it("CDN update seeds core and notifies listeners", async () => {
+			const cdnTranslations = { key: "CDN value" };
+			vi.mocked(isRefreshAvailable).mockReturnValue(true);
+			vi.mocked(checkForUpdates).mockResolvedValue(cdnTranslations);
+
+			const core = createVocoder();
+			core.load(manifest, makeLoader());
+			await core.activate("en");
+
+			// Wait for the fire-and-forget CDN .then() to resolve
+			await vi.runAllTimersAsync().catch(() => null);
+			await Promise.resolve();
+
+			expect(core.translations["en"]).toEqual(cdnTranslations);
+		});
+
+		it("CDN update notifies onChange listeners", async () => {
+			const cdnTranslations = { key: "CDN value" };
+			vi.mocked(isRefreshAvailable).mockReturnValue(true);
+			vi.mocked(checkForUpdates).mockResolvedValue(cdnTranslations);
+
+			const core = createVocoder();
+			core.load(manifest, makeLoader());
+			const listener = vi.fn();
+			core.onChange(listener);
+			listener.mockClear(); // clear initial activate() call
+
+			await core.activate("en");
+			await Promise.resolve(); // flush microtasks
+
+			// listener called once from activate's _notify(), then again from CDN seed
+			expect(listener.mock.calls.length).toBeGreaterThanOrEqual(1);
+		});
+
+		it("null CDN response does not seed or notify", async () => {
+			vi.mocked(isRefreshAvailable).mockReturnValue(true);
+			vi.mocked(checkForUpdates).mockResolvedValue(null);
+
+			const core = createVocoder();
+			core.load(manifest, makeLoader());
+			const listener = vi.fn();
+			core.onChange(listener);
+			await core.activate("en");
+			listener.mockClear();
+
+			await Promise.resolve();
+			// No extra notification — null means no update
+			expect(listener).not.toHaveBeenCalled();
 		});
 	});
 });

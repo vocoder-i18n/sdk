@@ -14,7 +14,6 @@ import {
 	vocoder as defaultVocoder,
 } from "@vocoder/core";
 import { type VocoderCore, createVocoder } from "@vocoder/core";
-import { checkForUpdates, isRefreshAvailable } from "./api-runtime";
 import {
 	createContext,
 	useCallback,
@@ -77,7 +76,12 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 	// Priority: explicit instance > manifest convenience props > default singleton.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally empty — core is created once on mount; re-creating on prop changes would reset all locale state
 	const core: VocoderCore = useMemo(() => {
-		if (instanceProp) return instanceProp;
+		if (instanceProp) {
+			if (initialTranslations && initialLocale) {
+				instanceProp.seed(initialLocale, initialTranslations);
+			}
+			return instanceProp;
+		}
 		if (manifest) {
 			// When manifest is provided, always create a dedicated core so locale data
 			// comes from this manifest, not whatever the default singleton has loaded.
@@ -89,6 +93,9 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 				c.seed(initialLocale, initialTranslations);
 			}
 			return c;
+		}
+		if (initialTranslations && initialLocale) {
+			defaultVocoder.seed(initialLocale, initialTranslations);
 		}
 		return defaultVocoder;
 	}, []);
@@ -162,7 +169,13 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 		() => hydration?.data?.defaultLocale ?? core.defaultLocale ?? "en",
 	);
 
-	const [isInitialized, setIsInitialized] = useState(false);
+	const [isInitialized, setIsInitialized] = useState(() => {
+		// Already settled if hydration data exists (SSR) or if core was pre-activated
+		// before this provider mounted (SPA singleton/instance pattern).
+		if (hydration?.data) return true;
+		const loc = core.locale;
+		return Boolean(loc && core.translations[loc] && Object.keys(core.translations[loc] ?? {}).length > 0);
+	});
 
 	// ── Sync ?vocoder=true|false query param → cookie → redirect ──────────
 	useEffect(() => {
@@ -200,29 +213,6 @@ export const VocoderProvider: React.FC<VocoderProviderProps> = ({
 		document.documentElement.dir = dir;
 		document.documentElement.lang = locale;
 	}, [enabled, applyDir, locale, locales]);
-
-	// ── Background CDN refresh ─────────────────────────────────────────────
-	// Fetches updated translations when locale has no build-time translations.
-	// CDN is a fallback for build-time misses only — skip when already loaded.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: translations and core.seed intentionally excluded — adding translations would cause an infinite loop (effect reads then sets translations)
-	useEffect(() => {
-		if (!enabled || !isRefreshAvailable || !isInitialized || !locale) return;
-
-		const built = translations[locale];
-		if (built && Object.keys(built).length > 0) return;
-
-		let cancelled = false;
-		checkForUpdates(locale).then((updated) => {
-			if (cancelled || !updated) return;
-			const merged = { ...translations, [locale]: updated };
-			core.seed(locale, updated);
-			setTranslations(merged);
-		});
-
-		return () => {
-			cancelled = true;
-		};
-	}, [enabled, locale, isInitialized]);
 
 	// ── Derived values ─────────────────────────────────────────────────────
 	const hasSettled = !enabled || isInitialized || Boolean(hydration?.data);

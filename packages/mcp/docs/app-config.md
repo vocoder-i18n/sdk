@@ -28,7 +28,7 @@ VOCODER_API_KEY=vcp_...
 
 The build plugin and CLI both read `VOCODER_API_KEY` from the environment. In CI/CD, set it as a secret environment variable.
 
-**Key format:** Project keys start with `vcp_`. The key encodes a short project identifier used to compute bundle fingerprints at build time.
+**Key format:** Project keys start with `vcp_`. The key encodes a short project identifier used to compute bundle fingerprints.
 
 **Generating a key:** Run `npx @vocoder/cli init` for first-time setup. For an existing app, run `npx @vocoder/cli regenerate-key` — requires admin or owner role.
 
@@ -78,18 +78,15 @@ The same `VOCODER_API_KEY` is used across all apps in the monorepo — set it on
 
 ## How the Build Plugin Identifies an App
 
-The build plugin does not read an `appId` from config. Instead it:
+The CLI does not read an `appId` from config. Instead it:
 
 1. Reads `VOCODER_API_KEY` and extracts the `projectShortId` embedded in the key
 2. Detects `appDir` — the path from the git root to the current working directory (empty string for single-app repos)
 3. Extracts all source strings from the project
 4. Computes a **fingerprint**: `sha256(projectShortId + ":" + appDir + ":" + sorted(keys)).slice(0, 12)`
-5. Fetches the translation bundle from the CDN at `{cdnUrl}/{fingerprint}/bundle.json`, falling back to the API at `/api/t/{fingerprint}`
+5. Submits strings to the API; the platform translates and commits `locales/manifest.json` (and locale JSON files) back to the repo via the GitHub Action
 
-This means:
-- No config file entry is needed to identify the app — the key + directory path are sufficient
-- Fingerprints are content-addressed: changing a string changes the fingerprint, triggering a new bundle fetch
-- Monorepo apps each get a distinct fingerprint because `appDir` differs
+The fingerprint is written into `manifest.json` by the platform after translation. On Pro+ plans it is included in the manifest and the SDK uses it to fetch live CDN updates. Fingerprints are content-addressed — changing a string changes the fingerprint. Monorepo apps each get a distinct fingerprint because `appDir` differs.
 
 ---
 
@@ -111,10 +108,10 @@ This means:
 
 **`VOCODER_API_KEY` not set** — the build plugin logs a warning and builds with source text only. Set the key in `.env` (local) or as a CI secret.
 
-**Wrong API key** — a key from a different project produces a different fingerprint and fetches the wrong bundle (or nothing). Each project has its own key.
+**Wrong API key** — a key from a different project produces a different fingerprint and the platform will not find matching translations. Each project has its own key.
 
 **`VOCODER_API_KEY` not set in CI** — the GitHub Actions workflow will fail to authenticate. Set the key as a repository secret (Settings → Secrets and variables → Actions → New repository secret, name: `VOCODER_API_KEY`).
 
 **Key rotated but MCP server not restarted** — `vocoder_config` and `vocoder_translate` return 401. Tell the user to update `VOCODER_API_KEY` in their MCP environment config and restart their editor (`/mcp reset`).
 
-**Monorepo app not found** — ensure the build runs from the app's directory (e.g. `apps/web`), not the repo root. The `appDir` in the fingerprint is relative to the git root, so cwd must be inside the correct subdirectory.
+**Monorepo app not found** — ensure `vocoder translate` runs from the app's directory (e.g. `apps/web`), not the repo root. The `appDir` in the fingerprint is relative to the git root, so cwd must be inside the correct subdirectory.

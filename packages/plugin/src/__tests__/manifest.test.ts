@@ -85,14 +85,36 @@ describe("plugin transformInclude", () => {
 describe("plugin vite config — define injection", () => {
 	it("injects __VOCODER_PREVIEW__ false by default", () => {
 		const plugin = createPlugin();
-		const config = (plugin as { vite?: { config?: () => unknown } }).vite?.config?.();
-		expect(config).toEqual({ define: { __VOCODER_PREVIEW__: "false" } });
+		const config = (plugin as { vite?: { config?: () => unknown } }).vite?.config?.() as {
+			define: Record<string, string>;
+		};
+		expect(config.define.__VOCODER_PREVIEW__).toBe("false");
 	});
 
 	it("injects __VOCODER_PREVIEW__ true when preview option is set", () => {
 		const plugin = createPlugin({ preview: true });
-		const config = (plugin as { vite?: { config?: () => unknown } }).vite?.config?.();
-		expect(config).toEqual({ define: { __VOCODER_PREVIEW__: "true" } });
+		const config = (plugin as { vite?: { config?: () => unknown } }).vite?.config?.() as {
+			define: Record<string, string>;
+		};
+		expect(config.define.__VOCODER_PREVIEW__).toBe("true");
+	});
+
+	it("injects CDN constants as 'undefined' string when env vars are absent", () => {
+		const plugin = createPlugin();
+		const config = (plugin as { vite?: { config?: () => unknown } }).vite?.config?.() as {
+			define: Record<string, string>;
+		};
+		expect(config.define.__VOCODER_CDN_URL__).toBe("undefined");
+		expect(config.define.__VOCODER_API_URL__).toBe("undefined");
+		expect(config.define.__VOCODER_PROJECT_SHORT_ID__).toBe("undefined");
+	});
+
+	it("injects __VOCODER_BUILD_TS__ as a numeric string", () => {
+		const plugin = createPlugin();
+		const config = (plugin as { vite?: { config?: () => unknown } }).vite?.config?.() as {
+			define: Record<string, string>;
+		};
+		expect(Number(config.define.__VOCODER_BUILD_TS__)).toBeGreaterThan(0);
 	});
 });
 

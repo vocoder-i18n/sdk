@@ -145,11 +145,15 @@ Each JSX child element becomes a numbered slot (`<0>`, `<1>`, etc.). The element
 
 ## Injected Constants
 
-The plugin defines one global constant at build time via Vite `define` / webpack `DefinePlugin`.
+The plugin defines these global constants at build time via Vite `define` / webpack `DefinePlugin`.
 
 | Constant | Type | Description |
 |---|---|---|
 | `__VOCODER_PREVIEW__` | `boolean` | `true` in preview mode. SDK shows source text instead of translations. |
+| `__VOCODER_CDN_URL__` | `string \| undefined` | CDN base URL for live translation bundles. Defaults to `https://t.vocoder.app`. Override via `VOCODER_CDN_URL` in your `.env` file (local dev only). |
+| `__VOCODER_API_URL__` | `string \| undefined` | Vocoder API base URL. Defaults to `https://vocoder.app`. Override via `VOCODER_API_URL` in your `.env` file (local dev only). |
+| `__VOCODER_BUILD_TS__` | `number` | Unix timestamp (ms) recorded at build start. Used as the `If-Modified-Since` reference for CDN conditional requests — prevents re-downloading unchanged translation bundles. |
+| `__VOCODER_PROJECT_SHORT_ID__` | `string \| undefined` | 8-character public project identifier extracted from `VOCODER_API_KEY`. Used to construct CDN and API bundle paths: `{cdnUrl}/{projectShortId}/{fingerprint}/{locale}.json`. Safe to include in browser bundles — not a secret. |
 
 ---
 
@@ -159,7 +163,7 @@ The plugin defines one global constant at build time via Vite `define` / webpack
 
 ```
 locales/
-  manifest.json        # Locale metadata and fingerprint
+  manifest.json        # Locale metadata (fingerprint included for paid plans with live translation updates via CDN)
   loader.js            # Dynamic import switch (generated)
   en.json              # Source locale (hash → string)
   fr.json              # Target locale
@@ -184,6 +188,8 @@ All files in this directory are auto-generated — commit them but do not edit m
   "fingerprint": "abc123def456"
 }
 ```
+
+`fingerprint` is present only on paid plans with live translation updates via CDN. The SDK uses it to fetch live translation updates from the CDN without a redeploy. On free plans the field is omitted and CDN refresh is disabled.
 
 ### loader.js shape
 
